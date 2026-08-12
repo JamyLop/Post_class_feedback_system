@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -9,19 +11,27 @@ from app.models.assignment import Assignment, AssignmentQuestion
 from app.models.grading import (
     CONFIDENCE_MANUAL_REVIEW,
     GRADING_STATUS_AI_COMPLETED,
+    GRADING_STATUS_CONFIRMED,
     GRADING_STATUS_MANUAL_REVIEW,
     GradingResult,
 )
-from app.models.knowledge import KnowledgePoint
+from app.models.knowledge import KnowledgePoint, StudentKnowledgeRecord
 from app.models.question import Question, QuestionKnowledgePoint
 from app.models.submission import (
     SUBMISSION_STATUS_AI_GRADED,
     SUBMISSION_STATUS_PROCESSING,
+    SUBMISSION_STATUS_TEACHER_REVIEWED,
     Submission,
     SubmissionAnswer,
 )
 from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
-from app.schemas.grading import SubmissionAnswerGradingOut, SubmissionGradingOut
+from app.schemas.grading import (
+    ConfirmGradingParams,
+    FlagGradingParams,
+    ReviewSubmissionOut,
+    SubmissionAnswerGradingOut,
+    SubmissionGradingOut,
+)
 from app.tasks.grading_tasks import grade_submission
 
 router = APIRouter(tags=["grading"])
@@ -201,3 +211,237 @@ def retry_grading(
     _grade_one(db, grading)
     db.commit()
     return _build_grading_out(db, sub.id)
+
+
+# ---------------------------------------------------------------------------
+# 阶段 4：教师复核
+# ---------------------------------------------------------------------------
+
+def _get_grading(db: Session, grading_id: int) -> GradingResult:
+    grading = db.get(GradingResult, grading_id)
+    if grading is None:
+        raise HTTPException(status_code=404, detail="批改记录不存在")
+    return grading
+
+
+def _get_grading_submission(db: Session, grading: GradingResult) -> Submission:
+    answer = db.get(SubmissionAnswer, grading.submission_answer_id)
+    if answer is None:
+        raise HTTPException(status_code=404, detail="答题记录不存在")
+    sub = db.get(Submission, answer.submission_id)
+    if sub is None:
+        raise HTTPException(status_code=404, detail="提交记录不存在")
+    return sub
+
+
+def _require_manage_grading(db: Session, grading: GradingResult, user: User) -> Submission:
+    sub = _get_grading_submission(db, grading)
+    if not _can_manage(db, sub, user):
+        raise HTTPException(status_code=403, detail="无权操作该提交")
+    return sub
+
+
+def _write_knowledge_records(
+    db: Session,
+    sub: Submission,
+    question: Question,
+    answer: SubmissionAnswer,
+    grading: GradingResult,
+) -> None:
+    """确认后写入原始学习轨迹。按 (学生, 作业, 题目) 先清后写，保证幂等。"""
+    db.query(StudentKnowledgeRecord).filter(
+        StudentKnowledgeRecord.student_id == sub.student_id,
+        StudentKnowledgeRecord.assignment_id == sub.assignment_id,
+        StudentKnowledgeRecord.question_id == question.id,
+    ).delete(synchronize_session=False)
+    qkp_rows = (
+        db.query(QuestionKnowledgePoint)
+        .filter(QuestionKnowledgePoint.question_id == question.id)
+        .all()
+    )
+    for qkp in qkp_rows:
+        db.add(
+            StudentKnowledgeRecord(
+                student_id=sub.student_id,
+                knowledge_point_id=qkp.knowledge_point_id,
+                question_id=question.id,
+                assignment_id=sub.assignment_id,
+                is_correct=answer.is_correct,
+                score=answer.score,
+                max_score=answer.max_score,
+                difficulty=question.difficulty,
+                error_type=grading.error_type,
+                answered_at=sub.submitted_at,
+            )
+        )
+
+
+def _confirm_one(
+    db: Session,
+    grading: GradingResult,
+    teacher_score: float | None = None,
+    teacher_comment: str = "",
+) -> None:
+    """确认单题批改：以教师分数为准（缺省沿用 AI 分数），同步 answer 并写知识点记录。"""
+    answer = db.get(SubmissionAnswer, grading.submission_answer_id)
+    if answer is None:
+        raise HTTPException(status_code=404, detail="答题记录不存在")
+    question = db.get(Question, answer.question_id)
+    if question is None:
+        raise HTTPException(status_code=404, detail="题目不存在")
+    max_score = answer.max_score or question.score or 0
+    final_score = teacher_score
+    if final_score is None:
+        final_score = grading.teacher_score
+    if final_score is None:
+        final_score = grading.ai_score
+    if final_score is None:
+        final_score = 0.0
+    final_score = round(float(final_score), 1)
+    if final_score < 0 or final_score > max_score + 1e-6:
+        raise HTTPException(status_code=400, detail=f"分数需在 0 ~ {max_score} 之间")
+
+    grading.teacher_score = final_score
+    grading.teacher_comment = teacher_comment or grading.teacher_comment
+    grading.status = GRADING_STATUS_CONFIRMED
+    grading.reviewed_at = datetime.now(timezone.utc)
+    answer.score = final_score
+    answer.is_correct = max_score > 0 and final_score >= max_score
+    db.flush()
+
+    sub = db.get(Submission, answer.submission_id)
+    if sub is not None:
+        _write_knowledge_records(db, sub, question, answer, grading)
+
+
+def _finalize_submission(db: Session, sub: Submission) -> None:
+    """该提交全部批改确认后，submission 进入 teacher_reviewed。"""
+    gradings = (
+        db.query(GradingResult)
+        .join(SubmissionAnswer, SubmissionAnswer.id == GradingResult.submission_answer_id)
+        .filter(SubmissionAnswer.submission_id == sub.id)
+        .all()
+    )
+    if gradings and all(g.status == GRADING_STATUS_CONFIRMED for g in gradings):
+        sub.status = SUBMISSION_STATUS_TEACHER_REVIEWED
+
+
+@router.get("/reviews", response_model=list[ReviewSubmissionOut])
+def list_review_queue(
+    review_status: str = "pending",
+    assignment_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(_manager),
+):
+    """教师复核队列。review_status=pending（有待确认）| confirmed（已全部确认）。"""
+    if review_status not in ("pending", "confirmed"):
+        raise HTTPException(status_code=400, detail="review_status 仅支持 pending/confirmed")
+    q = (
+        db.query(Submission, Assignment, User)
+        .join(Assignment, Assignment.id == Submission.assignment_id)
+        .join(User, User.id == Submission.student_id)
+    )
+    if user.role == ROLE_TEACHER:
+        q = q.filter(Assignment.teacher_id == user.id)
+    if assignment_id is not None:
+        q = q.filter(Submission.assignment_id == assignment_id)
+    rows = q.order_by(Submission.submitted_at.desc()).all()
+
+    out: list[ReviewSubmissionOut] = []
+    for sub, assignment, student in rows:
+        gradings = (
+            db.query(GradingResult)
+            .join(SubmissionAnswer, SubmissionAnswer.id == GradingResult.submission_answer_id)
+            .filter(SubmissionAnswer.submission_id == sub.id)
+            .all()
+        )
+        if not gradings:
+            continue
+        total = len(gradings)
+        confirmed = sum(1 for g in gradings if g.status == GRADING_STATUS_CONFIRMED)
+        state = "confirmed" if confirmed == total else "pending"
+        if state != review_status:
+            continue
+        answers = (
+            db.query(SubmissionAnswer)
+            .filter(SubmissionAnswer.submission_id == sub.id)
+            .all()
+        )
+        max_total = round(sum(a.max_score or 0 for a in answers), 1)
+        total_score = round(sum(a.score or 0 for a in answers), 1)
+        out.append(
+            ReviewSubmissionOut(
+                submission_id=sub.id,
+                assignment_id=assignment.id,
+                assignment_title=assignment.title,
+                student_id=student.id,
+                student_name=student.name,
+                content_type=sub.content_type,
+                status=sub.status,
+                total_score=total_score,
+                max_total=max_total,
+                answer_count=total,
+                confirmed_count=confirmed,
+                review_state=state,
+                submitted_at=sub.submitted_at,
+            )
+        )
+    return out
+
+
+@router.put("/gradings/{grading_id}/confirm", response_model=SubmissionGradingOut)
+def confirm_grading(
+    grading_id: int,
+    body: ConfirmGradingParams,
+    db: Session = Depends(get_db),
+    user: User = Depends(_manager),
+):
+    grading = _get_grading(db, grading_id)
+    sub = _require_manage_grading(db, grading, user)
+    _confirm_one(db, grading, body.teacher_score, body.teacher_comment)
+    _finalize_submission(db, sub)
+    db.commit()
+    return _build_grading_out(db, sub.id)
+
+
+@router.post("/gradings/{grading_id}/flag", response_model=SubmissionGradingOut)
+def flag_grading(
+    grading_id: int,
+    body: FlagGradingParams,
+    db: Session = Depends(get_db),
+    user: User = Depends(_manager),
+):
+    """标记异常：记录原因并保留为待复核（不确认）。"""
+    if not body.teacher_comment.strip():
+        raise HTTPException(status_code=400, detail="标记异常需填写原因")
+    grading = _get_grading(db, grading_id)
+    sub = _require_manage_grading(db, grading, user)
+    grading.teacher_comment = "【标记异常】" + body.teacher_comment.strip()
+    if grading.status != GRADING_STATUS_CONFIRMED:
+        grading.status = GRADING_STATUS_MANUAL_REVIEW
+    db.commit()
+    return _build_grading_out(db, sub.id)
+
+
+@router.post("/submissions/{submission_id}/confirm-all", response_model=SubmissionGradingOut)
+def confirm_all_grading(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_manager),
+):
+    """作业级一键确认：未确认的题沿用 AI 分数确认，然后整份进入 teacher_reviewed。"""
+    sub = _get_submission(db, submission_id)
+    if not _can_manage(db, sub, user):
+        raise HTTPException(status_code=403, detail="无权操作该提交")
+    gradings = (
+        db.query(GradingResult)
+        .join(SubmissionAnswer, SubmissionAnswer.id == GradingResult.submission_answer_id)
+        .filter(SubmissionAnswer.submission_id == submission_id)
+        .all()
+    )
+    for g in gradings:
+        if g.status != GRADING_STATUS_CONFIRMED:
+            _confirm_one(db, g)
+    _finalize_submission(db, sub)
+    db.commit()
+    return _build_grading_out(db, submission_id)

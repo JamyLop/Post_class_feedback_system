@@ -3,7 +3,7 @@
 > 更新日期：2026-08-12
 > 依据：《课后反馈系统 —— 具体实施计划.md》
 
-## 当前进度：阶段 0-3 已完成 ✅
+## 当前进度：阶段 0-4 已完成 ✅
 
 ### 阶段 0：项目初始化 ✅
 - [x] git 仓库初始化
@@ -92,9 +92,24 @@ D:\Redis-x64-3.2.100\Redis-x64-3.2.100\redis-server.exe --port 6379
 npm run dev   # http://localhost:5174
 ```
 
-## 后续计划（阶段 4-6）
+### 阶段 4：教师复核系统 ✅（对应实施计划第 4 周）
+后端：
+- [x] 新表 `student_knowledge_records`（原始学习轨迹，确认时写入；Alembic 迁移 `00e2fdc191e0`）
+- [x] `GET /api/reviews` 复核队列（`review_status=pending|confirmed`，可按作业过滤；教师仅见自己作业的提交，含进度 confirmed_count/answer_count）
+- [x] `PUT /api/gradings/{id}/confirm` 单题确认（可覆盖分数/评语，分数缺省沿用 AI；校验 0~满分；同步 answer 并写入知识点记录）
+- [x] `POST /api/gradings/{id}/flag` 标记异常（必填原因，前缀【标记异常】，保持待复核）
+- [x] `POST /api/submissions/{id}/confirm-all` 作业级一键确认（未确认题沿用 AI 分数）
+- [x] 确认后：该题 grading.status=confirmed、reviewed_at=now；整份全部确认 → submission.status=teacher_reviewed
+- [x] 知识点记录按 (学生,作业,题目) 先清后写，重复确认不产生重复数据
 
-- [ ] 阶段 4：教师复核系统（改分/评语/确认/重试/标记异常，确认后写入 student_knowledge_records）（对应第 4 周）
+前端：
+- [x] 教师复核中心页（待复核/已确认 Tab + 作业过滤 + 进度条）
+- [x] 逐题复核页：左侧题号导航（上一题/下一题）、题目/学生答案/标准答案/AI结果/错误点/置信度展示、教师改分/评语、确认本题、标记异常、重新AI批改、确认全部批改
+
+验收结果：`pytest` 27 个用例全绿（新增 `test_teacher_review.py` 7 个），前端 `npm run build` 通过。
+
+## 后续计划（阶段 5-6）
+
 - [ ] 阶段 5：学情分析（掌握度计算、student_knowledge_stats、ECharts 学生/班级学情）（对应第 5 周）
 - [ ] 阶段 6：Feedback Engine（结构化数据 → LLM 生成课后反馈）、异常处理/日志、部署（对应第 6 周）
 

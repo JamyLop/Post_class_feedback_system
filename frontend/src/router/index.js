@@ -15,6 +15,8 @@ const routes = [
       { path: 'teacher/assignments/new', component: () => import('../views/teacher/AssignmentEdit.vue') },
       { path: 'teacher/assignments/:id', component: () => import('../views/teacher/AssignmentDetail.vue') },
       { path: 'teacher/questions', component: () => import('../views/teacher/Questions.vue') },
+      { path: 'teacher/reviews', component: () => import('../views/teacher/Review.vue') },
+      { path: 'teacher/reviews/:submissionId', component: () => import('../views/teacher/ReviewSubmission.vue') },
       { path: 'teacher/assignments/:id/submissions', component: () => import('../views/teacher/AssignmentSubmissions.vue') },
     ],
   },
@@ -40,8 +42,16 @@ router.beforeEach((to) => {
   if (to.path !== '/login' && !auth.isLoggedIn) {
     return '/login'
   }
-  if (to.meta.role && auth.isLoggedIn && to.meta.role !== auth.role) {
-    return auth.role === 'teacher' ? '/teacher/assignments' : '/student/assignments'
+  const role = auth.role
+  if (to.meta.role) {
+    // 有 token 但角色数据陈旧/无效：登出并回登录页，避免守卫死循环白屏
+    if (!['teacher', 'student'].includes(role)) {
+      auth.logout()
+      return '/login'
+    }
+    if (to.meta.role !== role) {
+      return role === 'teacher' ? '/teacher/assignments' : '/student/assignments'
+    }
   }
   return true
 })

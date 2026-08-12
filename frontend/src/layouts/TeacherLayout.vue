@@ -5,6 +5,7 @@
       <el-menu :default-active="$route.path" router background-color="#001529" text-color="#ccc" active-text-color="#fff">
         <el-menu-item index="/teacher/assignments">作业管理</el-menu-item>
         <el-menu-item index="/teacher/questions">题库</el-menu-item>
+        <el-menu-item index="/teacher/reviews">教师复核</el-menu-item>
         <el-menu-item index="/teacher/classes">班级管理</el-menu-item>
       </el-menu>
     </el-aside>

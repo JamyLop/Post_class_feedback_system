@@ -4,6 +4,35 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
+class ConfirmGradingParams(BaseModel):
+    """教师复核单题：可覆盖分数、补充评语。分数缺省沿用 AI 分数。"""
+
+    teacher_score: float | None = None
+    teacher_comment: str = ""
+
+
+class FlagGradingParams(BaseModel):
+    """标记异常：教师认为 AI 结果不可信，需记录原因。"""
+
+    teacher_comment: str = ""
+
+
+class ReviewSubmissionOut(BaseModel):
+    submission_id: int
+    assignment_id: int
+    assignment_title: str
+    student_id: int
+    student_name: str
+    content_type: str
+    status: str
+    total_score: float | None
+    max_total: float
+    answer_count: int
+    confirmed_count: int
+    review_state: str
+    submitted_at: datetime
+
+
 class GradingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
