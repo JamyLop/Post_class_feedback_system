@@ -3,7 +3,31 @@
 > 更新日期：2026-08-12
 > 依据：《课后反馈系统 —— 具体实施计划.md》
 
-## 当前进度：阶段 0-4 已完成 ✅ + 安全基线 ✅
+## 当前进度：阶段 0-5 已完成 ✅ + 安全基线 ✅
+
+### 阶段 5：学情分析 ✅（对应实施计划第 5 周）
+后端：
+- [x] 新表 `student_knowledge_stats`（掌握度聚合表，(学生,知识点) 唯一；Alembic 迁移 `8cede53c312e`）
+- [x] `app/analytics/` 聚合服务：`recompute_student_stats` 按原始轨迹重算；`mastery_score = correct/(correct+wrong)`；趋势按前后半段正确率切分（up/down/stable/new）
+- [x] 教师确认批改（单题确认 / confirm-all）后自动增量重算该学生受影响知识点的掌握度
+- [x] 读接口兜底：学生有轨迹无聚合行时自动全量重算；`POST /students/{id}/knowledge-stats/recompute` 教师可手动重算
+- [x] API：
+  - `GET /students/{id}/knowledge-stats` 学生知识点掌握度
+  - `GET /students/{id}/weak-points?top_n&min_records` 薄弱知识点 TOP N
+  - `GET /students/{id}/learning-trend` 成绩趋势（按已确认作业得分率）
+  - `GET /students/{id}/repeated-errors` 重复错误类型聚合
+  - `GET /assignments/{id}/analysis` 单次作业分析（平均分/分布/各题正确率/薄弱点/共性错误）
+  - `GET /classes/{id}/analytics` 班级学情（平均分/成绩分布/知识点正确率/薄弱排行/共性错误/未提交学生）
+- [x] 权限：学生仅能看自己；教师查询学生学情必须指定自己班级，所有统计按作业班级隔离；admin 全量
+
+前端（ECharts）：
+- [x] 通用图表组件 `components/EChart.vue`
+- [x] 教师端学生学情页：班级+学生筛选、成绩趋势折线、知识点掌握度条形图、薄弱点 TOP5、重复错误
+- [x] 教师端班级学情页：平均分/提交数、成绩分布、知识点整体正确率、班级薄弱排行、共性错误、未提交学生
+- [x] 教师端单次作业分析页：作业列表"分析"入口、平均分/及格率/题目数卡片、成绩分布、各题正确率、本作业薄弱点、错误类型
+- [x] 学生端我的学情页：个人趋势 + 掌握度 + 薄弱点
+
+验收结果：`pytest` 45 个用例全绿（`test_analytics.py` 10 个，覆盖跨班级隔离、未提交学生、趋势、正确率和重复错误），前端 `npm run build` 通过；本机端到端冒烟通过：学生提交 → AI 批改 → 教师 confirm-all → knowledge-stats/weak-points/learning-trend/repeated-errors/assignment-analysis/class-analytics 均返回正确数据。
 
 ### 阶段 0：项目初始化 ✅
 - [x] git 仓库初始化
@@ -124,9 +148,8 @@ npm run dev   # http://localhost:5174
 
 联调验证：教师建作业 → 学生提交 → AI 批改 → 教师复核全链路通过；5 项安全检查实测全部符合预期（学生不见答案、匿名 401、教师 403、复核后 409、截止后 409）。
 
-## 后续计划（阶段 5-6）
+## 后续计划（阶段 6）
 
-- [ ] 阶段 5：学情分析（掌握度计算、student_knowledge_stats、ECharts 学生/班级学情）（对应第 5 周）
 - [ ] 阶段 6：Feedback Engine（结构化数据 → LLM 生成课后反馈）、异常处理/日志、部署（对应第 6 周）
 
 ## 已知技术选型（与用户确认）

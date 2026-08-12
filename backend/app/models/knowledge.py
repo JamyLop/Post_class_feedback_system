@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -63,5 +63,29 @@ class StudentKnowledgeRecord(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class StudentKnowledgeStat(Base):
+    """知识点掌握度聚合表（阶段 5）。
+
+    教师确认批改后由原始轨迹重算写入；读接口直接查此表保证性能。
+    第一版 mastery_score = correct_count / (correct_count + wrong_count)。
+    """
+
+    __tablename__ = "student_knowledge_stats"
+    __table_args__ = (UniqueConstraint("student_id", "knowledge_point_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    knowledge_point_id: Mapped[int] = mapped_column(
+        ForeignKey("knowledge_points.id"), index=True
+    )
+    correct_count: Mapped[int] = mapped_column(Integer, default=0)
+    wrong_count: Mapped[int] = mapped_column(Integer, default=0)
+    mastery_score: Mapped[float] = mapped_column(Float, default=0.0)
+    trend: Mapped[str] = mapped_column(String(16), default="new")
+    last_updated: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

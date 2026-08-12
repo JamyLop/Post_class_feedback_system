@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
+    analytics,
     assignments,
     classes,
     grading,
@@ -39,6 +40,7 @@ app.include_router(questions.router, prefix=settings.api_prefix)
 app.include_router(assignments.router, prefix=settings.api_prefix)
 app.include_router(submissions.router, prefix=settings.api_prefix)
 app.include_router(grading.router, prefix=settings.api_prefix)
+app.include_router(analytics.router, prefix=settings.api_prefix)
 
 
 @app.get("/api/health")

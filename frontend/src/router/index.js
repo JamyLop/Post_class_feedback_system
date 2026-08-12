@@ -18,6 +18,9 @@ const routes = [
       { path: 'teacher/reviews', component: () => import('../views/teacher/Review.vue') },
       { path: 'teacher/reviews/:submissionId', component: () => import('../views/teacher/ReviewSubmission.vue') },
       { path: 'teacher/assignments/:id/submissions', component: () => import('../views/teacher/AssignmentSubmissions.vue') },
+      { path: 'teacher/assignments/:id/analysis', component: () => import('../views/teacher/AssignmentAnalysis.vue') },
+      { path: 'teacher/student-analytics', component: () => import('../views/teacher/StudentAnalytics.vue') },
+      { path: 'teacher/class-analytics', component: () => import('../views/teacher/ClassAnalytics.vue') },
     ],
   },
   {
@@ -28,6 +31,7 @@ const routes = [
       { path: 'student/assignments', component: () => import('../views/student/Assignments.vue') },
       { path: 'student/assignments/:id', component: () => import('../views/student/AssignmentDetail.vue') },
       { path: 'student/submissions/:id', component: () => import('../views/student/SubmissionResult.vue') },
+      { path: 'student/my-analytics', component: () => import('../views/student/MyAnalytics.vue') },
     ],
   },
 ]

@@ -17,10 +17,11 @@
           <el-tag :type="statusMap[row.status] || 'info'">{{ statusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220">
+      <el-table-column label="操作" width="280">
         <template #default="{ row }">
           <el-button link type="primary" @click="$router.push(`/teacher/assignments/${row.id}`)">详情</el-button>
           <el-button link type="primary" @click="$router.push(`/teacher/assignments/${row.id}/submissions`)">提交</el-button>
+          <el-button link type="primary" @click="$router.push(`/teacher/assignments/${row.id}/analysis`)">分析</el-button>
         </template>
       </el-table-column>
     </el-table>

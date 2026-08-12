@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
+from app.analytics.service import recompute_student_stats
 from app.core.database import get_db
 from app.grading.router import router as grading_router
 from app.grading.schemas import GradeParams
@@ -247,8 +248,11 @@ def _write_knowledge_records(
     question: Question,
     answer: SubmissionAnswer,
     grading: GradingResult,
-) -> None:
-    """确认后写入原始学习轨迹。按 (学生, 作业, 题目) 先清后写，保证幂等。"""
+) -> list[int]:
+    """确认后写入原始学习轨迹。按 (学生, 作业, 题目) 先清后写，保证幂等。
+
+    返回受影响的知识点 id，供掌握度增量重算。
+    """
     db.query(StudentKnowledgeRecord).filter(
         StudentKnowledgeRecord.student_id == sub.student_id,
         StudentKnowledgeRecord.assignment_id == sub.assignment_id,
@@ -274,6 +278,7 @@ def _write_knowledge_records(
                 answered_at=sub.submitted_at,
             )
         )
+    return [qkp.knowledge_point_id for qkp in qkp_rows]
 
 
 def _confirm_one(
@@ -311,7 +316,10 @@ def _confirm_one(
 
     sub = db.get(Submission, answer.submission_id)
     if sub is not None:
-        _write_knowledge_records(db, sub, question, answer, grading)
+        kp_ids = _write_knowledge_records(db, sub, question, answer, grading)
+        db.flush()
+        # 阶段 5：确认后增量更新该学生的知识点掌握度聚合
+        recompute_student_stats(db, sub.student_id, kp_ids)
 
 
 def _finalize_submission(db: Session, sub: Submission) -> None:

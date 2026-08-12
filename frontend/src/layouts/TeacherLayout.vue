@@ -6,6 +6,8 @@
         <el-menu-item index="/teacher/assignments">作业管理</el-menu-item>
         <el-menu-item index="/teacher/questions">题库</el-menu-item>
         <el-menu-item index="/teacher/reviews">教师复核</el-menu-item>
+        <el-menu-item index="/teacher/student-analytics">学生学情</el-menu-item>
+        <el-menu-item index="/teacher/class-analytics">班级学情</el-menu-item>
         <el-menu-item index="/teacher/classes">班级管理</el-menu-item>
       </el-menu>
     </el-aside>

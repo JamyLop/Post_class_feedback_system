@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from typing import Any
+
+from sqlalchemy import select, ColumnElement
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.grading.base import GradeResult
@@ -24,7 +26,7 @@ from app.models.submission import (
 from app.tasks.celery_app import celery_app
 
 
-def _knowledge_point_names(db: Session, question_id: int) -> list[str]:
+def _knowledge_point_names(db: Session, question_id: int) -> list[ColumnElement[Any]]:
     rows = (
         db.query(KnowledgePoint.name)
         .join(QuestionKnowledgePoint, QuestionKnowledgePoint.knowledge_point_id == KnowledgePoint.id)
