@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,7 +17,7 @@ class AssignmentUpdate(BaseModel):
     subject: str | None = None
     description: str | None = None
     due_at: datetime | None = None
-    status: str | None = None
+    status: Literal["draft", "published", "closed", "archived"] | None = None
 
 
 class AssignmentOut(BaseModel):
@@ -49,7 +50,8 @@ class AssignmentQuestionOut(BaseModel):
     question_type: str
     content: str
     score: float
-    standard_answer: str
+    # 学生接口返回 None，避免在作答前泄露标准答案。
+    standard_answer: str | None = None
 
 
 class AssignmentDetail(AssignmentOut):

@@ -76,7 +76,7 @@ def create_question(
     return _to_detail(db, question)
 
 
-@router.get("", response_model=list[QuestionOut])
+@router.get("", response_model=list[QuestionOut], dependencies=[Depends(_manager)])
 def list_questions(
     question_type: str | None = Query(default=None),
     keyword: str = Query(default="", max_length=64),
@@ -90,12 +90,12 @@ def list_questions(
     return q.order_by(Question.id.desc()).limit(200).all()
 
 
-@router.get("/{question_id}", response_model=QuestionDetail)
+@router.get("/{question_id}", response_model=QuestionDetail, dependencies=[Depends(_manager)])
 def get_question(question_id: int, db: Session = Depends(get_db)):
     question = db.get(Question, question_id)
     if question is None:
         raise HTTPException(status_code=404, detail="题目不存在")
-    return question
+    return _to_detail(db, question)
 
 
 @router.put("/{question_id}", response_model=QuestionDetail)

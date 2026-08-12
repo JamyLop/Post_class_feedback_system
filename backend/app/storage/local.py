@@ -19,7 +19,7 @@ class LocalStorage:
 
     def _path(self, object_name: str) -> Path:
         p = (self.root / object_name).resolve()
-        if not str(p).startswith(str(self.root)):
+        if not p.is_relative_to(self.root):
             raise HTTPException(status_code=400, detail="非法的存储路径")
         return p
 

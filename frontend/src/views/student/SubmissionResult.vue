@@ -13,7 +13,7 @@
         </el-descriptions-item>
         <el-descriptions-item label="提交时间">{{ submission.submitted_at }}</el-descriptions-item>
         <el-descriptions-item label="文件" :span="2">
-          <el-link v-if="submission.content_url" :href="'/api/storage/files/' + submission.content_url" target="_blank" type="primary">查看提交文件</el-link>
+          <el-button v-if="submission.content_url" link type="primary" @click="openSubmissionFile(submission.content_url)">查看提交文件</el-button>
           <span v-else>—</span>
         </el-descriptions-item>
       </el-descriptions>
@@ -55,7 +55,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getSubmission, getSubmissionGrading } from '../../api/submissions'
+import { getSubmission, getSubmissionGrading, openSubmissionFile } from '../../api/submissions'
 
 const route = useRoute()
 const submission = ref(null)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
+from fastapi.responses import RedirectResponse
 
 from app.core.config import settings
 from app.storage.local import LocalStorage
@@ -35,4 +36,7 @@ def serve_file(object_name: str):
     backend = _get()
     if isinstance(backend, LocalStorage):
         return backend.file_response(object_name)
-    raise HTTPException(status_code=404, detail="存储后端不支持直读文件")
+    url = backend.presigned_url(object_name)
+    if not url:
+        raise HTTPException(status_code=404, detail="文件不存在或暂时无法访问")
+    return RedirectResponse(url=url, status_code=307)

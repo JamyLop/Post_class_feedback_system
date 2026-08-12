@@ -14,7 +14,6 @@ from app.api import (
 )
 from app.auth.router import router as auth_router
 from app.core.config import settings
-from app.storage import serve_file
 
 
 @asynccontextmanager
@@ -40,11 +39,6 @@ app.include_router(questions.router, prefix=settings.api_prefix)
 app.include_router(assignments.router, prefix=settings.api_prefix)
 app.include_router(submissions.router, prefix=settings.api_prefix)
 app.include_router(grading.router, prefix=settings.api_prefix)
-
-
-@app.get("/api/storage/files/{path:path}")
-def storage_file(path: str):
-    return serve_file(path)
 
 
 @app.get("/api/health")

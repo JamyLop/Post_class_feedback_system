@@ -24,7 +24,7 @@
       <el-table-column prop="submitted_at" label="提交时间" />
       <el-table-column label="文件" width="100">
         <template #default="{ row }">
-          <el-link v-if="row.content_url" :href="'/api/storage/files/' + row.content_url" target="_blank" type="primary">查看</el-link>
+          <el-button v-if="row.content_url" link type="primary" @click="openSubmissionFile(row.content_url)">查看</el-button>
           <span v-else>—</span>
         </template>
       </el-table-column>
@@ -83,7 +83,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getSubmissionGrading, listSubmissions, retryGrading } from '../../api/submissions'
+import { getSubmissionGrading, listSubmissions, openSubmissionFile, retryGrading } from '../../api/submissions'
 
 const route = useRoute()
 const submissions = ref([])

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     minio_bucket: str = "submissions"
     minio_secure: bool = False
     local_storage_dir: str = "local_storage"
+    max_upload_bytes: int = 10 * 1024 * 1024
 
     llm_provider: str = "mock"
     llm_base_url: str = "https://api.openai.com/v1"

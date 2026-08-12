@@ -1,5 +1,8 @@
 import json
+import logging
+from datetime import datetime, timezone
 
+from celery.exceptions import Retry
 from fastapi import (
     APIRouter,
     Depends,
@@ -11,6 +14,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.assignment import (
     ASSIGNMENT_STATUS_PUBLISHED,
@@ -19,22 +23,58 @@ from app.models.assignment import (
 )
 from app.models.class_ import ClassStudent
 from app.models.question import Question
+from app.models.grading import GRADING_STATUS_CONFIRMED, GradingResult
 from app.models.submission import (
+    SUBMISSION_STATUS_COMPLETED,
+    SUBMISSION_STATUS_FAILED,
     SUBMISSION_STATUS_PROCESSING,
     SUBMISSION_STATUS_SUBMITTED,
+    SUBMISSION_STATUS_TEACHER_REVIEWED,
     Submission,
     SubmissionAnswer,
 )
-from app.models.user import ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
 from app.schemas.submission import SubmissionOut
-from app.storage import upload_bytes
+from app.storage import serve_file, upload_bytes
 from app.tasks.grading_tasks import grade_submission
 from app.tasks.ocr_tasks import ocr_submission
 
 router = APIRouter(tags=["submissions"])
+logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = {"text", "image", "pdf"}
 EXT_MAP = {"image": ".png", "pdf": ".pdf"}
+
+
+def _validate_upload(content_type: str, data: bytes) -> None:
+    if len(data) > settings.max_upload_bytes:
+        limit_mb = settings.max_upload_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"上传文件不能超过 {limit_mb} MB")
+    if content_type == "pdf":
+        if not data.startswith(b"%PDF-"):
+            raise HTTPException(status_code=400, detail="上传内容不是有效 PDF")
+        return
+    image_signatures = (
+        data.startswith(b"\x89PNG\r\n\x1a\n"),
+        data.startswith(b"\xff\xd8\xff"),
+        data.startswith((b"GIF87a", b"GIF89a")),
+        len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP",
+    )
+    if not any(image_signatures):
+        raise HTTPException(status_code=400, detail="仅支持 PNG、JPEG、GIF 或 WebP 图片")
+
+
+def _enqueue_or_mark_failed(db: Session, submission: Submission, task) -> None:
+    """Broker 不可用时保留提交并明确标记失败，避免已落库却返回 500。"""
+    try:
+        task.delay(submission.id)
+    except Retry:
+        # Celery eager 测试会把 Worker 的重试信号同步抛回；不能误判为 Broker 故障。
+        raise
+    except Exception:
+        logger.exception("提交 %s 的异步任务投递失败", submission.id)
+        submission.status = SUBMISSION_STATUS_FAILED
+        db.commit()
 
 
 def _ensure_student(user: User) -> None:
@@ -77,6 +117,12 @@ def submit_assignment(
     if assignment.status != ASSIGNMENT_STATUS_PUBLISHED:
         raise HTTPException(status_code=400, detail="作业未发布或已关闭")
     _ensure_member(db, assignment, user)
+    if assignment.due_at is not None:
+        due_at = assignment.due_at
+        if due_at.tzinfo is None:
+            due_at = due_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > due_at:
+            raise HTTPException(status_code=409, detail="作业已截止，不能继续提交")
 
     # 覆盖式提交：删除该学生此前提交，重新生成
     old = (
@@ -88,6 +134,24 @@ def submit_assignment(
         .first()
     )
     if old is not None:
+        has_confirmed = (
+            db.query(GradingResult.id)
+            .join(
+                SubmissionAnswer,
+                SubmissionAnswer.id == GradingResult.submission_answer_id,
+            )
+            .filter(
+                SubmissionAnswer.submission_id == old.id,
+                GradingResult.status == GRADING_STATUS_CONFIRMED,
+            )
+            .first()
+            is not None
+        )
+        if old.status in (
+            SUBMISSION_STATUS_TEACHER_REVIEWED,
+            SUBMISSION_STATUS_COMPLETED,
+        ) or has_confirmed:
+            raise HTTPException(status_code=409, detail="教师已开始复核，不能覆盖提交")
         db.delete(old)
         db.flush()
 
@@ -108,9 +172,10 @@ def submit_assignment(
     else:
         if file is None:
             raise HTTPException(status_code=400, detail="请上传作业文件")
-        data = file.file.read()
+        data = file.file.read(settings.max_upload_bytes + 1)
         if not data:
             raise HTTPException(status_code=400, detail="上传文件为空")
+        _validate_upload(content_type, data)
         key = upload_bytes(
             data,
             file.content_type or "application/octet-stream",
@@ -127,11 +192,32 @@ def submit_assignment(
 
     if content_type in ("image", "pdf"):
         # OCR 完成后由 ocr_submission 任务接着触发批改，避免竞态
-        ocr_submission.delay(submission.id)
+        _enqueue_or_mark_failed(db, submission, ocr_submission)
     else:
-        grade_submission.delay(submission.id)
+        _enqueue_or_mark_failed(db, submission, grade_submission)
 
     return submission
+
+
+@router.get("/storage/files/{path:path}")
+def storage_file(
+    path: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """仅提交者、所属作业教师和管理员可以读取学生作业文件。"""
+    submission = db.query(Submission).filter(Submission.content_url == path).first()
+    if submission is None:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    if user.role == ROLE_STUDENT and submission.student_id != user.id:
+        raise HTTPException(status_code=403, detail="无权查看该文件")
+    if user.role == ROLE_TEACHER:
+        assignment = db.get(Assignment, submission.assignment_id)
+        if assignment is None or assignment.teacher_id != user.id:
+            raise HTTPException(status_code=403, detail="无权查看该文件")
+    if user.role not in (ROLE_ADMIN, ROLE_TEACHER, ROLE_STUDENT):
+        raise HTTPException(status_code=403, detail="无权查看该文件")
+    return serve_file(path)
 
 
 def _create_answers(

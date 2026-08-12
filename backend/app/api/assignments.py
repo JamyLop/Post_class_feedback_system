@@ -84,7 +84,8 @@ def list_assignments(
             Assignment.status.in_([ASSIGNMENT_STATUS_PUBLISHED]),
         )
     rows = q.order_by(Assignment.id.desc()).all()
-    return [_to_detail(db, a) for a in rows]
+    include_standard_answer = user.role != ROLE_STUDENT
+    return [_to_detail(db, a, include_standard_answer) for a in rows]
 
 
 @router.get("/{assignment_id}", response_model=AssignmentDetail)
@@ -95,6 +96,8 @@ def get_assignment(
 ):
     a = _get_assignment(db, assignment_id)
     if user.role == ROLE_STUDENT:
+        if a.status != ASSIGNMENT_STATUS_PUBLISHED:
+            raise HTTPException(status_code=403, detail="无权查看未发布作业")
         member = (
             db.query(ClassStudent)
             .filter(
@@ -105,7 +108,9 @@ def get_assignment(
         )
         if member is None:
             raise HTTPException(status_code=403, detail="无权查看该作业")
-    return _to_detail(db, a)
+    elif user.role == ROLE_TEACHER:
+        _check_teacher_owns(db, a, user)
+    return _to_detail(db, a, user.role != ROLE_STUDENT)
 
 
 @router.put("/{assignment_id}", response_model=AssignmentDetail)
@@ -178,6 +183,8 @@ def list_assignment_questions(
 ):
     a = _get_assignment(db, assignment_id)
     if user.role == ROLE_STUDENT:
+        if a.status != ASSIGNMENT_STATUS_PUBLISHED:
+            raise HTTPException(status_code=403, detail="无权查看未发布作业")
         member = (
             db.query(ClassStudent)
             .filter(
@@ -188,6 +195,9 @@ def list_assignment_questions(
         )
         if member is None:
             raise HTTPException(status_code=403, detail="无权查看该作业")
+    elif user.role == ROLE_TEACHER:
+        _check_teacher_owns(db, a, user)
+    include_standard_answer = user.role != ROLE_STUDENT
     return [
         AssignmentQuestionOut(
             id=q.question_id,
@@ -195,14 +205,18 @@ def list_assignment_questions(
             question_type=q_question.question_type,
             content=q_question.content,
             score=q_question.score,
-            standard_answer=q_question.standard_answer,
+            standard_answer=(q_question.standard_answer if include_standard_answer else None),
         )
         for q in sorted(a.questions, key=lambda x: x.question_order)
         for q_question in [db.get(Question, q.question_id)]
     ]
 
 
-def _to_detail(db: Session, a: Assignment) -> AssignmentDetail:
+def _to_detail(
+    db: Session,
+    a: Assignment,
+    include_standard_answer: bool = True,
+) -> AssignmentDetail:
     questions = []
     for aq in sorted(a.questions, key=lambda x: x.question_order):
         q = db.get(Question, aq.question_id)
@@ -215,7 +229,7 @@ def _to_detail(db: Session, a: Assignment) -> AssignmentDetail:
                 question_type=q.question_type,
                 content=q.content,
                 score=q.score,
-                standard_answer=q.standard_answer,
+                standard_answer=(q.standard_answer if include_standard_answer else None),
             )
         )
     return AssignmentDetail(

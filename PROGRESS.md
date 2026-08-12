@@ -3,7 +3,7 @@
 > 更新日期：2026-08-12
 > 依据：《课后反馈系统 —— 具体实施计划.md》
 
-## 当前进度：阶段 0-4 已完成 ✅
+## 当前进度：阶段 0-4 已完成 ✅ + 安全基线 ✅
 
 ### 阶段 0：项目初始化 ✅
 - [x] git 仓库初始化
@@ -84,8 +84,8 @@
 # 0. 启动 Redis（本机未注册为服务）
 D:\Redis-x64-3.2.100\Redis-x64-3.2.100\redis-server.exe --port 6379
 # 1. 数据库需已启动（PostgreSQL 本地服务）
-# 2. 后端（backend 目录）
-.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
+# 2. 后端（backend 目录，开发端口 8002）
+.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8002 --reload
 # 3. Celery worker（backend 目录）
 .venv/Scripts/python -m celery -A app.tasks.celery_app worker --loglevel=info -P solo
 # 4. 前端（frontend 目录）
@@ -107,6 +107,22 @@ npm run dev   # http://localhost:5174
 - [x] 逐题复核页：左侧题号导航（上一题/下一题）、题目/学生答案/标准答案/AI结果/错误点/置信度展示、教师改分/评语、确认本题、标记异常、重新AI批改、确认全部批改
 
 验收结果：`pytest` 27 个用例全绿（新增 `test_teacher_review.py` 7 个），前端 `npm run build` 通过。
+
+### 安全基线 ✅（阶段 4 完成后加固，前后端全链路联调通过）
+后端：
+- [x] 学生看不到标准答案：`GET /assignments`、`GET /assignments/{id}`、`GET /assignments/{id}/questions` 学生视角 `standard_answer=null`，且学生不能查看未发布作业
+- [x] 匿名打不开题库：`GET /questions`、`GET /questions/{id}` 需 admin/teacher（401）；`get_question` 修复 ORM 序列化 500
+- [x] 作业文件鉴权：`/api/storage/files/...` 移入 submissions 路由，仅提交者/任课教师/admin 可读（学生 403 隔离、匿名 401）
+- [x] 教师越权封堵：教师查看他人作业详情/题目、管理教师/管理员账号均 403（users 接口教师仅可管理学生）
+- [x] 复核后不能覆盖提交：已 teacher_reviewed/completed 或有已确认批改 → 提交 409
+- [x] 截止后不能提交：`due_at` 过期 → 409
+- [x] 上传加固：10MB 大小限制（413）、PDF/图片魔数校验（400）、本地存储路径穿越修复
+- [x] Broker 故障降级：异步任务投递失败时提交保留并标记 failed，不再 500
+
+前端：
+- [x] 文件下载改为带 Authorization 的 blob 下载（`openSubmissionFile`），学生/教师端同步改造
+
+联调验证：教师建作业 → 学生提交 → AI 批改 → 教师复核全链路通过；5 项安全检查实测全部符合预期（学生不见答案、匿名 401、教师 403、复核后 409、截止后 409）。
 
 ## 后续计划（阶段 5-6）
 
