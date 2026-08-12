@@ -25,7 +25,7 @@ from app.models.submission import (
     Submission,
     SubmissionAnswer,
 )
-from app.models.user import ROLE_STUDENT, User
+from app.models.user import ROLE_STUDENT, ROLE_TEACHER, User
 from app.schemas.submission import SubmissionOut
 from app.storage import upload_bytes
 from app.tasks.grading_tasks import grade_submission
@@ -160,11 +160,13 @@ def _create_answers(
     by_question = {a.get("question_id"): a.get("student_answer", "") for a in answers}
 
     for qid in question_ids:
+        # 显式作答（含留空=未作答）优先；answers_json 中未列出的题目回退到整卷文本
+        value = by_question[qid] if qid in by_question else (fallback_text or "")
         db.add(
             SubmissionAnswer(
                 submission_id=submission.id,
                 question_id=qid,
-                student_answer=by_question.get(qid, "") or (fallback_text or ""),
+                student_answer=value,
                 max_score=db.get(Question, qid).score if db.get(Question, qid) else None,
             )
         )
@@ -205,6 +207,8 @@ def list_submissions(
             )
             .all()
         )
+    if user.role == ROLE_TEACHER and assignment.teacher_id != user.id:
+        raise HTTPException(status_code=403, detail="无权查看该作业的提交")
     return (
         db.query(Submission)
         .filter(Submission.assignment_id == assignment_id)

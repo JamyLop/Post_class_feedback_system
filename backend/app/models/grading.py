@@ -25,7 +25,9 @@ class GradingResult(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     submission_answer_id: Mapped[int] = mapped_column(
-        ForeignKey("submission_answers.id", ondelete="CASCADE"), index=True
+        ForeignKey("submission_answers.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
     )
     grading_type: Mapped[str] = mapped_column(String(16))
     model_name: Mapped[str] = mapped_column(String(64), default="")

@@ -1,5 +1,5 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-
 from app.core.database import SessionLocal
 from app.grading.base import GradeResult
 from app.grading.router import router
@@ -17,6 +17,7 @@ from app.models.question import Question, QuestionKnowledgePoint
 from app.models.submission import (
     SUBMISSION_STATUS_AI_GRADED,
     SUBMISSION_STATUS_FAILED,
+    SUBMISSION_STATUS_PROCESSING,
     Submission,
     SubmissionAnswer,
 )
@@ -80,15 +81,20 @@ def _save_answer_result(
     db.flush()
 
 
-@celery_app.task(bind=True, max_retries=2, default_retry_delay=10)
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=10, acks_late=True)
 def grade_submission(self, submission_id: int):
     db = SessionLocal()
     sub = None
     try:
-        sub = db.get(Submission, submission_id)
+        # 行级锁 + 状态幂等：并发/重复触发时保证只批改一次
+        sub = db.scalar(
+            select(Submission)
+            .where(Submission.id == submission_id)
+            .with_for_update()
+        )
         if sub is None:
             return
-        if sub.status == SUBMISSION_STATUS_FAILED:
+        if sub.status in (SUBMISSION_STATUS_PROCESSING, SUBMISSION_STATUS_AI_GRADED):
             return
 
         answers = (
@@ -135,9 +141,22 @@ def grade_submission(self, submission_id: int):
         sub.status = SUBMISSION_STATUS_AI_GRADED
         db.commit()
     except Exception as exc:
-        if sub is not None:
-            sub.status = SUBMISSION_STATUS_FAILED
-            db.commit()
+        db.rollback()
+        # 重试次数耗尽才算失败；进入 failed 后仍可通过 API 重新触发批改。
+        # 注意：self.retry(exc=exc) 耗尽时会重新抛出原始异常，因此先按次数判定。
+        if self.request.retries >= self.max_retries:
+            sub = db.scalar(
+                select(Submission)
+                .where(Submission.id == submission_id)
+                .with_for_update()
+            )
+            if sub is not None and sub.status not in (
+                SUBMISSION_STATUS_AI_GRADED,
+                SUBMISSION_STATUS_PROCESSING,
+            ):
+                sub.status = SUBMISSION_STATUS_FAILED
+                db.commit()
+            raise
         raise self.retry(exc=exc)
     finally:
         db.close()

@@ -1,3 +1,5 @@
+from sqlalchemy import select
+
 from app.core.database import SessionLocal
 from app.models.submission import (
     SUBMISSION_STATUS_FAILED,
@@ -10,12 +12,16 @@ from app.tasks.celery_app import celery_app
 from app.tasks.grading_tasks import grade_submission
 
 
-@celery_app.task(bind=True, max_retries=2, default_retry_delay=5)
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=5, acks_late=True)
 def ocr_submission(self, submission_id: int):
     db = SessionLocal()
     sub = None
     try:
-        sub = db.get(Submission, submission_id)
+        sub = db.scalar(
+            select(Submission)
+            .where(Submission.id == submission_id)
+            .with_for_update()
+        )
         if sub is None:
             return
         if sub.content_type in ("image", "pdf"):
@@ -30,9 +36,17 @@ def ocr_submission(self, submission_id: int):
         # OCR 完成后触发异步批改
         grade_submission.delay(submission_id)
     except Exception as exc:
-        if sub is not None:
-            sub.status = SUBMISSION_STATUS_FAILED
-            db.commit()
+        db.rollback()
+        if self.request.retries >= self.max_retries:
+            sub = db.scalar(
+                select(Submission)
+                .where(Submission.id == submission_id)
+                .with_for_update()
+            )
+            if sub is not None:
+                sub.status = SUBMISSION_STATUS_FAILED
+                db.commit()
+            raise
         raise self.retry(exc=exc)
     finally:
         db.close()

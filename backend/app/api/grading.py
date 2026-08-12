@@ -7,7 +7,9 @@ from app.grading.router import router as grading_router
 from app.grading.schemas import GradeParams
 from app.models.assignment import Assignment, AssignmentQuestion
 from app.models.grading import (
+    CONFIDENCE_MANUAL_REVIEW,
     GRADING_STATUS_AI_COMPLETED,
+    GRADING_STATUS_MANUAL_REVIEW,
     GradingResult,
 )
 from app.models.knowledge import KnowledgePoint
@@ -139,7 +141,12 @@ def _grade_one(db: Session, grading: GradingResult) -> GradingResult:
     grading.prompt_version = result.prompt_version
     grading.teacher_score = None
     grading.teacher_comment = ""
-    grading.status = GRADING_STATUS_AI_COMPLETED
+    grading.reviewed_at = None
+    # 单题重批后同样执行置信度规则：<0.70 强制人工复核
+    if result.confidence < CONFIDENCE_MANUAL_REVIEW:
+        grading.status = GRADING_STATUS_MANUAL_REVIEW
+    else:
+        grading.status = GRADING_STATUS_AI_COMPLETED
     return grading
 
 
@@ -170,6 +177,8 @@ def get_grading_result(
 ):
     sub = _get_submission(db, submission_id)
     if user.role == ROLE_STUDENT and sub.student_id != user.id:
+        raise HTTPException(status_code=403, detail="无权查看该提交")
+    if user.role in (ROLE_TEACHER, ROLE_ADMIN) and not _can_manage(db, sub, user):
         raise HTTPException(status_code=403, detail="无权查看该提交")
     return _build_grading_out(db, submission_id)
 
