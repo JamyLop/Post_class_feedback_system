@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
     assignments,
     classes,
+    grading,
     knowledge,
     questions,
     submissions,
@@ -38,6 +39,7 @@ app.include_router(knowledge.router, prefix=settings.api_prefix)
 app.include_router(questions.router, prefix=settings.api_prefix)
 app.include_router(assignments.router, prefix=settings.api_prefix)
 app.include_router(submissions.router, prefix=settings.api_prefix)
+app.include_router(grading.router, prefix=settings.api_prefix)
 
 
 @app.get("/api/storage/files/{path:path}")

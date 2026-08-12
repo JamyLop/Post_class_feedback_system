@@ -7,6 +7,7 @@ from app.models.submission import (
 from app.ocr.provider import get_ocr_provider
 from app.storage import download_bytes
 from app.tasks.celery_app import celery_app
+from app.tasks.grading_tasks import grade_submission
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=5)
@@ -20,11 +21,14 @@ def ocr_submission(self, submission_id: int):
         if sub.content_type in ("image", "pdf"):
             data = download_bytes(sub.content_url)
             result = get_ocr_provider().extract(data, sub.content_type)
-            # 阶段 2 仅完成 OCR 文本提取，答案切分与批改在阶段 3 接入。
+            # 阶段 2 仅完成 OCR 文本提取；真实第三方 OCR 接入后在此做答案切分，
+            # 按题目顺序将 raw_text 切分写入各 submission_answers.ocr_text。
             for answer in sub.answers:
                 answer.ocr_text = result.raw_text
         sub.status = SUBMISSION_STATUS_SUBMITTED
         db.commit()
+        # OCR 完成后触发异步批改
+        grade_submission.delay(submission_id)
     except Exception as exc:
         if sub is not None:
             sub.status = SUBMISSION_STATUS_FAILED

@@ -5,3 +5,4 @@ from app.models.assignment import Assignment, AssignmentQuestion  # noqa: F401
 from app.models.question import Question, QuestionKnowledgePoint  # noqa: F401
 from app.models.knowledge import KnowledgePoint  # noqa: F401
 from app.models.submission import Submission, SubmissionAnswer  # noqa: F401
+from app.models.grading import GradingResult, GradingPromptVersion  # noqa: F401

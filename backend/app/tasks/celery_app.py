@@ -19,4 +19,4 @@ celery_app.conf.update(
     task_soft_time_limit=270,
 )
 
-celery_app.conf.include = ["app.tasks.ocr_tasks"]
+celery_app.conf.include = ["app.tasks.ocr_tasks", "app.tasks.grading_tasks"]

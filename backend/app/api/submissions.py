@@ -28,6 +28,7 @@ from app.models.submission import (
 from app.models.user import ROLE_STUDENT, User
 from app.schemas.submission import SubmissionOut
 from app.storage import upload_bytes
+from app.tasks.grading_tasks import grade_submission
 from app.tasks.ocr_tasks import ocr_submission
 
 router = APIRouter(tags=["submissions"])
@@ -125,7 +126,10 @@ def submit_assignment(
     db.refresh(submission)
 
     if content_type in ("image", "pdf"):
+        # OCR 完成后由 ocr_submission 任务接着触发批改，避免竞态
         ocr_submission.delay(submission.id)
+    else:
+        grade_submission.delay(submission.id)
 
     return submission
 

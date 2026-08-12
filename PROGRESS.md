@@ -1,9 +1,9 @@
 # 开发进度记录
 
-> 更新日期：2026-08-11
+> 更新日期：2026-08-12
 > 依据：《课后反馈系统 —— 具体实施计划.md》
 
-## 当前进度：阶段 0-2 已完成 ✅
+## 当前进度：阶段 0-3 已完成 ✅
 
 ### 阶段 0：项目初始化 ✅
 - [x] git 仓库初始化
@@ -13,7 +13,7 @@
 
 > 本机开发环境未使用 Docker，改用本机服务：
 > - PostgreSQL 18（本地服务，已建库 `pfs`/用户 `pfs`）
-> - Redis 3.2（本地 `D:\Redis-x64-3.2.100`，端口 6379）
+> - Redis 3.2（本地 `D:\Redis-x64-3.2.100`，端口 6379；本机未装为服务，开发时手动启动 `redis-server.exe --port 6379`）
 > - 文件存储：`STORAGE_BACKEND=local`（本地磁盘 `backend/local_storage/`，经 `/api/storage/files/` 访问），MinIO 后端接口已预留，配置 `STORAGE_BACKEND=minio` 即可切换
 
 ### 阶段 1：基础框架 + 数据模型 ✅（对应实施计划第 1 周）
@@ -39,21 +39,51 @@
 - [x] 学生端：我的作业、作业详情（文本逐题作答 / 图片 PDF 上传）、提交记录
 - [x] 教师端：作业提交记录列表（状态 + 文件查看）
 
+### 阶段 3：OCR Mock→AI 批改引擎 ✅（对应实施计划第 3 周）
+后端：
+- [x] 新表 `grading_results` + `grading_prompt_versions`（Alembic 迁移 `86e937410e61`）
+- [x] `app/grading/`：GradingRouter / RuleGrader / HybridGrader / LLMGrader / validator / prompts / schemas / base
+  - RuleGrader：单选/多选/判断题，规则比对，不调 LLM（成本控制）
+  - HybridGrader：填空题，规则优先 + LLM 部分分
+  - LLMGrader：计算/简答题，LLM 结构化输出
+- [x] 结构化输出 Pydantic 校验：JSON 解析失败重试 1 次，仍失败降级人工复核（error_type=parse_failed）
+- [x] 置信度策略：`confidence>=0.85` 正常展示；`0.70~0.85` 提示重点检查；`<0.70` 强制人工复核（status=manual_review）
+- [x] MockLLMProvider 升级为启发式批改（基于答案相似度），返回与真实 LLM 一致的结构化 JSON
+- [x] Celery `grade_submission` 异步批改任务；文本提交自动触发，image/pdf 提交 OCR 完成后触发
+- [x] Grading API：`POST /submissions/{id}/grade`、`GET /submissions/{id}/grading`、`POST /gradings/{id}/retry`
+
+前端：
+- [x] 学生端提交结果页展示 AI 批改（每题得分/对错/AI评语/置信度标签）
+- [x] 教师端提交记录：批改结果抽屉（题目/学生答案/标准答案/得分/错误类型/AI评语）+ 单题重新批改
+
+顺带修复：
+- [x] `create_question`/`get_question` 返回 `knowledge_points` 为 ORM 对象导致 500 的既有 bug
+
 ## 验收结果（已实测通过）
 
-全链路 API 冒烟测试通过：
+阶段 1-2 全链路 API 冒烟测试通过（见上一版记录）。
+
+阶段 3 端到端冒烟测试通过（六种题型作业，文本提交）：
 ```
-教师登录 → 建班 → 加学生 → 建知识点 → 建题 → 建作业 → 加题 → 发布
-→ 学生登录 → 查看作业 → 文本提交 ✓ → 教师查看提交列表 ✓
-→ 学生图片上传 ✓（本地存储 + /api/storage/files 访问 200）
-→ Celery worker 执行 Mock OCR 任务成功 ✓（processing → submitted）
+教师建班加学生 → 建题（单选/判断/填空/计算/简答，绑定知识点）→ 建作业 → 发布
+→ 学生文本提交 → Celery 自动批改（submitted → ai_graded）
+→ GET /grading 返回：
+  单选 对 10/10  rule  conf=1.0
+  判断 对 10/10  rule  conf=1.0
+  填空 部分 6/10  hybrid conf=0.6  → status=manual_review（<0.70 强制复核 ✓）
+  计算 部分 18.4/20 ai   conf=0.78 → ai_completed（0.70~0.85 提示重点检查 ✓）
+  简答 对 20/20  ai   conf=0.92  → ai_completed（≥0.85 正常 ✓）
+  总分 64.4/70
+→ 单题 retry 同步重新批改 ✓
 ```
-前端构建通过，Vite dev server（5174）+ `/api` 代理连通。
+前端 `npm run build` 通过。
 
 ## 本机启动方式
 
 ```bash
-# 1. 数据库/Redis 需已启动（见上）
+# 0. 启动 Redis（本机未注册为服务）
+D:\Redis-x64-3.2.100\Redis-x64-3.2.100\redis-server.exe --port 6379
+# 1. 数据库需已启动（PostgreSQL 本地服务）
 # 2. 后端（backend 目录）
 .venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 # 3. Celery worker（backend 目录）
@@ -62,9 +92,8 @@
 npm run dev   # http://localhost:5174
 ```
 
-## 后续计划（阶段 3-6）
+## 后续计划（阶段 4-6）
 
-- [ ] 阶段 3：OCR Mock→AI 批改引擎（GradingRouter / RuleGrader / HybridGrader / LLMGrader）+ Celery 异步批改 + 结构化输出校验（对应第 3 周）
 - [ ] 阶段 4：教师复核系统（改分/评语/确认/重试/标记异常，确认后写入 student_knowledge_records）（对应第 4 周）
 - [ ] 阶段 5：学情分析（掌握度计算、student_knowledge_stats、ECharts 学生/班级学情）（对应第 5 周）
 - [ ] 阶段 6：Feedback Engine（结构化数据 → LLM 生成课后反馈）、异常处理/日志、部署（对应第 6 周）

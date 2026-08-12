@@ -18,6 +18,31 @@ router = APIRouter(prefix="/questions", tags=["questions"])
 _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
 
 
+def _to_detail(db: Session, question: Question) -> QuestionDetail:
+    kp_list = []
+    for qkp in question.knowledge_points:
+        kp = db.get(KnowledgePoint, qkp.knowledge_point_id)
+        kp_list.append(
+            {
+                "knowledge_point_id": qkp.knowledge_point_id,
+                "name": kp.name if kp else "",
+                "weight": qkp.weight,
+            }
+        )
+    return QuestionDetail(
+        id=question.id,
+        subject=question.subject,
+        grade=question.grade,
+        question_type=question.question_type,
+        content=question.content,
+        standard_answer=question.standard_answer,
+        score=question.score,
+        difficulty=question.difficulty,
+        grading_rule=question.grading_rule,
+        knowledge_points=kp_list,
+    )
+
+
 @router.post("", response_model=QuestionDetail)
 def create_question(
     body: QuestionCreate,
@@ -48,7 +73,7 @@ def create_question(
         )
     db.commit()
     db.refresh(question)
-    return question
+    return _to_detail(db, question)
 
 
 @router.get("", response_model=list[QuestionOut])
@@ -88,4 +113,4 @@ def update_question(
         setattr(question, k, v)
     db.commit()
     db.refresh(question)
-    return question
+    return _to_detail(db, question)
