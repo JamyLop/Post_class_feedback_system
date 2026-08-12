@@ -26,6 +26,7 @@ Thumbs.db
 # Logs
 logs/
 *.log
+deploy/certs/
 
 # 本地文件存储（开发期替代 MinIO）
 backend/local_storage/

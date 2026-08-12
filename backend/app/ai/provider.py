@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -10,19 +13,34 @@ from openai import OpenAI
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 _TAG = re.compile(r"<(question|standard_answer|student_answer)>(.*?)</\1>", re.S)
 _SCORE = re.compile(r"满分[:：]\s*([0-9.]+)")
 
 
+@dataclass
+class LLMResponse:
+    text: str
+    model: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    duration_ms: int = 0
+
+
 class LLMProvider(ABC):
     @abstractmethod
-    def chat(
+    def chat_with_metadata(
         self,
         system: str,
         user: str,
         response_format: str = "text",
-    ) -> str:
+    ) -> LLMResponse:
         ...
+
+    def chat(self, system: str, user: str, response_format: str = "text") -> str:
+        return self.chat_with_metadata(system, user, response_format).text
 
 
 def _normalize(s: str) -> str:
@@ -33,14 +51,27 @@ class MockLLMProvider(LLMProvider):
     """开发期替身：基于题目/标准答案/学生答案的字符相似度给出启发式评分，
     返回与真实 LLM 一致的结构化 JSON，便于打通全链路并演示置信度策略。"""
 
-    def chat(self, system: str, user: str, response_format: str = "text") -> str:
+    def chat_with_metadata(
+        self, system: str, user: str, response_format: str = "text"
+    ) -> LLMResponse:
+        if "<feedback_data>" in user:
+            return LLMResponse(
+                text=(
+                    "本阶段作业已完成，整体表现较为稳定。建议优先复习掌握度较低的知识点，"
+                    "结合错题重新梳理解题步骤；对重复出现的错误进行归类，每天安排少量针对性练习，"
+                    "完成后及时核对过程与结论。"
+                ),
+                model="mock-feedback",
+            )
         tags = {m.group(1): m.group(2).strip() for m in _TAG.finditer(user)}
         max_score = float(_SCORE.search(user).group(1)) if _SCORE.search(user) else 10.0
         student = tags.get("student_answer", "").strip()
         standard = tags.get("standard_answer", "").strip()
-        return json.dumps(
-            self._heuristic(student, standard, max_score),
-            ensure_ascii=False,
+        return LLMResponse(
+            text=json.dumps(
+                self._heuristic(student, standard, max_score), ensure_ascii=False
+            ),
+            model="mock-grader",
         )
 
     def _heuristic(self, student: str, standard: str, max_score: float) -> dict:
@@ -99,7 +130,9 @@ class OpenAICompatProvider(LLMProvider):
             max_retries=settings.llm_max_retries,
         )
 
-    def chat(self, system: str, user: str, response_format: str = "text") -> str:
+    def chat_with_metadata(
+        self, system: str, user: str, response_format: str = "text"
+    ) -> LLMResponse:
         kwargs: dict[str, Any] = {
             "model": settings.llm_model,
             "messages": [
@@ -109,8 +142,33 @@ class OpenAICompatProvider(LLMProvider):
         }
         if response_format == "json":
             kwargs["response_format"] = {"type": "json_object"}
-        resp = self.client.chat.completions.create(**kwargs)
-        return resp.choices[0].message.content or ""
+        started = time.perf_counter()
+        try:
+            resp = self.client.chat.completions.create(**kwargs)
+        except Exception:
+            logger.exception(
+                "llm_call_failed provider=openai_compat model=%s", settings.llm_model
+            )
+            raise
+        duration_ms = round((time.perf_counter() - started) * 1000)
+        usage = resp.usage
+        result = LLMResponse(
+            text=resp.choices[0].message.content or "",
+            model=resp.model or settings.llm_model,
+            prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+            completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
+            total_tokens=getattr(usage, "total_tokens", 0) or 0,
+            duration_ms=duration_ms,
+        )
+        logger.info(
+            "llm_call_succeeded model=%s duration_ms=%s prompt_tokens=%s completion_tokens=%s total_tokens=%s",
+            result.model,
+            result.duration_ms,
+            result.prompt_tokens,
+            result.completion_tokens,
+            result.total_tokens,
+        )
+        return result
 
 
 _provider: LLMProvider | None = None

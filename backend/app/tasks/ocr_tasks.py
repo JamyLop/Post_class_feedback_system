@@ -1,3 +1,6 @@
+import logging
+import time
+
 from sqlalchemy import select
 
 from app.core.database import SessionLocal
@@ -10,6 +13,8 @@ from app.ocr.provider import get_ocr_provider
 from app.storage import download_bytes
 from app.tasks.celery_app import celery_app
 from app.tasks.grading_tasks import grade_submission
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=5, acks_late=True)
@@ -25,8 +30,17 @@ def ocr_submission(self, submission_id: int):
         if sub is None:
             return
         if sub.content_type in ("image", "pdf"):
+            started = time.perf_counter()
             data = download_bytes(sub.content_url)
             result = get_ocr_provider().extract(data, sub.content_type)
+            if not result.raw_text.strip():
+                raise ValueError("OCR 返回空文本")
+            logger.info(
+                "ocr_call_succeeded submission_id=%s provider=%s duration_ms=%s",
+                submission_id,
+                type(get_ocr_provider()).__name__,
+                round((time.perf_counter() - started) * 1000),
+            )
             # 阶段 2 仅完成 OCR 文本提取；真实第三方 OCR 接入后在此做答案切分，
             # 按题目顺序将 raw_text 切分写入各 submission_answers.ocr_text。
             for answer in sub.answers:
@@ -37,6 +51,11 @@ def ocr_submission(self, submission_id: int):
         grade_submission.delay(submission_id)
     except Exception as exc:
         db.rollback()
+        logger.exception(
+            "ocr_task_failed submission_id=%s retry=%s",
+            submission_id,
+            self.request.retries,
+        )
         if self.request.retries >= self.max_retries:
             sub = db.scalar(
                 select(Submission)

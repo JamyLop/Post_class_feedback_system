@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     app_name: str = "课后反馈系统"
     app_env: str = "dev"
     debug: bool = True
+    log_dir: str = "logs"
     api_prefix: str = "/api"
     secret_key: str = "dev-secret-change-me"
     access_token_expire_minutes: int = 1440

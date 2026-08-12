@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from sqlalchemy import select, ColumnElement
@@ -24,6 +25,8 @@ from app.models.submission import (
     SubmissionAnswer,
 )
 from app.tasks.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 
 def _knowledge_point_names(db: Session, question_id: int) -> list[ColumnElement[Any]]:
@@ -144,6 +147,11 @@ def grade_submission(self, submission_id: int):
         db.commit()
     except Exception as exc:
         db.rollback()
+        logger.exception(
+            "grading_task_failed submission_id=%s retry=%s",
+            submission_id,
+            self.request.retries,
+        )
         # 重试次数耗尽才算失败；进入 failed 后仍可通过 API 重新触发批改。
         # 注意：self.retry(exc=exc) 耗尽时会重新抛出原始异常，因此先按次数判定。
         if self.request.retries >= self.max_retries:
