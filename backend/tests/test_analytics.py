@@ -254,3 +254,45 @@ def test_analytics_access_control(client, auth, seed_users):
     # 学生不能看班级/作业分析
     assert client.get(f"/api/assignments/{aid}/analysis", headers=auth("student1")).status_code == 403
     assert client.get(f"/api/classes/{cls_id}/analytics", headers=auth("student1")).status_code == 403
+
+
+def test_concurrent_ensure_stats_no_unique_violation(client, auth, seed_users):
+    """并发重算：多个请求同时触发 ensure_student_stats，不得因唯一键冲突返回 500。"""
+    import threading
+
+    from app.core.database import SessionLocal
+
+    aid, qids = setup_teacher_assignment(
+        client, auth, seed_users["kp"], student_ids=[seed_users["student1"]]
+    )
+    sub_id = submit_text(client, auth, aid, default_answers(qids), student="student1")
+    _confirm_all(client, auth("teacher1"), sub_id)
+    class_id = _assignment_class_id(client, auth, aid)
+
+    # 清空聚合表，让首次请求全部走全量重算
+    db = SessionLocal()
+    try:
+        db.query(StudentKnowledgeStat).delete()
+        db.commit()
+    finally:
+        db.close()
+
+    sid = seed_users["student1"]
+    teacher = auth("teacher1")
+    errors = []
+
+    def hit():
+        for path in (
+            f"/api/students/{sid}/knowledge-stats?class_id={class_id}",
+            f"/api/students/{sid}/weak-points?class_id={class_id}",
+        ):
+            r = client.get(path, headers=teacher)
+            if r.status_code != 200:
+                errors.append(f"{path} -> {r.status_code}: {r.text}")
+
+    threads = [threading.Thread(target=hit) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors, f"并发重算出现 500: {errors}"

@@ -1,0 +1,40 @@
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=6, max_length=128)
+    name: str = Field(min_length=1, max_length=64)
+    role: str
+    invite_code: str = Field(min_length=1, max_length=16)
+
+
+class InviteCodeCreate(BaseModel):
+    role: str
+    expires_at: Optional[datetime] = None
+
+
+class InviteCodeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    code: str
+    role: str
+    status: str
+    expires_at: Optional[datetime] = None
+    used_by: Optional[int] = None
+    used_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class AdminStats(BaseModel):
+    user_count: int
+    admin_count: int
+    teacher_count: int
+    student_count: int
+    class_count: int
+    assignment_count: int
+    submission_count: int

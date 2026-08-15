@@ -5,6 +5,24 @@
 
 ## 当前进度：阶段 0-6 已完成 ✅ + 安全基线 ✅
 
+### 管理员控制台 + 注册功能 ✅（阶段 6 之后新增）
+后端：
+- [x] 新表 `invite_codes`（Alembic 迁移 `a1b2c3d4e5f6`）：code 唯一、role(teacher/student)、status(active/used/disabled)、过期时间、使用者
+- [x] `POST /auth/register` 公开注册：仅限 teacher/student，必须携带未使用且在有效期内的邀请码；角色不匹配/已用/停用/过期返回 400，用户名重复 409；注册成功即消费邀请码（行锁防并发重复使用）
+- [x] `app/api/admin.py` 管理员专属接口（仅 admin）：
+  - `GET /admin/stats` 系统概览（用户数/教师/学生/管理员/班级/作业/提交数）
+  - `POST /admin/invite-codes` 生成邀请码（随机 8 位，可设有效期）
+  - `GET /admin/invite-codes` 邀请码列表（可按角色过滤）
+  - `POST /admin/invite-codes/{id}/disable` 停用邀请码
+  - `DELETE /admin/users/{id}` 删除无关联数据的用户；有提交/班级/邀请码关联返回 409 提示禁用；禁止删除自己
+
+前端：
+- [x] 公开注册页 `/register`（角色选择 + 邀请码 + 用户名/姓名/密码/确认密码），登录页加注册入口
+- [x] 专属 `AdminLayout` + 管理员三页：系统概览仪表盘、用户管理（角色筛选/新建/编辑/启禁用/删除）、邀请码管理（生成/过滤/复制/停用）
+- [x] admin 登录首页改为 `/admin/dashboard`；`/register` 纳入公开路由
+
+验收结果：新增 `tests/test_register_admin.py` 15 个用例全绿（注册成功/角色/邀请码/过期/重复/并发消费/权限/删除），后端全量 `pytest` 64 个通过；前端 `npm run build` 通过；Alembic 实库迁移应用成功。
+
 ### 阶段 6：课后反馈 + 异常处理 + 部署 ✅（对应实施计划第 6 周）
 后端：
 - [x] `feedback_reports` 持久化：匿名结构化输入快照、AI 原文、教师终稿、状态、模型、耗时和 Token 用量

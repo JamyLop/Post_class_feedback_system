@@ -9,8 +9,10 @@
 
 from datetime import datetime, timezone
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.models import Submission
 from app.models.assignment import (
     ASSIGNMENT_STATUS_CLOSED,
     ASSIGNMENT_STATUS_PUBLISHED,
@@ -116,30 +118,43 @@ def recompute_student_stats(
             )
             .all()
         )
+        if not records:
+            stat = (
+                db.query(StudentKnowledgeStat)
+                .filter(
+                    StudentKnowledgeStat.student_id == student_id,
+                    StudentKnowledgeStat.knowledge_point_id == kp_id,
+                )
+                .first()
+            )
+            if stat is not None:
+                db.delete(stat)
+            continue
         correct = sum(1 for r in records if r.is_correct is True)
         wrong = sum(1 for r in records if r.is_correct is False)
         total = correct + wrong
         mastery = round(correct / total, 4) if total else 0.0
-        stat = (
-            db.query(StudentKnowledgeStat)
-            .filter(
-                StudentKnowledgeStat.student_id == student_id,
-                StudentKnowledgeStat.knowledge_point_id == kp_id,
-            )
-            .first()
+        # PostgreSQL upsert：并发重算同一 (student, kp) 时不会唯一键冲突
+        insert_stmt = pg_insert(StudentKnowledgeStat).values(
+            student_id=student_id,
+            knowledge_point_id=kp_id,
+            correct_count=correct,
+            wrong_count=wrong,
+            mastery_score=mastery,
+            trend=_compute_trend(records),
+            last_updated=datetime.now(timezone.utc),
         )
-        if not records:
-            if stat is not None:
-                db.delete(stat)
-            continue
-        if stat is None:
-            stat = StudentKnowledgeStat(student_id=student_id, knowledge_point_id=kp_id)
-            db.add(stat)
-        stat.correct_count = correct
-        stat.wrong_count = wrong
-        stat.mastery_score = mastery
-        stat.trend = _compute_trend(records)
-        stat.last_updated = datetime.now(timezone.utc)
+        stmt = insert_stmt.on_conflict_do_update(
+            constraint="student_knowledge_stats_student_id_knowledge_point_id_key",
+            set_={
+                "correct_count": insert_stmt.excluded.correct_count,
+                "wrong_count": insert_stmt.excluded.wrong_count,
+                "mastery_score": insert_stmt.excluded.mastery_score,
+                "trend": insert_stmt.excluded.trend,
+                "last_updated": insert_stmt.excluded.last_updated,
+            },
+        )
+        db.execute(stmt)
 
 
 def ensure_student_stats(db: Session, student_id: int) -> None:
@@ -393,7 +408,7 @@ def _empty_distribution() -> dict:
     return {k: 0 for k in DIST_BUCKETS}
 
 
-def _confirmed_submissions(db: Session, assignment_id: int) -> list[Submission]:
+def _confirmed_submissions(db: Session, assignment_id: int) -> list[type[Submission]]:
     return (
         db.query(Submission)
         .filter(

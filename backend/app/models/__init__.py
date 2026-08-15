@@ -11,3 +11,4 @@ from app.models.knowledge import (  # noqa: F401
 from app.models.submission import Submission, SubmissionAnswer  # noqa: F401
 from app.models.grading import GradingResult, GradingPromptVersion  # noqa: F401
 from app.models.feedback import FeedbackReport  # noqa: F401
+from app.models.invite import InviteCode  # noqa: F401

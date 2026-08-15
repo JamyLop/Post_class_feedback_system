@@ -1,12 +1,25 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { homeForRole } from './roleHome'
 
 const routes = [
   { path: '/login', component: () => import('../views/Login.vue') },
+  { path: '/register', component: () => import('../views/Register.vue') },
+  {
+    path: '/admin',
+    component: () => import('../layouts/AdminLayout.vue'),
+    meta: { roles: ['admin'] },
+    children: [
+      { path: '', redirect: '/admin/dashboard' },
+      { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
+      { path: 'users', component: () => import('../views/admin/Users.vue') },
+      { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },
+    ],
+  },
   {
     path: '/',
     component: () => import('../layouts/TeacherLayout.vue'),
-    meta: { role: 'teacher' },
+    meta: { roles: ['admin', 'teacher'] },
     children: [
       { path: '', redirect: '/teacher/assignments' },
       { path: 'teacher/classes', component: () => import('../views/teacher/Classes.vue') },
@@ -27,7 +40,7 @@ const routes = [
   {
     path: '/',
     component: () => import('../layouts/StudentLayout.vue'),
-    meta: { role: 'student' },
+    meta: { roles: ['student'] },
     children: [
       { path: 'student/assignments', component: () => import('../views/student/Assignments.vue') },
       { path: 'student/assignments/:id', component: () => import('../views/student/AssignmentDetail.vue') },
@@ -45,18 +58,19 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  if (to.path !== '/login' && !auth.isLoggedIn) {
+  const publicPaths = ['/login', '/register']
+  if (!publicPaths.includes(to.path) && !auth.isLoggedIn) {
     return '/login'
   }
   const role = auth.role
-  if (to.meta.role) {
+  if (to.meta.roles) {
     // 有 token 但角色数据陈旧/无效：登出并回登录页，避免守卫死循环白屏
-    if (!['teacher', 'student'].includes(role)) {
+    if (!['admin', 'teacher', 'student'].includes(role)) {
       auth.logout()
       return '/login'
     }
-    if (to.meta.role !== role) {
-      return role === 'teacher' ? '/teacher/assignments' : '/student/assignments'
+    if (!to.meta.roles.includes(role)) {
+      return homeForRole(role)
     }
   }
   return true

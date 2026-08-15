@@ -16,6 +16,10 @@
             登录
           </el-button>
         </el-form-item>
+        <div class="login-footer">
+          还没有账号？
+          <el-link type="primary" @click="$router.push('/register')">立即注册</el-link>
+        </div>
       </el-form>
     </el-card>
   </div>
@@ -26,6 +30,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
+import { homeForRole } from '../router/roleHome'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -40,7 +45,7 @@ async function onSubmit() {
   loading.value = true
   try {
     const user = await auth.login(form.username, form.password)
-    router.push(user.role === 'teacher' ? '/teacher/assignments' : '/student/assignments')
+    router.push(homeForRole(user.role))
   } catch (e) {
     /* 拦截器已提示 */
   } finally {
@@ -64,5 +69,10 @@ async function onSubmit() {
   text-align: center;
   font-size: 18px;
   font-weight: 600;
+}
+.login-footer {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
 }
 </style>
