@@ -2,7 +2,10 @@
   <div class="page">
     <div class="page-header">
       <span class="page-title">题库</span>
-      <el-button type="primary" @click="openCreate">新建题目</el-button>
+      <div>
+        <el-button type="primary" plain @click="parseDialog.open()">AI 解析题目</el-button>
+        <el-button type="primary" @click="openCreate">新建题目</el-button>
+      </div>
     </div>
 
     <el-table :data="questions" v-loading="loading">
@@ -75,6 +78,8 @@
         <el-button type="primary" :loading="saving" @click="onCreate">创建</el-button>
       </template>
     </el-dialog>
+
+    <AiParseDialog ref="parseDialog" @created="load" />
   </div>
 </template>
 
@@ -82,6 +87,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createQuestion, kpTree as fetchKpTree, listQuestions } from '../../api/questions'
+import AiParseDialog from './AiParseDialog.vue'
 
 const questions = ref([])
 const kpTree = ref([])
@@ -89,6 +95,7 @@ const kpTreeRef = ref()
 const loading = ref(false)
 const saving = ref(false)
 const createVisible = ref(false)
+const parseDialog = ref()
 
 const typeLabels = {
   single_choice: '单选', multiple_choice: '多选', judge: '判断',

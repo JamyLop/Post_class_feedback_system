@@ -4,6 +4,7 @@
       <span class="page-title">{{ assignment.title }}</span>
       <div>
         <el-button @click="$router.push(`/teacher/assignments/${assignment.id}/submissions`)">提交记录</el-button>
+        <el-button type="primary" plain @click="submitDialog.open()">代学生提交</el-button>
         <el-button type="primary" @click="dialogVisible = true">添加题目</el-button>
         <el-button
           v-if="assignment.status === 'draft'"
@@ -53,6 +54,8 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <TeacherSubmitDialog ref="submitDialog" :assignment="assignment" />
   </div>
 </template>
 
@@ -62,6 +65,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { addQuestions, getAssignment, publishAssignment } from '../../api/assignments'
 import { listQuestions } from '../../api/questions'
+import TeacherSubmitDialog from './TeacherSubmitDialog.vue'
 
 const route = useRoute()
 const assignment = ref({})
@@ -69,6 +73,7 @@ const questions = ref([])
 const selected = ref([])
 const dialogVisible = ref(false)
 const loading = ref(false)
+const submitDialog = ref()
 
 const typeLabels = {
   single_choice: '单选', multiple_choice: '多选', judge: '判断',

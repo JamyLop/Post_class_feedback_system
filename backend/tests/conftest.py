@@ -9,6 +9,7 @@ os.environ["DATABASE_URL"] = (
     "postgresql+psycopg://pfs:pfs@localhost:5432/pfs?options=-csearch_path%3Dtests"
 )
 os.environ["LLM_PROVIDER"] = "mock"
+os.environ["OCR_PROVIDER"] = "mock"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

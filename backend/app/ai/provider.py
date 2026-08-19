@@ -63,6 +63,11 @@ class MockLLMProvider(LLMProvider):
                 ),
                 model="mock-feedback",
             )
+        if "<question_parse>" in user:
+            return LLMResponse(
+                text=json.dumps(self._parse_questions(user), ensure_ascii=False),
+                model="mock-parser",
+            )
         tags = {m.group(1): m.group(2).strip() for m in _TAG.finditer(user)}
         max_score = float(_SCORE.search(user).group(1)) if _SCORE.search(user) else 10.0
         student = tags.get("student_answer", "").strip()
@@ -73,6 +78,25 @@ class MockLLMProvider(LLMProvider):
             ),
             model="mock-grader",
         )
+
+    @staticmethod
+    def _parse_questions(user: str) -> list[dict]:
+        """开发期替身：按空行切分为多道题，逐题生成结构化结果。"""
+        match = re.search(r"<question_parse>(.*?)</question_parse>", user, re.S)
+        raw = match.group(1) if match else user
+        blocks = [b.strip() for b in raw.split("\n\n") if b.strip()]
+        if not blocks:
+            return []
+        return [
+            {
+                "question_type": "calculation",
+                "content": block,
+                "standard_answer": "",
+                "score": 10.0,
+                "difficulty": 0.5,
+            }
+            for block in blocks
+        ]
 
     def _heuristic(self, student: str, standard: str, max_score: float) -> dict:
         if not student:

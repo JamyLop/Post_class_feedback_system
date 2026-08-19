@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     llm_max_retries: int = 1
 
     ocr_provider: str = "mock"
+    ocr_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    ocr_api_key: str = ""
+    ocr_model: str = "qwen-vl-ocr"
+    ocr_timeout_seconds: int = 60
+    ocr_max_retries: int = 1
 
 
 settings = Settings()
