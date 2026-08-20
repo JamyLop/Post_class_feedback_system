@@ -1,3 +1,5 @@
+"""题库管理 API：AI 解析建题、单个/批量入库、查询与更新。"""
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
@@ -24,6 +26,7 @@ _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
 
 
 def _to_detail(db: Session, question: Question) -> QuestionDetail:
+    """将题目模型转换为带知识点信息的响应结构。"""
     kp_list = []
     for qkp in question.knowledge_points:
         kp = db.get(KnowledgePoint, qkp.knowledge_point_id)
@@ -49,6 +52,7 @@ def _to_detail(db: Session, question: Question) -> QuestionDetail:
 
 
 def _create_one(db: Session, body: QuestionCreate) -> Question:
+    """创建单题并绑定知识点关联。"""
     question = Question(
         subject=body.subject,
         grade=body.grade,

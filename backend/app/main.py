@@ -1,3 +1,5 @@
+"""FastAPI 应用入口：注册中间件与全部路由。"""
+
 from contextlib import asynccontextmanager
 import logging
 import time
@@ -36,6 +38,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 @app.middleware("http")
 async def request_log(request: Request, call_next):
+    """请求日志中间件：记录耗时与结果，异常时记录堆栈。"""
     started = time.perf_counter()
     try:
         response = await call_next(request)
@@ -61,6 +64,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 挂载全部业务路由（统一 /api 前缀）
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(classes.router, prefix=settings.api_prefix)
@@ -76,11 +80,13 @@ app.include_router(admin.router, prefix=settings.api_prefix)
 
 @app.get("/api/health")
 def health():
+    """存活探针：进程存在即返回 ok。"""
     return {"status": "ok"}
 
 
 @app.get("/api/ready")
 def ready():
+    """就绪探针：校验数据库可连接。"""
     from sqlalchemy import text
 
     with engine.connect() as connection:

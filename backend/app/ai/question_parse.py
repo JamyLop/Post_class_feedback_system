@@ -33,6 +33,7 @@ _PARSE_TAG = re.compile(r"<question_parse>(.*?)</question_parse>", re.S)
 
 
 def _extract_json_array(text: str) -> str:
+    """从 LLM 输出中截取 JSON 数组片段（容忍代码块包裹）。"""
     text = text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -58,6 +59,7 @@ def parse_questions(raw_text: str) -> list[dict[str, Any]]:
     if not isinstance(arr, list):
         raise ValueError("题目解析输出不是数组")
     questions = []
+    # 过滤掉缺题干或结构非法的条目
     for item in arr:
         if not isinstance(item, dict) or not item.get("content"):
             continue

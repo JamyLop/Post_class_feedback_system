@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
+# 提交生命周期：已提交 → 处理中 → AI 已批 → 教师已复核 → 完成 / 失败
 SUBMISSION_STATUS_SUBMITTED = "submitted"
 SUBMISSION_STATUS_PROCESSING = "processing"
 SUBMISSION_STATUS_AI_GRADED = "ai_graded"
@@ -13,12 +14,15 @@ SUBMISSION_STATUS_TEACHER_REVIEWED = "teacher_reviewed"
 SUBMISSION_STATUS_COMPLETED = "completed"
 SUBMISSION_STATUS_FAILED = "failed"
 
+# 提交内容类型
 CONTENT_TYPE_TEXT = "text"
 CONTENT_TYPE_IMAGE = "image"
 CONTENT_TYPE_PDF = "pdf"
 
 
 class Submission(Base):
+    """提交表：某学生在某作业的一次提交记录。"""
+
     __tablename__ = "submissions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -44,6 +48,8 @@ class Submission(Base):
 
 
 class SubmissionAnswer(Base):
+    """逐题作答表：学生答案、OCR 文本与批改得分。"""
+
     __tablename__ = "submission_answers"
 
     id: Mapped[int] = mapped_column(primary_key=True)

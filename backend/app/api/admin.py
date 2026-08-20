@@ -33,11 +33,13 @@ _CODE_CHARS = string.ascii_uppercase + string.digits
 
 
 def _generate_code(length: int = 8) -> str:
+    """生成随机大写字母+数字邀请码。"""
     return "".join(secrets.choice(_CODE_CHARS) for _ in range(length))
 
 
 @router.get("/stats", response_model=AdminStats)
 def admin_stats(db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
+    """系统概览：各类账号与业务对象数量。"""
     counts = {}
     for role in ROLES:
         counts[role] = db.query(User).filter(User.role == role).count()
@@ -58,9 +60,11 @@ def create_invite_code(
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
+    """创建邀请码：角色仅限 teacher/student，生成不重复的唯一码。"""
     if body.role not in ROLES or body.role == ROLE_ADMIN:
         raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher 或 student")
     code = _generate_code()
+    # 保证生成的邀请码在库中唯一
     while db.query(InviteCode).filter(InviteCode.code == code).first():
         code = _generate_code()
     invite = InviteCode(
@@ -94,6 +98,7 @@ def disable_invite_code(
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
+    """停用邀请码（仅 active 状态可停用）。"""
     invite = db.get(InviteCode, invite_id)
     if invite is None:
         raise HTTPException(status_code=404, detail="邀请码不存在")

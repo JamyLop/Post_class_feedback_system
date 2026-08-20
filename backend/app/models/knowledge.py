@@ -8,6 +8,8 @@ from app.core.database import Base
 
 
 class KnowledgePoint(Base):
+    """知识点表：支持父子层级（树形结构）。"""
+
     __tablename__ = "knowledge_points"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -31,6 +33,7 @@ class KnowledgePoint(Base):
     )
 
     def tree_path(self) -> str:
+        """返回知识点从根到自身的路径，如 "一元二次方程 / 解法 / 求根公式"。"""
         parts = [self.name]
         node = self.parent
         while node is not None:

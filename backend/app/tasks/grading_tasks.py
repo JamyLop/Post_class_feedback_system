@@ -1,3 +1,5 @@
+"""批改异步任务：逐题调用 GradingRouter 并落库，带重试与幂等保护。"""
+
 import logging
 from typing import Any
 
@@ -30,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def _knowledge_point_names(db: Session, question_id: int) -> list[ColumnElement[Any]]:
+    """查询题目关联的知识点名称，供批改时参考。"""
     rows = (
         db.query(KnowledgePoint.name)
         .join(QuestionKnowledgePoint, QuestionKnowledgePoint.knowledge_point_id == KnowledgePoint.id)
@@ -44,6 +47,7 @@ def _save_answer_result(
     answer: SubmissionAnswer,
     result: GradeResult,
 ) -> None:
+    """将单题批改结果写回 answer 与 grading_results（不存在则新建）。"""
     answer.score = result.score
     answer.max_score = result.max_score
     answer.is_correct = result.is_correct

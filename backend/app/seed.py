@@ -29,6 +29,7 @@ KNOWLEDGE_TREE = [
 
 
 def seed() -> None:
+    """幂等播种：缺哪个账号/知识点就补哪个，已有则跳过。"""
     db = SessionLocal()
     try:
         for acc in ACCOUNTS:
@@ -42,6 +43,7 @@ def seed() -> None:
                         role=acc["role"],
                     )
                 )
+        # 知识点树：按父编码建立层级关系
         by_code: dict[str, int] = {}
         for code, name, parent_code in KNOWLEDGE_TREE:
             exists = (

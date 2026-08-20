@@ -15,6 +15,7 @@ class LLMGrader(BaseGrader):
 
     def grade(self, params: GradeParams) -> GradeResult:
         max_score = params.max_score or 0
+        # 空答案直接判 0 分，不消耗 LLM 调用
         if not (params.student_answer or "").strip():
             return GradeResult(
                 score=0.0,

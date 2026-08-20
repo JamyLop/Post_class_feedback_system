@@ -6,10 +6,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
+# 批改类型：规则 / AI / 混合
 GRADING_TYPE_RULE = "rule"
 GRADING_TYPE_AI = "ai"
 GRADING_TYPE_HYBRID = "hybrid"
 
+# 批改状态：待批 → AI 完成 → 人工复核 → 已确认
 GRADING_STATUS_PENDING = "pending"
 GRADING_STATUS_AI_COMPLETED = "ai_completed"
 GRADING_STATUS_MANUAL_REVIEW = "manual_review"
@@ -21,6 +23,8 @@ CONFIDENCE_NEED_CHECK = 0.85
 
 
 class GradingResult(Base):
+    """批改结果表：逐题一条，含 AI 输出、教师复核与置信度。"""
+
     __tablename__ = "grading_results"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -51,6 +55,8 @@ class GradingResult(Base):
 
 
 class GradingPromptVersion(Base):
+    """Prompt 版本追踪表：记录每次使用的批改提示词版本。"""
+
     __tablename__ = "grading_prompt_versions"
 
     id: Mapped[int] = mapped_column(primary_key=True)

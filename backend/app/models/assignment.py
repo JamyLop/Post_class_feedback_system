@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import TimestampMixin
 from app.core.database import Base
 
+# 作业生命周期：草稿 → 发布 → 关闭 → 归档
 ASSIGNMENT_STATUS_DRAFT = "draft"
 ASSIGNMENT_STATUS_PUBLISHED = "published"
 ASSIGNMENT_STATUS_CLOSED = "closed"
@@ -14,6 +15,8 @@ ASSIGNMENT_STATUS_ARCHIVED = "archived"
 
 
 class Assignment(TimestampMixin, Base):
+    """作业表：挂在班级下，含题目关联与状态。"""
+
     __tablename__ = "assignments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -33,6 +36,8 @@ class Assignment(TimestampMixin, Base):
 
 
 class AssignmentQuestion(Base):
+    """作业-题目关联表：记录每道题在作业中的顺序。"""
+
     __tablename__ = "assignment_questions"
 
     assignment_id: Mapped[int] = mapped_column(

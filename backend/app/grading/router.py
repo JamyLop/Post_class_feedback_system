@@ -11,6 +11,8 @@ _FILL_TYPES = {"fill"}
 
 
 class GradingRouter:
+    """按题型分发：客观题→规则，填空题→混合，主观题→LLM。"""
+
     def __init__(self):
         self._rule = RuleGrader()
         self._hybrid = HybridGrader()

@@ -1,3 +1,5 @@
+"""应用配置：读取 .env 环境变量（含默认值）。"""
+
 from pathlib import Path
 from typing import List
 
@@ -5,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _find_env_file() -> str:
+    """从常见位置定位 .env 文件（当前目录/上级/项目根）。"""
     cwd = Path.cwd()
     candidates = [
         cwd / ".env",
@@ -18,6 +21,8 @@ def _find_env_file() -> str:
 
 
 class Settings(BaseSettings):
+    """集中配置项：应用/数据库/Redis/存储/AI/OCR。"""
+
     model_config = SettingsConfigDict(
         env_file=_find_env_file(),
         env_file_encoding="utf-8",

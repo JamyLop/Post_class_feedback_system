@@ -1,3 +1,8 @@
+"""LLM 提供方抽象：mock 启发式实现 + OpenAI 兼容接口实现。
+
+统一封装 LLM 调用，附带 token/耗时元数据；支持 mock 模式离线打通全链路。
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,12 +20,15 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# 用于从批改 prompt 中提取题目/答案标签与满分
 _TAG = re.compile(r"<(question|standard_answer|student_answer)>(.*?)</\1>", re.S)
 _SCORE = re.compile(r"满分[:：]\s*([0-9.]+)")
 
 
 @dataclass
 class LLMResponse:
+    """LLM 一次调用的输出：文本 + 模型 + 用量元数据。"""
+
     text: str
     model: str
     prompt_tokens: int = 0
@@ -40,10 +48,12 @@ class LLMProvider(ABC):
         ...
 
     def chat(self, system: str, user: str, response_format: str = "text") -> str:
+        """便捷方法：只返回文本。"""
         return self.chat_with_metadata(system, user, response_format).text
 
 
 def _normalize(s: str) -> str:
+    """去空白、小写，用于字符相似度比较。"""
     return re.sub(r"\s+", "", s or "").lower()
 
 
@@ -99,6 +109,7 @@ class MockLLMProvider(LLMProvider):
         ]
 
     def _heuristic(self, student: str, standard: str, max_score: float) -> dict:
+        """按相似度打分：>=0.95 全对、>=0.7 不完整、其余视为答案错误。"""
         if not student:
             return {
                 "score": 0,
@@ -146,6 +157,8 @@ class MockLLMProvider(LLMProvider):
 
 
 class OpenAICompatProvider(LLMProvider):
+    """真实 LLM 提供方：OpenAI 兼容 Chat Completions 接口。"""
+
     def __init__(self):
         self.client = OpenAI(
             base_url=settings.llm_base_url,
@@ -164,6 +177,7 @@ class OpenAICompatProvider(LLMProvider):
                 {"role": "user", "content": user},
             ],
         }
+        # json 模式要求模型输出合法 JSON 对象
         if response_format == "json":
             kwargs["response_format"] = {"type": "json_object"}
         started = time.perf_counter()
@@ -199,6 +213,7 @@ _provider: LLMProvider | None = None
 
 
 def get_llm_provider() -> LLMProvider:
+    """按配置懒加载 LLM 提供方（单例）。"""
     global _provider
     if _provider is None:
         if settings.llm_provider == "mock":

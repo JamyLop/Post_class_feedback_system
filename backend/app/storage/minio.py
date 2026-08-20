@@ -11,6 +11,8 @@ from app.core.config import settings
 
 
 class MinioStorage:
+    """MinIO 对象存储实现。"""
+
     def __init__(self):
         self.client = Minio(
             settings.minio_endpoint,
@@ -20,10 +22,12 @@ class MinioStorage:
         )
 
     def _ensure_bucket(self) -> None:
+        """确保目标 bucket 存在，不存在则创建。"""
         if not self.client.bucket_exists(settings.minio_bucket):
             self.client.make_bucket(settings.minio_bucket)
 
     def upload_bytes(self, data: bytes, content_type: str, ext: str) -> str:
+        """上传字节流，返回对象名。"""
         self._ensure_bucket()
         key = f"{time.strftime('%Y%m%d')}/{uuid.uuid4().hex}{ext}"
         self.client.put_object(
@@ -36,6 +40,7 @@ class MinioStorage:
         return key
 
     def presigned_url(self, object_name: str, expires_seconds: int = 3600) -> str:
+        """生成预签名 GET URL；失败返回空串。"""
         if not object_name:
             return ""
         try:

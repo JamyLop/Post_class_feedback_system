@@ -4,6 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import TimestampMixin
 from app.core.database import Base
 
+# 系统角色与状态常量
 ROLE_ADMIN = "admin"
 ROLE_TEACHER = "teacher"
 ROLE_STUDENT = "student"
@@ -14,6 +15,8 @@ USER_STATUS_DISABLED = "disabled"
 
 
 class User(TimestampMixin, Base):
+    """用户表：管理员/教师/学生三种角色，含 bcrypt 密码哈希。"""
+
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)

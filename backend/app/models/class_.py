@@ -8,6 +8,8 @@ from app.core.database import Base
 
 
 class Class(TimestampMixin, Base):
+    """班级表：归属某位教师。"""
+
     __tablename__ = "classes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -19,6 +21,8 @@ class Class(TimestampMixin, Base):
 
 
 class ClassStudent(Base):
+    """班级-学生多对多关联表（联合主键）。"""
+
     __tablename__ = "class_students"
 
     class_id: Mapped[int] = mapped_column(

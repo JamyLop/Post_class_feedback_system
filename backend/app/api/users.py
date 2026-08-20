@@ -1,3 +1,8 @@
+"""用户管理 API：创建/查询/更新用户。
+
+教师仅能管理学生角色账号，admin 可管理全部角色。
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -32,6 +37,7 @@ def create_user(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """创建用户（密码 bcrypt 加密存储）。"""
     if body.role not in ROLES:
         raise HTTPException(status_code=400, detail="无效角色")
     _require_teacher_student_scope(user, body.role)
@@ -56,6 +62,7 @@ def list_users(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """按角色分页查询用户，支持用户名/姓名模糊搜索。"""
     if role not in ROLES:
         raise HTTPException(status_code=400, detail="无效角色")
     _require_teacher_student_scope(user, role)
@@ -88,6 +95,7 @@ def update_user(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """更新用户：姓名/密码/状态（仅传入字段生效）。"""
     db_user = db.get(User, user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="用户不存在")
