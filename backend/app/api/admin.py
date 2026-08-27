@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import require_roles
 from app.core.database import get_db
 from app.models.assignment import Assignment
-from app.models.class_ import Class
+from app.models.class_ import Class, StudentGuardian
 from app.models.invite import (
     INVITE_STATUS_ACTIVE,
     INVITE_STATUS_DISABLED,
@@ -18,12 +18,19 @@ from app.models.invite import (
 from app.models.submission import Submission
 from app.models.user import (
     ROLE_ADMIN,
+    ROLE_PARENT,
     ROLE_STUDENT,
     ROLE_TEACHER,
     ROLES,
     User,
 )
-from app.schemas.admin import AdminStats, InviteCodeCreate, InviteCodeOut
+from app.schemas.admin import (
+    AdminStats,
+    GuardianLinkCreate,
+    GuardianLinkOut,
+    InviteCodeCreate,
+    InviteCodeOut,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -48,6 +55,7 @@ def admin_stats(db: Session = Depends(get_db), admin: User = Depends(_admin_only
         admin_count=counts[ROLE_ADMIN],
         teacher_count=counts[ROLE_TEACHER],
         student_count=counts[ROLE_STUDENT],
+        parent_count=counts[ROLE_PARENT],
         class_count=db.query(Class).count(),
         assignment_count=db.query(Assignment).count(),
         submission_count=db.query(Submission).count(),
@@ -60,9 +68,9 @@ def create_invite_code(
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
-    """创建邀请码：角色仅限 teacher/student，生成不重复的唯一码。"""
+    """创建邀请码：支持教师、学生和家长，管理员账号不开放自助注册。"""
     if body.role not in ROLES or body.role == ROLE_ADMIN:
-        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher 或 student")
+        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、student 或 parent")
     code = _generate_code()
     # 保证生成的邀请码在库中唯一
     while db.query(InviteCode).filter(InviteCode.code == code).first():
@@ -105,6 +113,65 @@ def disable_invite_code(
     if invite.status == INVITE_STATUS_ACTIVE:
         invite.status = INVITE_STATUS_DISABLED
         db.commit()
+    return {"ok": True}
+
+
+@router.get("/guardian-links", response_model=list[GuardianLinkOut])
+def list_guardian_links(
+    db: Session = Depends(get_db),
+    admin: User = Depends(_admin_only),
+):
+    result = []
+    for link in db.query(StudentGuardian).order_by(StudentGuardian.id.desc()).all():
+        parent = db.get(User, link.parent_id)
+        student = db.get(User, link.student_id)
+        result.append({
+            **GuardianLinkOut.model_validate(link).model_dump(),
+            "parent_name": parent.name if parent else "",
+            "student_name": student.name if student else "",
+        })
+    return result
+
+
+@router.post("/guardian-links", response_model=GuardianLinkOut)
+def create_guardian_link(
+    body: GuardianLinkCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(_admin_only),
+):
+    parent = db.get(User, body.parent_id)
+    student = db.get(User, body.student_id)
+    if parent is None or parent.role != ROLE_PARENT:
+        raise HTTPException(status_code=400, detail="所选账号不是家长")
+    if student is None or student.role != ROLE_STUDENT:
+        raise HTTPException(status_code=400, detail="所选账号不是学生")
+    existing = db.query(StudentGuardian).filter_by(
+        parent_id=body.parent_id, student_id=body.student_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="该家长已关联此学生")
+    link = StudentGuardian(**body.model_dump())
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return {
+        **GuardianLinkOut.model_validate(link).model_dump(),
+        "parent_name": parent.name,
+        "student_name": student.name,
+    }
+
+
+@router.delete("/guardian-links/{link_id}")
+def delete_guardian_link(
+    link_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(_admin_only),
+):
+    link = db.get(StudentGuardian, link_id)
+    if link is None:
+        raise HTTPException(status_code=404, detail="家长学生关系不存在")
+    db.delete(link)
+    db.commit()
     return {"ok": True}
 
 

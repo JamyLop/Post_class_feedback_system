@@ -2,7 +2,7 @@
   <div class="login-wrap">
     <el-card class="login-card">
       <template #header>
-        <div class="login-title">课后反馈系统</div>
+        <div class="login-title">一生一案学业发展管理系统</div>
       </template>
       <el-form :model="form" label-width="60px" @keyup.enter="onSubmit">
         <el-form-item label="用户名">

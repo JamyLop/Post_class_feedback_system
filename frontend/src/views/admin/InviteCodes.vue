@@ -9,6 +9,7 @@
       <el-radio-button value="">全部</el-radio-button>
       <el-radio-button value="student">学生</el-radio-button>
       <el-radio-button value="teacher">教师</el-radio-button>
+      <el-radio-button value="parent">家长</el-radio-button>
     </el-radio-group>
 
     <el-table :data="codes" v-loading="loading">
@@ -51,6 +52,7 @@
           <el-radio-group v-model="form.role">
             <el-radio value="student">学生</el-radio>
             <el-radio value="teacher">教师</el-radio>
+            <el-radio value="parent">家长</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="有效期至">
@@ -82,7 +84,7 @@ const dialogVisible = ref(false)
 const form = reactive({ role: 'student', expires_at: null })
 
 function roleLabel(r) {
-  return { teacher: '教师', student: '学生' }[r] || r
+  return { teacher: '教师', student: '学生', parent: '家长' }[r] || r
 }
 function statusLabel(s) {
   return { active: '未使用', used: '已使用', disabled: '已停用' }[s] || s

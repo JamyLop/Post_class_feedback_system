@@ -8,6 +8,7 @@
     <el-radio-group v-model="role" style="margin-bottom: 12px" @change="load">
       <el-radio-button value="student">学生</el-radio-button>
       <el-radio-button value="teacher">教师</el-radio-button>
+      <el-radio-button value="parent">家长</el-radio-button>
       <el-radio-button value="admin">管理员</el-radio-button>
     </el-radio-group>
 
@@ -37,7 +38,7 @@
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           <el-button
-            v-if="row.role === 'student' || row.role === 'teacher'"
+            v-if="row.role === 'student' || row.role === 'teacher' || row.role === 'parent'"
             link
             :type="row.status === 'active' ? 'warning' : 'success'"
             @click="toggleStatus(row)"
@@ -62,6 +63,7 @@
           <el-radio-group v-model="form.role" :disabled="editing">
             <el-radio value="student">学生</el-radio>
             <el-radio value="teacher">教师</el-radio>
+            <el-radio value="parent">家长</el-radio>
             <el-radio value="admin">管理员</el-radio>
           </el-radio-group>
         </el-form-item>
@@ -100,7 +102,7 @@ const editing = ref(false)
 const form = reactive({ role: 'student', username: '', name: '', password: '' })
 
 function roleLabel(r) {
-  return { admin: '管理员', teacher: '教师', student: '学生' }[r] || r
+  return { admin: '管理员', teacher: '教师', student: '学生', parent: '家长' }[r] || r
 }
 
 async function load() {

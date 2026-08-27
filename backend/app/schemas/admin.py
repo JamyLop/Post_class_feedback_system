@@ -35,6 +35,22 @@ class AdminStats(BaseModel):
     admin_count: int
     teacher_count: int
     student_count: int
+    parent_count: int
     class_count: int
     assignment_count: int
     submission_count: int
+
+
+class GuardianLinkCreate(BaseModel):
+    parent_id: int
+    student_id: int
+    relationship: str = Field(default="guardian", min_length=1, max_length=24)
+
+
+class GuardianLinkOut(GuardianLinkCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    parent_name: str = ""
+    student_name: str = ""
+    created_at: datetime

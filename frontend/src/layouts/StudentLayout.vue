@@ -1,11 +1,14 @@
 <template>
   <el-container style="height: 100%">
     <el-aside width="220px" class="aside">
-      <div class="logo">课后反馈系统</div>
+      <div class="logo">学生学习中心</div>
       <el-menu :default-active="$route.path" router background-color="#001529" text-color="#ccc" active-text-color="#fff">
-        <el-menu-item index="/student/assignments">我的作业</el-menu-item>
-        <el-menu-item index="/student/my-analytics">我的学情</el-menu-item>
-        <el-menu-item index="/student/my-feedback">课后反馈</el-menu-item>
+        <el-sub-menu index="learning-data" open>
+          <template #title>我的学习</template>
+          <el-menu-item index="/student/assignments">我的作业</el-menu-item>
+          <el-menu-item index="/student/my-analytics">我的学情</el-menu-item>
+          <el-menu-item index="/student/my-feedback">课后反馈</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
     <el-container>

@@ -8,14 +8,15 @@ from app.core.database import Base
 ROLE_ADMIN = "admin"
 ROLE_TEACHER = "teacher"
 ROLE_STUDENT = "student"
-ROLES = [ROLE_ADMIN, ROLE_TEACHER, ROLE_STUDENT]
+ROLE_PARENT = "parent"
+ROLES = [ROLE_ADMIN, ROLE_TEACHER, ROLE_STUDENT, ROLE_PARENT]
 
 USER_STATUS_ACTIVE = "active"
 USER_STATUS_DISABLED = "disabled"
 
 
 class User(TimestampMixin, Base):
-    """用户表：管理员/教师/学生三种角色，含 bcrypt 密码哈希。"""
+    """用户表：管理员、教师、学生和家长账号，含 bcrypt 密码哈希。"""
 
     __tablename__ = "users"
 

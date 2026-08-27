@@ -37,7 +37,7 @@ def create_class(
     user: User = Depends(_manager),
 ):
     """创建班级（教师/管理员）。"""
-    cls = Class(name=body.name, grade=body.grade, teacher_id=user.id)
+    cls = Class(**body.model_dump(), teacher_id=user.id)
     db.add(cls)
     db.commit()
     db.refresh(cls)
@@ -91,9 +91,40 @@ def update_class(
         cls.name = body.name
     if body.grade is not None:
         cls.grade = body.grade
+    if body.school_year is not None:
+        cls.school_year = body.school_year
     db.commit()
     db.refresh(cls)
     return cls
+
+
+@router.delete("/{class_id}")
+def delete_class(
+    class_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(_manager),
+):
+    """仅删除没有档案、作业或反馈数据的班级，避免级联丢失教学记录。"""
+    from app.models.assignment import Assignment
+    from app.models.feedback import FeedbackReport
+    from app.models.student_case import StudentCase
+
+    cls = _check_class_owner(db, class_id, user)
+    blockers = []
+    if db.query(StudentCase.id).filter_by(class_id=class_id).first():
+        blockers.append("学生档案")
+    if db.query(Assignment.id).filter_by(class_id=class_id).first():
+        blockers.append("作业")
+    if db.query(FeedbackReport.id).filter_by(class_id=class_id).first():
+        blockers.append("反馈记录")
+    if blockers:
+        raise HTTPException(
+            status_code=409,
+            detail=f"该班级已关联{'、'.join(blockers)}，为防止数据丢失不能删除",
+        )
+    db.delete(cls)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/{class_id}/students", response_model=list[ClassStudentOut])

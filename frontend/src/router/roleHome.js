@@ -1,7 +1,8 @@
 export const ROLE_HOMES = {
-  admin: '/admin/dashboard',
-  teacher: '/teacher/assignments',
+  admin: '/admin/case-supervision',
+  teacher: '/teacher/student-cases',
   student: '/student/assignments',
+  parent: '/parent/children',
 }
 
 export function homeForRole(role) {

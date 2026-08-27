@@ -17,6 +17,7 @@ from app.api import (
     knowledge,
     questions,
     submissions,
+    student_cases,
     users,
 )
 from app.auth.router import router as auth_router
@@ -76,6 +77,7 @@ app.include_router(grading.router, prefix=settings.api_prefix)
 app.include_router(analytics.router, prefix=settings.api_prefix)
 app.include_router(feedback.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
+app.include_router(student_cases.router, prefix=settings.api_prefix)
 
 
 @app.get("/api/health")
@@ -92,3 +94,15 @@ def ready():
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
     return {"status": "ready"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_dirs=["app"],
+    )

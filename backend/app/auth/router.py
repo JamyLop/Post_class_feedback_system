@@ -13,7 +13,7 @@ from app.models.invite import (
     INVITE_STATUS_USED,
     InviteCode,
 )
-from app.models.user import ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 from app.schemas.admin import RegisterRequest
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
 
@@ -40,9 +40,9 @@ def me(user: User = Depends(get_current_user)):
 
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    """公开注册：角色仅限 teacher / student，必须携带未使用且在有效期内的邀请码。"""
-    if body.role not in (ROLE_TEACHER, ROLE_STUDENT):
-        raise HTTPException(status_code=400, detail="仅支持注册教师或学生账号")
+    """公开注册：教师、学生或家长必须使用对应角色的邀请码。"""
+    if body.role not in (ROLE_TEACHER, ROLE_STUDENT, ROLE_PARENT):
+        raise HTTPException(status_code=400, detail="仅支持注册教师、学生或家长账号")
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=409, detail="用户名已存在")
 

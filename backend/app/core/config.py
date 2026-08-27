@@ -29,14 +29,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "课后反馈系统"
+    app_name: str = "一生一案学业发展管理系统"
     app_env: str = "dev"
     debug: bool = True
     log_dir: str = "logs"
     api_prefix: str = "/api"
     secret_key: str = "dev-secret-change-me"
     access_token_expire_minutes: int = 1440
-    cors_origins: List[str] = ["http://localhost:5173"]
+    cors_origins: List[str] = ["*"]
 
     database_url: str = "postgresql+psycopg://pfs:pfs@localhost:5432/pfs"
 

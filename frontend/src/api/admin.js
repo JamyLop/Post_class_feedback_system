@@ -8,3 +8,6 @@ export const createInviteCode = (data) => http.post('/admin/invite-codes', data)
 export const disableInviteCode = (id) => http.post(`/admin/invite-codes/${id}/disable`)
 
 export const deleteUser = (id) => http.delete(`/admin/users/${id}`)
+export const listGuardianLinks = () => http.get('/admin/guardian-links')
+export const createGuardianLink = (data) => http.post('/admin/guardian-links', data)
+export const deleteGuardianLink = (id) => http.delete(`/admin/guardian-links/${id}`)

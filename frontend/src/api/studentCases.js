@@ -1,0 +1,13 @@
+import http from './index'
+
+export const listStudentCases = (params = {}) => http.get('/student-cases', { params })
+export const listCaseCycles = () => http.get('/student-cases/cycles')
+export const createStudentCase = (data) => http.post('/student-cases', data)
+export const getStudentCase = (id) => http.get(`/student-cases/${id}`)
+export const getFamilyCases = () => http.get('/student-cases/children')
+export const getCaseProgress = (params = {}) => http.get('/student-cases/progress', { params })
+export const transitionStudentCase = (id, data) => http.post(`/student-cases/${id}/transition`, data)
+export const upsertSubjectPlan = (caseId, subject, data) => http.put(`/student-cases/${caseId}/subject-plans/${encodeURIComponent(subject)}`, data)
+export const createCaseTask = (caseId, data) => http.post(`/student-cases/${caseId}/tasks`, data)
+export const updateCaseTask = (caseId, taskId, data) => http.put(`/student-cases/${caseId}/tasks/${taskId}`, data)
+export const checkinCaseTask = (taskId, data) => http.post(`/student-cases/tasks/${taskId}/checkins`, data)

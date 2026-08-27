@@ -10,10 +10,22 @@ const routes = [
     component: () => import('../layouts/AdminLayout.vue'),
     meta: { roles: ['admin'] },
     children: [
-      { path: '', redirect: '/admin/dashboard' },
+      { path: '', redirect: '/admin/case-supervision' },
+      { path: 'case-supervision', component: () => import('../views/admin/CaseSupervision.vue') },
       { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
       { path: 'users', component: () => import('../views/admin/Users.vue') },
       { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },
+      { path: 'guardian-links', component: () => import('../views/admin/GuardianLinks.vue') },
+    ],
+  },
+  {
+    path: '/parent',
+    component: () => import('../layouts/ParentLayout.vue'),
+    meta: { roles: ['parent'] },
+    children: [
+      { path: '', redirect: '/parent/children' },
+      { path: 'children', component: () => import('../views/parent/ChildrenCases.vue') },
+      { path: 'children/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
     ],
   },
   {
@@ -21,7 +33,9 @@ const routes = [
     component: () => import('../layouts/TeacherLayout.vue'),
     meta: { roles: ['admin', 'teacher'] },
     children: [
-      { path: '', redirect: '/teacher/assignments' },
+      { path: '', redirect: '/teacher/student-cases' },
+      { path: 'teacher/student-cases', component: () => import('../views/teacher/StudentCases.vue') },
+      { path: 'teacher/student-cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'teacher/classes', component: () => import('../views/teacher/Classes.vue') },
       { path: 'teacher/classes/:id/students', component: () => import('../views/teacher/ClassStudents.vue') },
       { path: 'teacher/assignments', component: () => import('../views/teacher/Assignments.vue') },
@@ -42,6 +56,7 @@ const routes = [
     component: () => import('../layouts/StudentLayout.vue'),
     meta: { roles: ['student'] },
     children: [
+      { path: '', redirect: '/student/assignments' },
       { path: 'student/assignments', component: () => import('../views/student/Assignments.vue') },
       { path: 'student/assignments/:id', component: () => import('../views/student/AssignmentDetail.vue') },
       { path: 'student/submissions/:id', component: () => import('../views/student/SubmissionResult.vue') },
@@ -54,6 +69,10 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  // 档案列表与详情的内容高度差异很大，切换页面时必须从顶部开始阅读。
+  scrollBehavior(to, from, savedPosition) {
+    return savedPosition || { top: 0, left: 0 }
+  },
 })
 
 router.beforeEach((to) => {
@@ -65,7 +84,7 @@ router.beforeEach((to) => {
   const role = auth.role
   if (to.meta.roles) {
     // 有 token 但角色数据陈旧/无效：登出并回登录页，避免守卫死循环白屏
-    if (!['admin', 'teacher', 'student'].includes(role)) {
+    if (!['admin', 'teacher', 'student', 'parent'].includes(role)) {
       auth.logout()
       return '/login'
     }

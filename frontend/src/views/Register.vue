@@ -9,6 +9,7 @@
           <el-radio-group v-model="form.role">
             <el-radio value="student">学生</el-radio>
             <el-radio value="teacher">教师</el-radio>
+            <el-radio value="parent">家长</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="邀请码">

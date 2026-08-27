@@ -43,3 +43,4 @@ def configure_logging() -> None:
     root.handlers.clear()
     root.addHandler(stream)
     root.addHandler(file_handler)
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
