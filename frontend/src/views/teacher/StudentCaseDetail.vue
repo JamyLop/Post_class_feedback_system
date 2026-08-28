@@ -24,7 +24,24 @@
           <el-tooltip content="导出功能将在打印模板验收后开放" placement="bottom">
             <span><el-button disabled><el-icon><Document /></el-icon>导出 DOCX</el-button></span>
           </el-tooltip>
-          <el-button v-if="detail.status === 'draft'" type="primary" :loading="submitting" @click="submitForConfirmation">提交教师确认</el-button>
+          <template v-if="detail.can_manage && !editingOverview && !editingPlan && !editingTask">
+            <el-button v-if="detail.status === 'draft'" type="primary" :loading="submitting" @click="submitForConfirmation">提交待确认</el-button>
+            <template v-if="detail.status === 'pending_confirmation'">
+              <el-button :loading="submitting" @click="doTransition('draft', '退回草稿', '将总案退回草稿以继续完善，是否继续？', '退回草稿继续完善')">退回草稿</el-button>
+              <el-button type="primary" :loading="submitting" @click="doTransition('executing', '确认进入执行', '确认后家长可见正式方案，且总览将锁定，是否继续？', '班主任确认进入执行')">确认进入执行</el-button>
+            </template>
+            <el-button v-if="detail.status === 'executing'" type="primary" :loading="submitting" @click="doTransition('pending_review', '发起阶段复盘', '进入复盘后将整理过程与督查记录，是否继续？', '发起阶段复盘')">发起阶段复盘</el-button>
+            <template v-if="detail.status === 'pending_review'">
+              <el-button type="primary" :loading="submitting" @click="doTransition('adjusted', '确认已调整', '确认调整将生成新版本并保留历史快照，是否继续？', '阶段复盘已调整')">确认已调整</el-button>
+              <el-button :loading="submitting" @click="handleArchive">归档</el-button>
+            </template>
+            <template v-if="detail.status === 'adjusted'">
+              <el-button type="primary" :loading="submitting" @click="doTransition('executing', '重新进入执行', '将已调整方案重新进入执行，是否继续？', '再次进入执行')">重新进入执行</el-button>
+              <el-button :loading="submitting" @click="doTransition('pending_review', '再次发起复盘', '再次进入复盘以继续跟踪，是否继续？', '再次发起复盘')">再次发起复盘</el-button>
+              <el-button :loading="submitting" @click="handleArchive">归档</el-button>
+            </template>
+          </template>
+          <span v-else-if="detail.status === 'archived'" class="archived-tip">已归档</span>
         </div>
       </header>
 
@@ -32,10 +49,22 @@
         <el-icon class="state-icon"><WarningFilled v-if="detail.status === 'draft'" /><CircleCheckFilled v-else /></el-icon>
         <div><strong>{{ stateTitle }}</strong><p>{{ stateDescription }}</p></div>
       </div>
+      <div v-if="transitionError" class="transition-error"><el-icon><WarningFilled /></el-icon><span>{{ transitionError }}</span></div>
 
       <el-tabs v-model="active" class="case-tabs">
         <el-tab-pane label="总览" name="overview">
-          <div class="overview-layout">
+          <div v-if="editingOverview" class="editing-note overview-editing-note"><el-icon><EditPen /></el-icon><span>正在编辑总览，保存后将更新总体问题、升学目标和当前状态说明。</span></div>
+          <div class="overview-toolbar" v-if="canEditOverview">
+            <span class="overview-toolbar-tip">总览由班主任维护，正式执行前可直接完善</span>
+            <template v-if="!editingOverview">
+              <el-button plain @click="startOverviewEdit"><el-icon><EditPen /></el-icon>编辑总览</el-button>
+            </template>
+            <template v-else>
+              <el-button :disabled="savingOverview" @click="cancelOverviewEdit">取消</el-button>
+              <el-button type="primary" :loading="savingOverview" @click="saveOverview">保存总览</el-button>
+            </template>
+          </div>
+          <div v-if="!editingOverview" class="overview-layout">
             <main class="reading-column">
               <article class="content-section">
                 <div class="section-heading"><div><span class="section-marker"></span><h2>总体问题</h2></div><span>历史材料诊断摘要</span></div>
@@ -55,7 +84,7 @@
             </main>
 
             <aside class="case-rail">
-              <section class="rail-section"><span class="rail-label">当前状态</span><strong>{{ labels[detail.status] || detail.status }}</strong><p>{{ detail.current_summary || '尚未填写状态说明' }}</p></section>
+              <section class="rail-section"><span class="rail-label">当前状态</span><strong>{{ labels[detail.status] || detail.status }}</strong><p>{{ detail.current_summary || '尚未填写状态说明' }}</p><small v-if="detail.owner_teacher_id" class="rail-owner">负责人：班主任 #{{ detail.owner_teacher_id }}</small></section>
               <section class="rail-section compact">
                 <div><span>学科方案</span><strong>{{ detail.subject_plans.length }}</strong></div>
                 <div><span>阶段目标</span><strong>{{ detail.goals.length }}</strong></div>
@@ -69,6 +98,11 @@
               </section>
             </aside>
           </div>
+          <el-form v-else label-position="top" class="overview-edit-form">
+            <el-form-item label="总体问题"><el-input v-model="overviewForm.overall_problem" type="textarea" :autosize="{ minRows: 4, maxRows: 14 }" placeholder="完整填写学生总体问题诊断，例如各学科薄弱点、共性原因等" /></el-form-item>
+            <el-form-item label="升学目标"><el-input v-model="overviewForm.admission_target" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="填写升学目标，例如目标院校、目标分数及分阶段目标" /></el-form-item>
+            <el-form-item label="当前状态说明"><el-input v-model="overviewForm.current_summary" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" placeholder="填写当前状态说明，例如：已完成首轮方案核对、待家长确认等" /></el-form-item>
+          </el-form>
         </el-tab-pane>
 
         <el-tab-pane label="学科方案" name="subjects">
@@ -81,7 +115,7 @@
                 class="subject-nav-item"
                 :class="{ 'is-active': selectedSubject === subject }"
                 type="button"
-                :disabled="(editingPlan || editingTask) && selectedSubject !== subject"
+                :disabled="(editingPlan || editingTask || editingOverview) && selectedSubject !== subject"
                 :aria-current="selectedSubject === subject ? 'page' : undefined"
                 @click="selectSubject(subject)"
               >
@@ -90,7 +124,7 @@
                 <span class="subject-task-count">{{ tasksFor(subject).length }}</span>
                 <el-icon><ArrowRight /></el-icon>
               </button>
-              <el-dropdown v-if="availableSubjects.length" class="subject-add" trigger="click" :disabled="editingPlan || editingTask" @command="addSubject">
+              <el-dropdown v-if="availableSubjects.length" class="subject-add" trigger="click" :disabled="editingPlan || editingTask || editingOverview" @command="addSubject">
                 <el-button link type="primary"><el-icon><Plus /></el-icon>添加学科</el-button>
                 <template #dropdown><el-dropdown-menu><el-dropdown-item v-for="subject in availableSubjects" :key="subject" :command="subject">{{ subject }}</el-dropdown-item></el-dropdown-menu></template>
               </el-dropdown>
@@ -180,7 +214,40 @@
           </div>
           <div v-else class="empty-panel subject-empty"><h3>尚未建立学科方案</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p><div class="subject-create-actions"><el-button v-for="subject in subjectOrder" :key="subject" type="primary" plain @click="addSubject(subject)">新建{{ subject }}方案</el-button></div></div>
         </el-tab-pane>
-        <el-tab-pane label="督查复盘" name="reviews"><el-timeline v-if="detail.reviews.length" class="review-timeline"><el-timeline-item v-for="review in detail.reviews" :key="review.id" :timestamp="review.reviewed_at"><b>{{ review.review_level }}</b><p>{{ review.problem }}</p><small>{{ review.corrective_action }}</small></el-timeline-item></el-timeline><div v-else class="empty-panel"><h3>暂无督查记录</h3><p>方案进入执行阶段后，班主任记录过程，管理员提交校级督查。</p></div></el-tab-pane>
+        <el-tab-pane label="督查复盘" name="reviews">
+          <div v-if="canCreateReview" class="review-form-card">
+            <div class="review-form-header"><strong>新增督查复盘</strong><span>{{ reviewRoleTip }}</span></div>
+            <el-form label-position="top" class="review-form">
+              <div class="review-form-grid">
+                <el-form-item label="督查层级">
+                  <el-select v-model="reviewForm.review_level">
+                    <el-option v-if="auth.role === 'admin'" label="校级督查" value="school" />
+                    <el-option v-if="detail.can_manage" label="班主任督查" value="head_teacher" />
+                    <el-option v-if="detail.can_manage" label="学科督查" value="subject" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="关联学科"><el-select v-model="reviewForm.subject" clearable placeholder="可选"><el-option v-for="s in subjectOrder" :key="s" :label="s" :value="s" /></el-select></el-form-item>
+                <el-form-item label="整改截止日期"><el-date-picker v-model="reviewForm.correction_due_on" type="date" value-format="YYYY-MM-DD" placeholder="选择截止日期" /></el-form-item>
+              </div>
+              <el-form-item label="发现问题"><el-input v-model="reviewForm.problem" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="填写督查发现的主要问题" /></el-form-item>
+              <el-form-item label="整改要求"><el-input v-model="reviewForm.corrective_action" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="填写整改要求与具体措施" /></el-form-item>
+              <el-form-item label="复查结果（可选）"><el-input v-model="reviewForm.recheck_result" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" placeholder="复查时填写结果，初次督查可留空" /></el-form-item>
+              <div class="review-form-actions"><el-button type="primary" :loading="savingReview" @click="saveReview">提交督查记录</el-button></div>
+            </el-form>
+          </div>
+          <div v-else-if="auth.role === 'parent'" class="review-readonly-tip"><el-icon><WarningFilled /></el-icon><span>家长仅可查看督查结论，督查由班主任与校级管理员记录。</span></div>
+          <el-timeline v-if="detail.reviews.length" class="review-timeline">
+            <el-timeline-item v-for="review in detail.reviews" :key="review.id" :timestamp="formatDateTime(review.reviewed_at)">
+              <div class="review-item">
+                <div class="review-item-head"><span class="review-level" :class="`is-${review.review_level}`">{{ reviewLevelLabel(review.review_level) }}</span><span v-if="review.subject" class="review-subject">{{ review.subject }}</span><span v-if="review.correction_due_on" class="review-due">整改截止 {{ review.correction_due_on }}</span></div>
+                <p class="review-problem">{{ review.problem || '未填写具体问题' }}</p>
+                <p v-if="review.corrective_action" class="review-action">整改：{{ review.corrective_action }}</p>
+                <p v-if="review.recheck_result" class="review-recheck">复查：{{ review.recheck_result }}</p>
+              </div>
+            </el-timeline-item>
+          </el-timeline>
+          <div v-else class="empty-panel"><h3>暂无督查记录</h3><p>方案进入执行阶段后，班主任记录过程，管理员提交校级督查。</p></div>
+        </el-tab-pane>
         <el-tab-pane label="历史版本" name="versions"><div class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>正式调整后，旧版本将在这里保留并支持对比。</p></div></el-tab-pane>
       </el-tabs>
     </template>
@@ -192,7 +259,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Plus, Search, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
-import { checkinCaseTask, createCaseTask, getStudentCase, transitionStudentCase, updateCaseTask, upsertSubjectPlan } from '../../api/studentCases'
+import { checkinCaseTask, createCaseReview, createCaseTask, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, upsertSubjectPlan } from '../../api/studentCases'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
@@ -204,17 +271,31 @@ const savingPlan = ref(false)
 const editingTask = ref(null)
 const savingTask = ref(false)
 const savingCheckin = ref(false)
+const editingOverview = ref(false)
+const savingOverview = ref(false)
+const savingReview = ref(false)
 const detail = ref(null)
 const active = ref('overview')
 const selectedSubject = ref('')
 const manualSubjects = ref([])
 const planForm = ref(createEmptyPlanForm())
 const taskForm = ref(createEmptyTaskForm())
+const overviewForm = ref(createEmptyOverviewForm())
 const checkinForm = ref({ task_id: null, completion_rate: 0, self_check: '' })
+const reviewForm = ref(createEmptyReviewForm())
 const labels = { draft: '草稿', pending_confirmation: '待确认', executing: '执行中', pending_review: '待复盘', adjusted: '已调整', archived: '已归档' }
 const subjectOrder = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
-const stateTitle = computed(() => detail.value?.status === 'draft' ? '历史材料已导入，等待教师核对' : `方案当前处于${labels[detail.value?.status] || '处理中'}状态`)
-const stateDescription = computed(() => detail.value?.status === 'draft' ? '请由班主任确认诊断、目标和学科方案内容。进入执行后，关联家长才能查看正式方案。' : '所有后续调整都会保留历史版本，家长始终看到有版本依据的正式内容。')
+const transitionError = ref('')
+const statusCopy = {
+  draft: { title: '历史材料已导入，等待教师核对', desc: '请由班主任核对总体问题、升学目标和学科方案，确认无误后提交待确认。' },
+  pending_confirmation: { title: '等待班主任最终确认', desc: '已提交待确认，请复核后确认进入执行；确认后家长可见正式方案，总览将锁定。' },
+  executing: { title: '方案正在执行中', desc: '家长已可见当前版本。请通过任务与执行记录跟踪进展，必要时发起阶段复盘。' },
+  pending_review: { title: '已进入阶段复盘', desc: '请完成督查复盘记录，确认调整后将生成新版本，归档则结束本周期。' },
+  adjusted: { title: '复盘已调整（已生成新版本）', desc: '已按复盘结论调整并保留历史版本。可重新进入执行或再次复盘。' },
+  archived: { title: '已归档', desc: '本档案已归档，内容只读保留，历史版本仍可查看。' },
+}
+const stateTitle = computed(() => statusCopy[detail.value?.status]?.title || `方案当前处于${labels[detail.value?.status] || '处理中'}状态`)
+const stateDescription = computed(() => statusCopy[detail.value?.status]?.desc || '所有后续调整都会保留历史版本，家长始终看到有版本依据的正式内容。')
 
 function splitStructuredText(value, fallbackLabel) {
   if (!value) return []
@@ -246,8 +327,19 @@ const subjectOptions = computed(() => {
 })
 const selectedPlan = computed(() => detail.value?.subject_plans?.find((item) => item.subject === selectedSubject.value))
 const availableSubjects = computed(() => subjectOrder.filter((item) => !subjectOptions.value.includes(item)))
-const canEditPlan = computed(() => detail.value?.can_manage && ['draft', 'pending_confirmation', 'adjusted'].includes(detail.value?.status))
-const canEditTasks = computed(() => detail.value?.can_manage && detail.value?.status !== 'archived' && !editingPlan.value)
+const canEditPlan = computed(() => detail.value?.can_manage && ['draft', 'pending_confirmation', 'adjusted'].includes(detail.value?.status) && !editingOverview.value && !editingTask.value)
+const canEditOverview = computed(() => detail.value?.can_manage && ['draft', 'pending_confirmation'].includes(detail.value?.status) && !editingPlan.value && !editingTask.value)
+const canEditTasks = computed(() => detail.value?.can_manage && detail.value?.status !== 'archived' && !editingPlan.value && !editingOverview.value)
+const canCreateReview = computed(() => {
+  if (!detail.value) return false
+  if (auth.role === 'admin') return true
+  return !!detail.value.can_manage
+})
+const reviewRoleTip = computed(() => {
+  if (auth.role === 'admin') return '管理员提交校级督查，仅管理员可选择校级层级'
+  if (detail.value?.can_manage) return '班主任可提交班主任/学科层级督查'
+  return ''
+})
 // 学科方案缺失时展示总案原文作为参考，不抽取、不概括，避免导入内容被压缩。
 const subjectProblemText = computed(() => detail.value?.overall_problem || '')
 const subjectTargetText = computed(() => detail.value?.admission_target || '')
@@ -261,8 +353,85 @@ function createEmptyTaskForm() {
   return { title: '', description: '', cadence: 'daily', starts_on: today, due_on: today }
 }
 
+function createEmptyOverviewForm() {
+  return { overall_problem: '', admission_target: '', current_summary: '' }
+}
+
+function createEmptyReviewForm() {
+  return { review_level: 'head_teacher', subject: '', problem: '', corrective_action: '', correction_due_on: '', recheck_result: '' }
+}
+
+function reviewLevelLabel(level) {
+  return { school: '校级督查', head_teacher: '班主任督查', subject: '学科督查' }[level] || level
+}
+
+async function saveReview() {
+  if (!detail.value) return
+  if (!reviewForm.value.problem.trim() && !reviewForm.value.corrective_action.trim()) {
+    ElMessage.warning('请填写发现问题或整改要求')
+    return
+  }
+  if (auth.role !== 'admin' && !detail.value.can_manage) {
+    ElMessage.error('无权提交督查')
+    return
+  }
+  savingReview.value = true
+  try {
+    const payload = {
+      review_level: reviewForm.value.review_level,
+      subject: reviewForm.value.subject || '',
+      problem: reviewForm.value.problem,
+      corrective_action: reviewForm.value.corrective_action,
+      correction_due_on: reviewForm.value.correction_due_on || null,
+      recheck_result: reviewForm.value.recheck_result || '',
+    }
+    const saved = await createCaseReview(detail.value.id, payload)
+    detail.value.reviews.unshift(saved)
+    reviewForm.value = createEmptyReviewForm()
+    if (auth.role === 'admin') reviewForm.value.review_level = 'school'
+    ElMessage.success('督查记录已提交')
+  } finally {
+    savingReview.value = false
+  }
+}
+
+function startOverviewEdit() {
+  if (!detail.value) return
+  overviewForm.value = {
+    overall_problem: detail.value.overall_problem || '',
+    admission_target: detail.value.admission_target || '',
+    current_summary: detail.value.current_summary || '',
+  }
+  editingOverview.value = true
+}
+
+function cancelOverviewEdit() {
+  editingOverview.value = false
+  overviewForm.value = createEmptyOverviewForm()
+}
+
+async function saveOverview() {
+  if (!detail.value) return
+  savingOverview.value = true
+  try {
+    const saved = await updateStudentCase(detail.value.id, {
+      overall_problem: overviewForm.value.overall_problem,
+      admission_target: overviewForm.value.admission_target,
+      current_summary: overviewForm.value.current_summary,
+    })
+    detail.value.overall_problem = saved.overall_problem
+    detail.value.admission_target = saved.admission_target
+    detail.value.current_summary = saved.current_summary
+    detail.value.updated_at = saved.updated_at
+    editingOverview.value = false
+    ElMessage.success('总览已保存')
+  } finally {
+    savingOverview.value = false
+  }
+}
+
 function selectSubject(subject) {
-  if ((editingPlan.value || editingTask.value) && subject !== selectedSubject.value) return
+  if ((editingPlan.value || editingTask.value || editingOverview.value) && subject !== selectedSubject.value) return
   selectedSubject.value = subject
   checkinForm.value.task_id = tasksFor(subject)[0]?.id || null
 }
@@ -427,6 +596,8 @@ async function load() {
     if (!subjectOptions.value.includes(selectedSubject.value)) selectedSubject.value = subjectOptions.value[0] || ''
     const firstTask = tasksFor(selectedSubject.value)[0]
     checkinForm.value.task_id = firstTask?.id || null
+    if (auth.role === 'admin') reviewForm.value.review_level = 'school'
+    else if (detail.value?.can_manage) reviewForm.value.review_level = 'head_teacher'
   } finally {
     loading.value = false
   }
@@ -434,7 +605,37 @@ async function load() {
 async function submitForConfirmation() {
   await ElMessageBox.confirm('提交后总案将进入待确认状态，是否继续？', '提交教师确认', { confirmButtonText: '提交确认', cancelButtonText: '继续检查', type: 'warning' })
   submitting.value = true
-  try { await transitionStudentCase(detail.value.id, { target_status: 'pending_confirmation', reason: '历史材料核对完成' }); ElMessage.success('已提交确认'); await load() } finally { submitting.value = false }
+  transitionError.value = ''
+  try { await transitionStudentCase(detail.value.id, { target_status: 'pending_confirmation', reason: '历史材料核对完成' }); ElMessage.success('已提交确认'); await load() } catch (e) { transitionError.value = e?.response?.data?.detail || e.message || '流转失败' } finally { submitting.value = false }
+}
+
+async function doTransition(targetStatus, title, message, reason) {
+  await ElMessageBox.confirm(message, title, { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' })
+  submitting.value = true
+  transitionError.value = ''
+  try {
+    await transitionStudentCase(detail.value.id, { target_status: targetStatus, reason })
+    ElMessage.success(`已切换为${labels[targetStatus] || targetStatus}`)
+    await load()
+  } catch (e) {
+    transitionError.value = e?.response?.data?.detail || e.message || '流转失败'
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function handleArchive() {
+  const { value } = await ElMessageBox.prompt('请输入归档原因（将保留历史版本）', '归档确认', { confirmButtonText: '确认归档', cancelButtonText: '取消', inputPlaceholder: '例如：本周期已结束，归档留存' })
+  if (!value || !String(value).trim()) { ElMessage.warning('请填写归档原因'); return }
+  submitting.value = true
+  transitionError.value = ''
+  try {
+    await transitionStudentCase(detail.value.id, { target_status: 'archived', reason: String(value).trim() })
+    ElMessage.success('已归档')
+    await load()
+  } catch (e) {
+    transitionError.value = e?.response?.data?.detail || e.message || '归档失败'
+  } finally { submitting.value = false }
 }
 onMounted(load)
 </script>
@@ -444,9 +645,12 @@ onMounted(load)
 .back-link { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 20px; padding: 0; color: var(--ink-secondary); background: transparent; border: 0; cursor: pointer; font: inherit; }.back-link:hover { color: var(--brand); }
 .case-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 28px; }.title-line { display: flex; align-items: baseline; gap: 12px; }.title-line h1 { margin: 0; color: var(--ink); font-size: 32px; line-height: 1.2; letter-spacing: -.025em; text-wrap: balance; }.title-suffix { color: var(--ink-secondary); font-size: 17px; font-weight: 500; }
 .case-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; color: var(--ink-muted); font-size: 13px; }.status-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; color: #8a5611; background: var(--warning-soft); border-radius: 999px; font-weight: 650; }.status-badge.is-executing, .status-badge.is-adjusted, .status-badge.is-archived { color: #23764a; background: oklch(0.95 0.035 155); }.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.case-actions { display: flex; gap: 10px; flex-shrink: 0; }.case-actions :deep(.el-button) { min-height: 38px; }
+.case-actions { display: flex; gap: 10px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }.case-actions :deep(.el-button) { min-height: 38px; }.archived-tip { padding: 6px 10px; color: var(--ink-muted); background: var(--surface-soft); border-radius: 6px; font-size: 12px; }
 .state-banner { display: flex; align-items: flex-start; gap: 12px; margin: 26px 0 0; padding: 15px 18px; color: #774b14; background: var(--warning-soft); border-radius: var(--radius-md); }.state-banner:not(.is-draft) { color: #236747; background: oklch(0.96 0.025 155); }.state-icon { margin-top: 2px; font-size: 18px; }.state-banner strong { font-size: 14px; }.state-banner p { margin: 4px 0 0; max-width: 86ch; color: color-mix(in oklch, currentColor 78%, var(--ink)); font-size: 13px; line-height: 1.55; }
+.transition-error { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 14px; color: #8a1f2a; background: #fdecea; border-radius: 8px; font-size: 13px; }
 .case-tabs { margin-top: 20px; }.case-tabs :deep(.el-tabs__header) { position: sticky; top: 0; z-index: 5; margin: 0; background: var(--app-bg); }.case-tabs :deep(.el-tabs__nav-wrap::after) { height: 1px; background: var(--line); }.case-tabs :deep(.el-tabs__item) { height: 50px; padding: 0 22px; color: var(--ink-secondary); font-size: 14px; }.case-tabs :deep(.el-tabs__item.is-active) { color: var(--brand-strong); font-weight: 650; }.case-tabs :deep(.el-tabs__active-bar) { height: 3px; border-radius: 3px 3px 0 0; }.case-tabs :deep(.el-tabs__content) { overflow: visible; padding-top: 24px; }
+.overview-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 16px; background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); }.overview-toolbar-tip { color: var(--ink-muted); font-size: 12px; }.overview-editing-note { margin-bottom: 14px; border-radius: var(--radius-md); }.overview-edit-form { padding: 22px; background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); }.overview-edit-form :deep(.el-form-item) { margin-bottom: 16px; }.overview-edit-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 13px; font-weight: 700; }.overview-edit-form :deep(.el-textarea__inner) { padding: 12px 14px; line-height: 1.75; }
+.rail-owner { display: block; margin-top: 8px; color: var(--ink-muted); font-size: 11px; }
 .overview-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }.reading-column { min-width: 0; background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); }.content-section { padding: 28px 30px 30px; }.content-section + .content-section { border-top: 1px solid var(--line); }
 .section-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 22px; }.section-heading > div { display: flex; align-items: center; gap: 10px; }.section-heading h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }.section-heading > span { color: var(--ink-muted); font-size: 12px; }.section-marker { width: 9px; height: 9px; border-radius: 3px; background: var(--brand); }
 .insight-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 14px; padding: 14px 0; border-bottom: 1px solid color-mix(in oklch, var(--line) 78%, transparent); }.insight-row:last-child, .target-row:last-child { border-bottom: 0; }.subject-label { align-self: start; justify-self: start; padding: 4px 8px; color: var(--brand-strong); background: var(--brand-soft); border-radius: 6px; font-size: 12px; font-weight: 650; }.insight-row p, .target-row p { margin: 0; max-width: 76ch; color: var(--ink-secondary); font-size: 15px; line-height: 1.85; text-wrap: pretty; }
@@ -465,8 +669,10 @@ onMounted(load)
 .subject-edit-form { display: grid; gap: 4px; }.subject-edit-form :deep(.el-form-item) { margin-bottom: 18px; }.subject-edit-form :deep(.el-form-item:last-child) { margin-bottom: 0; }.subject-edit-form :deep(.el-form-item__label) { padding-bottom: 7px; color: var(--ink); font-size: 13px; font-weight: 700; line-height: 1.4; }.subject-edit-form :deep(.el-textarea__inner) { padding: 12px 14px; color: var(--ink); background: var(--surface-soft); font-family: inherit; font-size: 14px; line-height: 1.75; resize: vertical; }.plan-edit-form { margin-bottom: 18px; }
 .task-list-heading { display: flex; justify-content: space-between; align-items: center; padding-top: 17px; border-top: 1px solid var(--line); }.task-list-heading > div { display: flex; align-items: baseline; gap: 9px; }.task-list-heading strong { font-size: 13px; }.task-list-heading span { color: var(--ink-muted); font-size: 12px; }.task-edit-form { margin-top: 14px; padding: 18px; background: var(--surface-soft); border-radius: 8px; }.task-edit-form :deep(.el-form-item) { margin-bottom: 15px; }.task-edit-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; line-height: 1.4; }.task-edit-form :deep(.el-input), .task-edit-form :deep(.el-select), .task-edit-form :deep(.el-date-editor) { width: 100%; }.task-edit-form :deep(.el-textarea__inner) { line-height: 1.7; }.task-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }.task-form-actions { display: flex; justify-content: flex-end; gap: 8px; }.task-list { margin-top: 10px; }.task-row { display: flex; justify-content: space-between; gap: 24px; padding: 14px 0; border-bottom: 1px solid color-mix(in oklch, var(--line) 76%, transparent); }.task-row:last-child { border-bottom: 0; }.task-row strong { font-size: 14px; }.task-row p { margin: 5px 0 0; color: var(--ink-muted); font-size: 12px; white-space: pre-wrap; }.task-side { display: grid; justify-items: end; align-content: start; gap: 5px; flex-shrink: 0; }.task-meta { display: flex; align-items: flex-start; gap: 8px; }.task-meta span { padding: 4px 7px; color: var(--ink-secondary); background: var(--surface-soft); border-radius: 5px; font-size: 11px; }
 .checkin-form { margin-bottom: 18px; padding: 18px; background: var(--surface-soft); border-radius: 8px; }.checkin-form-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr); gap: 16px; }.checkin-form :deep(.el-form-item) { margin-bottom: 14px; }.checkin-form :deep(.el-select) { width: 100%; }.checkin-form :deep(.el-form-item__label) { color: var(--ink); font-size: 12px; font-weight: 700; }.percent-suffix { margin-left: 7px; color: var(--ink-muted); }.checkin-list { display: grid; }.checkin-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 18px; padding: 15px 0; border-bottom: 1px solid color-mix(in oklch, var(--line) 76%, transparent); }.checkin-row:last-child { border-bottom: 0; }.completion-rate { display: grid; align-content: center; justify-items: center; min-height: 58px; color: var(--brand-strong); background: var(--brand-soft); border-radius: 8px; }.completion-rate strong { font-size: 17px; }.completion-rate span { margin-top: 2px; font-size: 10px; }.checkin-row > div:last-child > strong { font-size: 14px; }.checkin-row p { margin: 5px 0; color: var(--ink-secondary); line-height: 1.6; }.checkin-row time { color: var(--ink-muted); font-size: 11px; }.inline-empty { margin-top: 12px; padding: 18px; color: var(--ink-muted); background: var(--surface-soft); border-radius: 8px; text-align: center; }.inline-empty p { margin: 0; font-size: 13px; }
+.review-form-card { margin-bottom: 18px; padding: 22px; background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); }.review-form-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 16px; }.review-form-header strong { font-size: 15px; }.review-form-header span { color: var(--ink-muted); font-size: 12px; }.review-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }.review-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; }.review-form :deep(.el-select), .review-form :deep(.el-date-editor) { width: 100%; }.review-form-actions { display: flex; justify-content: flex-end; }.review-readonly-tip { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 11px 16px; color: var(--ink-secondary); background: var(--surface-soft); border-radius: 8px; font-size: 12px; }
+.review-item-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }.review-level { padding: 3px 7px; color: #fff; background: var(--brand); border-radius: 5px; font-size: 11px; }.review-level.is-school { background: #7c3aed; }.review-level.is-head_teacher { background: var(--brand); }.review-level.is-subject { background: #0ea5e9; }.review-subject, .review-due { padding: 3px 7px; color: var(--ink-secondary); background: var(--surface-soft); border-radius: 5px; font-size: 11px; }.review-problem { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.7; white-space: pre-wrap; }.review-action, .review-recheck { margin: 6px 0 0; color: var(--ink-secondary); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
 .review-timeline { padding: 18px 22px; background: var(--surface); border-radius: var(--radius-md); }
 @media (max-width: 1100px) { .overview-layout { grid-template-columns: 1fr; }.case-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.rail-section + .rail-section { border-top: 0; border-left: 1px solid var(--line); } }
 @media (max-width: 940px) { .subject-workspace { grid-template-columns: 1fr; }.subject-nav { display: flex; overflow-x: auto; }.subject-nav-heading { display: none; }.subject-nav-item { flex: 0 0 168px; border-bottom: 0; border-right: 1px solid var(--line); }.subject-nav-item:last-child { border-right: 0; } }
-@media (max-width: 760px) { .case-header, .title-line { align-items: flex-start; flex-direction: column; }.title-line { gap: 4px; }.title-line h1 { font-size: 27px; }.case-actions { width: 100%; flex-wrap: wrap; }.case-actions :deep(.el-button) { flex: 1; }.case-tabs :deep(.el-tabs__item) { padding: 0 14px; }.content-section { padding: 22px 20px; }.insight-row, .target-row { grid-template-columns: 1fr; gap: 8px; }.case-rail { grid-template-columns: 1fr; }.rail-section + .rail-section { border-left: 0; border-top: 1px solid var(--line); }.subject-detail-header, .subject-section-heading, .task-row { align-items: flex-start; flex-direction: column; }.subject-detail-header, .subject-section { padding-left: 20px; padding-right: 20px; }.subject-header-actions { width: 100%; flex-wrap: wrap; }.subject-counts { width: 100%; flex-wrap: wrap; }.editing-note { padding-left: 20px; padding-right: 20px; }.subject-fields > div { grid-template-columns: 1fr; gap: 7px; }.task-form-grid { grid-template-columns: 1fr; }.task-side { justify-items: start; }.task-meta { flex-wrap: wrap; }.checkin-row { grid-template-columns: 62px minmax(0, 1fr); } }
+@media (max-width: 760px) { .case-header, .title-line { align-items: flex-start; flex-direction: column; }.title-line { gap: 4px; }.title-line h1 { font-size: 27px; }.case-actions { width: 100%; flex-wrap: wrap; }.case-actions :deep(.el-button) { flex: 1; }.case-tabs :deep(.el-tabs__item) { padding: 0 14px; }.content-section { padding: 22px 20px; }.insight-row, .target-row { grid-template-columns: 1fr; gap: 8px; }.case-rail { grid-template-columns: 1fr; }.rail-section + .rail-section { border-left: 0; border-top: 1px solid var(--line); }.subject-detail-header, .subject-section-heading, .task-row { align-items: flex-start; flex-direction: column; }.subject-detail-header, .subject-section { padding-left: 20px; padding-right: 20px; }.subject-header-actions { width: 100%; flex-wrap: wrap; }.subject-counts { width: 100%; flex-wrap: wrap; }.editing-note { padding-left: 20px; padding-right: 20px; }.subject-fields > div { grid-template-columns: 1fr; gap: 7px; }.task-form-grid, .review-form-grid { grid-template-columns: 1fr; }.task-side { justify-items: start; }.task-meta { flex-wrap: wrap; }.checkin-row { grid-template-columns: 62px minmax(0, 1fr); } }
 </style>
