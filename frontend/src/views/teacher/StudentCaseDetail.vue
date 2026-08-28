@@ -21,9 +21,8 @@
           </div>
         </div>
         <div class="case-actions">
-          <el-tooltip content="导出功能将在打印模板验收后开放" placement="bottom">
-            <span><el-button disabled><el-icon><Document /></el-icon>导出 DOCX</el-button></span>
-          </el-tooltip>
+          <el-button :loading="exporting" :disabled="editingOverview || editingPlan || !!editingTask" @click="handleExport"><el-icon><Document /></el-icon>导出 DOCX</el-button>
+          <span v-if="detail" class="export-meta">V{{ detail.version }} · {{ labels[detail.status] || detail.status }}</span>
           <template v-if="detail.can_manage && !editingOverview && !editingPlan && !editingTask">
             <el-button v-if="detail.status === 'draft'" type="primary" :loading="submitting" @click="submitForConfirmation">提交待确认</el-button>
             <template v-if="detail.status === 'pending_confirmation'">
@@ -260,7 +259,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Plus, Search, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
-import { checkinCaseTask, createCaseReview, createCaseTask, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, upsertSubjectPlan } from '../../api/studentCases'
+import { checkinCaseTask, createCaseReview, createCaseTask, exportStudentCase, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, upsertSubjectPlan } from '../../api/studentCases'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
@@ -275,6 +274,7 @@ const savingCheckin = ref(false)
 const editingOverview = ref(false)
 const savingOverview = ref(false)
 const savingReview = ref(false)
+const exporting = ref(false)
 const detail = ref(null)
 const active = ref('overview')
 const selectedSubject = ref('')
@@ -625,6 +625,27 @@ async function doTransition(targetStatus, title, message, reason) {
   }
 }
 
+async function handleExport() {
+  if (!detail.value) return
+  exporting.value = true
+  try {
+    const blob = await exportStudentCase(detail.value.id)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${detail.value.student_name || '学生'}_一生一案_V${detail.value.version}.docx`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`已导出 V${detail.value.version} 版本`)
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || '导出失败，请重试')
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function handleArchive() {
   const { value } = await ElMessageBox.prompt('请输入归档原因（将保留历史版本）', '归档确认', { confirmButtonText: '确认归档', cancelButtonText: '取消', inputPlaceholder: '例如：本周期已结束，归档留存' })
   if (!value || !String(value).trim()) { ElMessage.warning('请填写归档原因'); return }
@@ -646,7 +667,7 @@ onMounted(load)
 .back-link { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 18px; padding: 6px 10px 6px 8px; color: var(--ink-secondary); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: 13px; box-shadow: var(--shadow-soft); transition: border-color .18s, color .18s, background .18s; }.back-link:hover { color: var(--brand-strong); border-color: var(--line-strong); background: var(--surface); }
 .case-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px 24px; align-items: start; padding: 22px 24px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow-soft); }.case-heading { min-width: 0; }.title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }.title-line h1 { margin: 0; color: var(--ink); font-size: 30px; line-height: 1.2; letter-spacing: -.03em; text-wrap: balance; }.title-suffix { color: var(--ink-muted); font-size: 14px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .case-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; color: var(--ink-muted); font-size: 12.5px; }.status-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; color: #8a5611; background: var(--warning-soft); border: 1px solid color-mix(in oklch, var(--warning) 14%, transparent); border-radius: 999px; font-weight: 700; font-size: 12px; letter-spacing: .02em; }.status-badge.is-executing, .status-badge.is-adjusted, .status-badge.is-archived { color: #1a6b44; background: oklch(0.96 0.03 155); border-color: color-mix(in oklch, var(--success) 14%, transparent); }.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in oklch, currentColor 16%, transparent); }
-.case-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; align-self: start; min-width: 280px; }.case-actions :deep(.el-button) { min-height: 36px; border-radius: 10px; font-weight: 600; }.case-actions :deep(.el-button.is-disabled) { opacity: .6; }.archived-tip { padding: 7px 12px; color: var(--ink-muted); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 600; }
+.case-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; align-self: start; min-width: 280px; }.case-actions :deep(.el-button) { min-height: 36px; border-radius: 10px; font-weight: 600; }.case-actions :deep(.el-button.is-disabled) { opacity: .6; }.export-meta { padding: 6px 10px; color: var(--ink-muted); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; }.archived-tip { padding: 7px 12px; color: var(--ink-muted); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 600; }
 .state-banner { display: flex; align-items: flex-start; gap: 14px; margin: 0; padding: 14px 24px 16px; color: #7a4d12; background: linear-gradient(180deg, color-mix(in oklch, var(--warning-soft) 88%, white), var(--warning-soft)); border: 1px solid color-mix(in oklch, var(--warning) 10%, var(--line)); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); box-shadow: var(--shadow-soft); }.state-banner:not(.is-draft) { color: #1f5d3e; background: linear-gradient(180deg, oklch(0.98 0.015 155), oklch(0.96 0.02 155)); border-color: color-mix(in oklch, var(--success) 10%, var(--line)); }.state-icon { margin-top: 2px; font-size: 18px; flex-shrink: 0; }.state-banner strong { font-size: 13.5px; letter-spacing: -.01em; }.state-banner p { margin: 4px 0 0; max-width: 78ch; color: color-mix(in oklch, currentColor 74%, var(--ink)); font-size: 13px; line-height: 1.6; }
 .transition-error { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; padding: 12px 16px; color: #8a1f2a; background: #fef2f2; border: 1px solid #fecdd3; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow-soft); }
 .case-tabs { margin-top: 22px; }.case-tabs :deep(.el-tabs__header) { position: sticky; top: 0; z-index: 5; margin: 0; padding: 0 6px; background: color-mix(in oklch, var(--app-bg) 88%, white); backdrop-filter: blur(8px) saturate(1.05); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.case-tabs :deep(.el-tabs__nav-wrap) { padding: 4px; }.case-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }.case-tabs :deep(.el-tabs__item) { height: 40px; padding: 0 16px; margin: 2px 4px 2px 0; color: var(--ink-secondary); font-size: 14px; font-weight: 600; border-radius: 10px; transition: background .18s, color .18s; }.case-tabs :deep(.el-tabs__item:hover) { color: var(--ink); background: var(--surface-soft); }.case-tabs :deep(.el-tabs__item.is-active) { color: var(--brand-strong); background: var(--brand-soft); font-weight: 700; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--brand) 12%, transparent); }.case-tabs :deep(.el-tabs__active-bar) { display: none; }.case-tabs :deep(.el-tabs__content) { overflow: visible; padding-top: 20px; }

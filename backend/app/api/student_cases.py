@@ -1,8 +1,10 @@
 """高三一生一案 API：总案、学科方案、目标任务、打卡、督查与版本。"""
 
-from datetime import date
+from datetime import date, datetime, timezone
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -57,6 +59,7 @@ from app.services.student_case_service import (
     transition_case,
     verify_case_membership,
 )
+from app.services.case_export import build_case_export_bytes
 
 router = APIRouter(prefix="/student-cases", tags=["student-cases"])
 _staff = require_roles([ROLE_ADMIN, ROLE_TEACHER])
@@ -275,6 +278,43 @@ def get_student_case(
 ):
     case = require_case_access(db, case_id, user)
     return _detail(db, case, user)
+
+
+@router.get("/{case_id}/export")
+def export_student_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # 导出权限与查看一致：家长仅可见已确认版本，班主任/管理员可见全部
+    case = require_case_access(db, case_id, user)
+    detail = _detail(db, case, user)
+    student = db.get(User, case.student_id)
+    cls = db.get(Class, case.class_id)
+    cycle = db.get(CaseCycle, case.cycle_id)
+    data = build_case_export_bytes(
+        case=case,
+        student_name=student.name if student else f"学生#{case.student_id}",
+        class_name=cls.name if cls else f"班级#{case.class_id}",
+        cycle_name=cycle.name if cycle else "",
+        subject_plans=detail["subject_plans"],
+        tasks=detail["tasks"],
+        checkins=detail["task_checkins"],
+        reviews=detail["reviews"],
+        cycle=cycle,
+    )
+    audit(db, user.id, "case.export", "student_case", case.id, case.id, {"version": case.version, "status": case.status})
+    db.commit()
+    filename = f"{student.name if student else case.student_id}_一生一案_V{case.version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.docx"
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}; filename=\"export.docx\"",
+            "X-Case-Version": str(case.version),
+            "X-Case-Status": case.status,
+        },
+    )
 
 
 @router.patch("/{case_id}", response_model=StudentCaseOut)
