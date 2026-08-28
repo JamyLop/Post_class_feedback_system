@@ -21,9 +21,9 @@
           </div>
         </div>
         <div class="case-actions">
-          <el-button :loading="exporting" :disabled="editingOverview || editingPlan || !!editingTask" @click="handleExport"><el-icon><Document /></el-icon>导出 DOCX</el-button>
+          <el-button :loading="exporting" :disabled="editingProfile || editingOverview || editingPlan || !!editingTask" @click="handleExport"><el-icon><Document /></el-icon>导出 DOCX</el-button>
           <span v-if="detail" class="export-meta">V{{ detail.version }} · {{ labels[detail.status] || detail.status }}</span>
-          <template v-if="detail.can_manage && !editingOverview && !editingPlan && !editingTask">
+          <template v-if="detail.can_manage && !editingProfile && !editingOverview && !editingPlan && !editingTask">
             <el-button v-if="detail.status === 'draft'" type="primary" :loading="submitting" @click="submitForConfirmation">提交待确认</el-button>
             <template v-if="detail.status === 'pending_confirmation'">
               <el-button :loading="submitting" @click="doTransition('draft', '退回草稿', '将总案退回草稿以继续完善，是否继续？', '退回草稿继续完善')">退回草稿</el-button>
@@ -51,6 +51,88 @@
       <div v-if="transitionError" class="transition-error"><el-icon><WarningFilled /></el-icon><span>{{ transitionError }}</span></div>
 
       <el-tabs v-model="active" class="case-tabs">
+        <el-tab-pane label="基本信息" name="profile">
+          <section class="profile-card">
+            <header class="profile-card-header">
+              <div>
+                <span class="profile-kicker">学生档案</span>
+                <h2>基本信息</h2>
+                <p>记录学生身份、家庭反馈及需要关注的健康事项。</p>
+              </div>
+              <div v-if="detail.can_manage && detail.status !== 'archived'" class="profile-actions">
+                <template v-if="!editingProfile">
+                  <el-button plain @click="startProfileEdit"><el-icon><EditPen /></el-icon>编辑信息</el-button>
+                </template>
+                <template v-else>
+                  <el-button :disabled="savingProfile" @click="cancelProfileEdit">取消</el-button>
+                  <el-button type="primary" :loading="savingProfile" @click="saveProfile">保存信息</el-button>
+                </template>
+              </div>
+            </header>
+
+            <template v-if="!editingProfile">
+              <div class="profile-section">
+                <div class="profile-section-title"><span class="section-marker"></span><div><h3>学生信息</h3><p>用于识别学生及其入学背景</p></div></div>
+                <dl class="profile-grid">
+                  <div><dt>姓名</dt><dd>{{ profileValue('student_name') }}</dd></div>
+                  <div><dt>性别</dt><dd>{{ profileValue('gender') }}</dd></div>
+                  <div><dt>民族</dt><dd>{{ profileValue('ethnicity') }}</dd></div>
+                  <div><dt>年级</dt><dd>{{ profileValue('grade') }}</dd></div>
+                  <div class="profile-wide"><dt>生源地学校</dt><dd>{{ profileValue('source_school') }}</dd></div>
+                </dl>
+              </div>
+              <div class="profile-section">
+                <div class="profile-section-title"><span class="section-marker"></span><div><h3>家庭反馈</h3><p>由班主任根据家长沟通情况如实记录</p></div></div>
+                <dl class="profile-grid profile-copy-grid">
+                  <div><dt>家长评价</dt><dd>{{ profileValue('parent_evaluation') }}</dd></div>
+                  <div><dt>主要需求</dt><dd>{{ profileValue('primary_needs') }}</dd></div>
+                </dl>
+              </div>
+              <div class="profile-section health-section">
+                <div class="profile-section-title"><span class="section-marker"></span><div><h3>健康与体检信息</h3><p>仅记录教育服务和在校安全确有必要的信息</p></div></div>
+                <dl class="profile-grid health-grid">
+                  <div><dt>过敏史</dt><dd>{{ profileValue('allergy_history') }}</dd></div>
+                  <div><dt>隐性疾病</dt><dd>{{ profileValue('underlying_conditions') }}</dd></div>
+                  <div class="profile-wide"><dt>其他</dt><dd>{{ profileValue('other_health_notes') }}</dd></div>
+                </dl>
+              </div>
+            </template>
+
+            <el-form v-else label-position="top" class="profile-form">
+              <div class="profile-form-block">
+                <h3>学生信息</h3>
+                <div class="profile-form-grid">
+                  <el-form-item label="姓名"><el-input v-model="profileForm.student_name" maxlength="64" /></el-form-item>
+                  <el-form-item label="性别"><el-select v-model="profileForm.gender" clearable placeholder="请选择"><el-option label="男" value="男" /><el-option label="女" value="女" /><el-option label="其他" value="其他" /></el-select></el-form-item>
+                  <el-form-item label="民族"><el-input v-model="profileForm.ethnicity" maxlength="32" placeholder="例如：汉族" /></el-form-item>
+                  <el-form-item label="年级">
+                    <el-select v-model="profileForm.grade" clearable placeholder="请选择年级">
+                      <el-option v-for="grade in gradeOptions" :key="grade" :label="grade" :value="grade" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="生源地学校" class="profile-form-wide"><el-input v-model="profileForm.source_school" maxlength="128" placeholder="填写学生原就读学校" /></el-form-item>
+                </div>
+              </div>
+              <div class="profile-form-block">
+                <h3>家庭反馈</h3>
+                <div class="profile-form-grid profile-form-copy">
+                  <el-form-item label="家长评价"><el-input v-model="profileForm.parent_evaluation" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" maxlength="4000" show-word-limit placeholder="填写家长对学生学习、习惯和状态的评价" /></el-form-item>
+                  <el-form-item label="主要需求"><el-input v-model="profileForm.primary_needs" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" maxlength="4000" show-word-limit placeholder="填写家长及学生当前最主要的支持需求" /></el-form-item>
+                </div>
+              </div>
+              <div class="profile-form-block health-section">
+                <div class="health-notice"><el-icon><WarningFilled /></el-icon><span>健康信息属于敏感资料，请仅填写与学生安全和教学支持直接相关的必要内容。</span></div>
+                <h3>健康与体检信息</h3>
+                <div class="profile-form-grid profile-form-health">
+                  <el-form-item label="过敏史"><el-input v-model="profileForm.allergy_history" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="无相关情况可填写“无”" /></el-form-item>
+                  <el-form-item label="隐性疾病"><el-input v-model="profileForm.underlying_conditions" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="填写需要学校关注的既往或潜在疾病" /></el-form-item>
+                  <el-form-item label="其他" class="profile-form-wide"><el-input v-model="profileForm.other_health_notes" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="填写其他体检或健康注意事项" /></el-form-item>
+                </div>
+              </div>
+            </el-form>
+          </section>
+        </el-tab-pane>
+
         <el-tab-pane label="总览" name="overview">
           <div v-if="editingOverview" class="editing-note overview-editing-note"><el-icon><EditPen /></el-icon><span>正在编辑总览，保存后将更新总体问题、升学目标和当前状态说明。</span></div>
           <div class="overview-toolbar" v-if="canEditOverview">
@@ -114,7 +196,7 @@
                 class="subject-nav-item"
                 :class="{ 'is-active': selectedSubject === subject }"
                 type="button"
-                :disabled="(editingPlan || editingTask || editingOverview) && selectedSubject !== subject"
+                :disabled="(editingProfile || editingPlan || editingTask || editingOverview) && selectedSubject !== subject"
                 :aria-current="selectedSubject === subject ? 'page' : undefined"
                 @click="selectSubject(subject)"
               >
@@ -248,6 +330,46 @@
           </el-timeline>
           <div v-else class="empty-panel"><h3>暂无督查记录</h3><p>方案进入执行阶段后，班主任记录过程，管理员提交校级督查。</p></div>
         </el-tab-pane>
+        <el-tab-pane label="周测成绩" name="weekly">
+          <div class="weekly-section">
+            <div class="weekly-header">
+              <div><strong>周测成绩趋势</strong><span>{{ weeklyRows.length }} 条记录</span></div>
+              <div class="weekly-actions">
+                <el-select v-model="weeklySubject" placeholder="全部学科" clearable style="width: 140px" @change="loadWeekly"><el-option v-for="s in subjectOrder.slice(0,9)" :key="s" :label="s" :value="s" /></el-select>
+                <el-button @click="loadWeekly">刷新</el-button>
+                <el-button type="primary" plain @click="$router.push('/teacher/weekly-scores')">去录入</el-button>
+              </div>
+            </div>
+            <div v-if="weeklyRows.length" ref="weeklyChartRef" style="height: 260px; margin: 12px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px"></div>
+            <el-table v-if="weeklyRows.length" :data="weeklyRows" max-height="360">
+              <el-table-column prop="subject" label="学科" width="100" />
+              <el-table-column prop="exam_date" label="日期" width="120" />
+              <el-table-column prop="exam_name" label="周次" min-width="140" show-overflow-tooltip />
+              <el-table-column label="分数" width="120"><template #default="{ row }">{{ row.score }} / {{ row.max_score }}</template></el-table-column>
+              <el-table-column prop="rank_in_class" label="排名" width="90"><template #default="{ row }">{{ row.rank_in_class || '-' }}</template></el-table-column>
+              <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+            </el-table>
+            <div v-else class="empty-panel"><h3>暂无周测成绩</h3><p>班主任可在“周测成绩”页面按班级批量录入，该生的历次周测将在此汇聚并展示趋势。</p></div>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="月报" name="monthly">
+          <div class="weekly-section">
+            <div class="weekly-header">
+              <div><strong>月报</strong><span>{{ monthlyRows.length }} 份</span></div>
+              <div class="weekly-actions">
+                <el-button @click="loadMonthly">刷新</el-button>
+                <el-button type="primary" plain @click="$router.push('/teacher/monthly-reports')">去管理</el-button>
+              </div>
+            </div>
+            <el-table v-if="monthlyRows.length" :data="monthlyRows" style="margin-top:12px">
+              <el-table-column prop="month_label" label="月份" width="110" />
+              <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="monthlyStatusType(row.status)">{{ monthlyStatusText(row.status) }}</el-tag></template></el-table-column>
+              <el-table-column label="摘要" min-width="300" show-overflow-tooltip><template #default="{ row }">{{ (row.final_content || row.ai_content || '').slice(0,80) }}</template></el-table-column>
+              <el-table-column label="操作" width="120"><template #default="{ row }"><el-button link type="primary" @click="$router.push('/teacher/monthly-reports')">查看</el-button></template></el-table-column>
+            </el-table>
+            <div v-else class="empty-panel"><h3>暂无月报</h3><p>班主任可在“月报”页面按月生成 AI 初稿，汇总学情与德育并给出改进方案。</p></div>
+          </div>
+        </el-tab-pane>
         <el-tab-pane label="历史版本" name="versions"><div class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>正式调整后，旧版本将在这里保留并支持对比。</p></div></el-tab-pane>
       </el-tabs>
     </template>
@@ -255,11 +377,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Plus, Search, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
-import { checkinCaseTask, createCaseReview, createCaseTask, exportStudentCase, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, upsertSubjectPlan } from '../../api/studentCases'
+import * as echarts from 'echarts'
+import { checkinCaseTask, createCaseReview, createCaseTask, exportStudentCase, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
+import { listWeeklyScores } from '../../api/weeklyScores'
+import { listMonthlyReports } from '../../api/monthlyReports'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
@@ -275,16 +400,25 @@ const editingOverview = ref(false)
 const savingOverview = ref(false)
 const savingReview = ref(false)
 const exporting = ref(false)
+const editingProfile = ref(false)
+const savingProfile = ref(false)
 const detail = ref(null)
 const active = ref('overview')
+const weeklyRows = ref([])
+const weeklySubject = ref('')
+const weeklyChartRef = ref(null)
+let weeklyChart = null
+const monthlyRows = ref([])
 const selectedSubject = ref('')
 const manualSubjects = ref([])
 const planForm = ref(createEmptyPlanForm())
 const taskForm = ref(createEmptyTaskForm())
 const overviewForm = ref(createEmptyOverviewForm())
+const profileForm = ref(createEmptyProfileForm())
 const checkinForm = ref({ task_id: null, completion_rate: 0, self_check: '' })
 const reviewForm = ref(createEmptyReviewForm())
 const labels = { draft: '草稿', pending_confirmation: '待确认', executing: '执行中', pending_review: '待复盘', adjusted: '已调整', archived: '已归档' }
+const gradeOptions = ['初一', '初二', '初三', '高一', '高二', '高三']
 const subjectOrder = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '德育']
 const transitionError = ref('')
 const statusCopy = {
@@ -328,9 +462,9 @@ const subjectOptions = computed(() => {
 })
 const selectedPlan = computed(() => detail.value?.subject_plans?.find((item) => item.subject === selectedSubject.value))
 const availableSubjects = computed(() => subjectOrder.filter((item) => !subjectOptions.value.includes(item)))
-const canEditPlan = computed(() => detail.value?.can_manage && ['draft', 'pending_confirmation', 'adjusted'].includes(detail.value?.status) && !editingOverview.value && !editingTask.value)
-const canEditOverview = computed(() => detail.value?.can_manage && ['draft', 'pending_confirmation'].includes(detail.value?.status) && !editingPlan.value && !editingTask.value)
-const canEditTasks = computed(() => detail.value?.can_manage && detail.value?.status !== 'archived' && !editingPlan.value && !editingOverview.value)
+const canEditPlan = computed(() => detail.value?.can_manage && ['draft', 'pending_confirmation', 'adjusted'].includes(detail.value?.status) && !editingProfile.value && !editingOverview.value && !editingTask.value)
+const canEditOverview = computed(() => detail.value?.can_manage && ['draft', 'pending_confirmation'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingTask.value)
+const canEditTasks = computed(() => detail.value?.can_manage && detail.value?.status !== 'archived' && !editingProfile.value && !editingPlan.value && !editingOverview.value)
 const canCreateReview = computed(() => {
   if (!detail.value) return false
   if (auth.role === 'admin') return true
@@ -356,6 +490,46 @@ function createEmptyTaskForm() {
 
 function createEmptyOverviewForm() {
   return { overall_problem: '', admission_target: '', current_summary: '' }
+}
+
+function createEmptyProfileForm() {
+  return {
+    student_name: '', gender: '', ethnicity: '', source_school: '', grade: '',
+    parent_evaluation: '', primary_needs: '', allergy_history: '',
+    underlying_conditions: '', other_health_notes: '',
+  }
+}
+
+function profileValue(field) {
+  return detail.value?.student_profile?.[field] || '暂未填写'
+}
+
+function startProfileEdit() {
+  profileForm.value = { ...createEmptyProfileForm(), ...(detail.value?.student_profile || {}) }
+  editingProfile.value = true
+}
+
+function cancelProfileEdit() {
+  editingProfile.value = false
+  profileForm.value = createEmptyProfileForm()
+}
+
+async function saveProfile() {
+  if (!detail.value) return
+  if (!profileForm.value.student_name.trim()) {
+    ElMessage.warning('请填写学生姓名')
+    return
+  }
+  savingProfile.value = true
+  try {
+    const saved = await updateStudentProfile(detail.value.id, profileForm.value)
+    detail.value.student_profile = saved
+    detail.value.student_name = saved.student_name
+    editingProfile.value = false
+    ElMessage.success('学生基本信息已保存')
+  } finally {
+    savingProfile.value = false
+  }
 }
 
 function createEmptyReviewForm() {
@@ -590,6 +764,35 @@ function formatDateTime(value) {
   if (!value) return '暂无时间'
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
+async function loadWeekly() {
+  if (!detail.value) return
+  const params = { student_id: detail.value.student_id }
+  if (weeklySubject.value) params.subject = weeklySubject.value
+  weeklyRows.value = await listWeeklyScores(params)
+  await nextTick()
+  if (weeklyChartRef.value && weeklyRows.value.length) {
+    if (weeklyChart) weeklyChart.dispose()
+    weeklyChart = echarts.init(weeklyChartRef.value)
+    const sorted = [...weeklyRows.value].sort((a,b) => a.exam_date.localeCompare(b.exam_date))
+    weeklyChart.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: sorted.map(d => d.exam_date) },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', smooth: true, data: sorted.map(d => d.score), areaStyle: {}, itemStyle: { color: '#4a86ff' } }],
+      grid: { left: 36, right: 16, top: 16, bottom: 28 }
+    })
+  }
+}
+async function loadMonthly() {
+  if (!detail.value) return
+  monthlyRows.value = await listMonthlyReports({ student_id: detail.value.student_id })
+}
+function monthlyStatusText(s) { return { generating:'生成中', generated:'待发布', published:'已发布', failed:'生成失败'}[s] || s }
+function monthlyStatusType(s) { return { generated:'warning', published:'success', failed:'danger'}[s] || 'info' }
+
+watch(active, (v) => { if (v === 'weekly') loadWeekly(); if (v === 'monthly') loadMonthly() })
+watch(weeklySubject, loadWeekly)
+
 async function load() {
   loading.value = true
   try {
@@ -599,6 +802,8 @@ async function load() {
     checkinForm.value.task_id = firstTask?.id || null
     if (auth.role === 'admin') reviewForm.value.review_level = 'school'
     else if (detail.value?.can_manage) reviewForm.value.review_level = 'head_teacher'
+    if (active.value === 'weekly') await loadWeekly()
+    if (active.value === 'monthly') await loadMonthly()
   } finally {
     loading.value = false
   }
@@ -671,6 +876,7 @@ onMounted(load)
 .state-banner { display: flex; align-items: flex-start; gap: 14px; margin: 0; padding: 14px 24px 16px; color: #7a4d12; background: linear-gradient(180deg, color-mix(in oklch, var(--warning-soft) 88%, white), var(--warning-soft)); border: 1px solid color-mix(in oklch, var(--warning) 10%, var(--line)); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); box-shadow: var(--shadow-soft); }.state-banner:not(.is-draft) { color: #1f5d3e; background: linear-gradient(180deg, oklch(0.98 0.015 155), oklch(0.96 0.02 155)); border-color: color-mix(in oklch, var(--success) 10%, var(--line)); }.state-icon { margin-top: 2px; font-size: 18px; flex-shrink: 0; }.state-banner strong { font-size: 13.5px; letter-spacing: -.01em; }.state-banner p { margin: 4px 0 0; max-width: 78ch; color: color-mix(in oklch, currentColor 74%, var(--ink)); font-size: 13px; line-height: 1.6; }
 .transition-error { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; padding: 12px 16px; color: #8a1f2a; background: #fef2f2; border: 1px solid #fecdd3; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow-soft); }
 .case-tabs { margin-top: 22px; }.case-tabs :deep(.el-tabs__header) { position: sticky; top: 0; z-index: 5; margin: 0; padding: 0 6px; background: color-mix(in oklch, var(--app-bg) 88%, white); backdrop-filter: blur(8px) saturate(1.05); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.case-tabs :deep(.el-tabs__nav-wrap) { padding: 4px; }.case-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }.case-tabs :deep(.el-tabs__item) { height: 40px; padding: 0 16px; margin: 2px 4px 2px 0; color: var(--ink-secondary); font-size: 14px; font-weight: 600; border-radius: 10px; transition: background .18s, color .18s; }.case-tabs :deep(.el-tabs__item:hover) { color: var(--ink); background: var(--surface-soft); }.case-tabs :deep(.el-tabs__item.is-active) { color: var(--brand-strong); background: var(--brand-soft); font-weight: 700; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--brand) 12%, transparent); }.case-tabs :deep(.el-tabs__active-bar) { display: none; }.case-tabs :deep(.el-tabs__content) { overflow: visible; padding-top: 20px; }
+.profile-card { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.profile-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 22px 24px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, color-mix(in oklch, var(--brand-soft) 46%, white), var(--surface)); }.profile-kicker { display: block; margin-bottom: 5px; color: var(--brand-strong); font-size: 11px; font-weight: 750; letter-spacing: .12em; }.profile-card-header h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }.profile-card-header p { margin: 7px 0 0; color: var(--ink-muted); font-size: 12.5px; }.profile-actions { display: flex; gap: 8px; flex-shrink: 0; }.profile-section { padding: 22px 24px 24px; }.profile-section + .profile-section { border-top: 1px solid var(--line); }.profile-section-title { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }.profile-section-title > div { display: grid; gap: 3px; }.profile-section-title h3 { margin: 0; font-size: 15px; }.profile-section-title p { margin: 0; color: var(--ink-muted); font-size: 11.5px; }.profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; overflow: hidden; background: var(--line); border: 1px solid var(--line); border-radius: 12px; }.profile-grid > div { min-width: 0; padding: 14px 16px; background: var(--surface-soft); }.profile-grid .profile-wide { grid-column: 1 / -1; }.profile-grid dt { margin-bottom: 6px; color: var(--ink-muted); font-size: 11.5px; font-weight: 650; }.profile-grid dd { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }.profile-copy-grid > div, .health-grid > div { min-height: 96px; }.health-section { background: color-mix(in oklch, var(--surface-soft) 58%, white); }.profile-form { padding: 0; }.profile-form-block { padding: 22px 24px 10px; }.profile-form-block + .profile-form-block { border-top: 1px solid var(--line); }.profile-form-block h3 { margin: 0 0 16px; font-size: 15px; }.profile-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }.profile-form-wide { grid-column: 1 / -1; }.profile-form-copy :deep(.el-form-item), .profile-form-health :deep(.el-form-item) { align-self: start; }.profile-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12.5px; font-weight: 700; }.profile-form :deep(.el-select) { width: 100%; }.profile-form :deep(.el-input__wrapper), .profile-form :deep(.el-textarea__inner) { background: var(--surface-soft); border-radius: 10px; }.profile-form :deep(.el-textarea__inner) { line-height: 1.65; }.health-notice { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 16px; padding: 11px 13px; color: #7a4d12; background: var(--warning-soft); border: 1px solid color-mix(in oklch, var(--warning) 14%, var(--line)); border-radius: 10px; font-size: 12px; line-height: 1.55; }.health-notice .el-icon { margin-top: 2px; flex-shrink: 0; }
 .overview-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; padding: 13px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.overview-toolbar-tip { color: var(--ink-muted); font-size: 12px; line-height: 1.5; }.overview-editing-note { margin-bottom: 14px; border-radius: var(--radius-lg); border: 1px solid color-mix(in oklch, var(--brand) 10%, var(--line)); box-shadow: var(--shadow-soft); }.overview-edit-form { padding: 20px 22px 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.overview-edit-form :deep(.el-form-item) { margin-bottom: 14px; }.overview-edit-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 13px; font-weight: 700; }.overview-edit-form :deep(.el-textarea__inner) { padding: 12px 14px; line-height: 1.7; background: var(--surface-soft); border-color: var(--line); }
 .rail-owner { display: block; margin-top: 8px; color: var(--ink-muted); font-size: 11px; }
 .overview-layout { display: grid; grid-template-columns: minmax(0, 1.42fr) 320px; gap: 18px; align-items: start; }.reading-column { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); overflow: hidden; }.content-section { padding: 22px 24px 22px; }.content-section + .content-section { border-top: 1px solid var(--line); }
@@ -694,7 +900,12 @@ onMounted(load)
 .review-form-card { margin-bottom: 16px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-form-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.review-form-header strong { font-size: 14px; font-weight: 750; letter-spacing: -.01em; }.review-form-header span { color: var(--ink-muted); font-size: 11.5px; }.review-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }.review-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; }.review-form :deep(.el-select), .review-form :deep(.el-date-editor) { width: 100%; }.review-form :deep(.el-input__wrapper), .review-form :deep(.el-textarea__inner) { border-radius: 10px; }.review-form-actions { display: flex; justify-content: flex-end; }.review-readonly-tip { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 12px 16px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; font-size: 12.5px; }
 .review-item-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }.review-level { padding: 4px 8px; color: #fff; background: var(--brand); border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }.review-level.is-school { background: #7c3aed; }.review-level.is-principal { background: #be123c; }.review-level.is-head_teacher { background: var(--brand); }.review-level.is-subject { background: #0ea5e9; }.review-subject, .review-due { padding: 4px 8px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; }.review-problem { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }.review-action, .review-recheck { margin: 6px 0 0; color: var(--ink-secondary); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; background: var(--surface-soft); border: 1px solid var(--line); padding: 8px 10px; border-radius: 10px; }
 .review-timeline { padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-timeline :deep(.el-timeline-item__node) { border-color: var(--brand); background: var(--brand-soft); }.review-timeline :deep(.el-timeline-item__timestamp) { font-size: 11.5px; }
+.weekly-section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); padding: 18px 20px; }
+.weekly-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.weekly-header strong { font-size: 14px; }
+.weekly-header span { color: var(--ink-muted); font-size: 12px; margin-left: 8px; }
+.weekly-actions { display: flex; gap: 8px; align-items: center; }
 @media (max-width: 1100px) { .overview-layout { grid-template-columns: 1fr; }.case-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.rail-section + .rail-section { border-top: 0; border-left: 1px solid var(--line); } }
 @media (max-width: 940px) { .subject-workspace { grid-template-columns: 1fr; }.subject-nav { display: flex; overflow-x: auto; }.subject-nav-heading { display: none; }.subject-nav-item { flex: 0 0 168px; border-bottom: 0; border-right: 1px solid var(--line); }.subject-nav-item:last-child { border-right: 0; } }
-@media (max-width: 760px) { .case-header, .title-line { align-items: flex-start; flex-direction: column; }.title-line { gap: 4px; }.title-line h1 { font-size: 27px; }.case-actions { width: 100%; flex-wrap: wrap; }.case-actions :deep(.el-button) { flex: 1; }.case-tabs :deep(.el-tabs__item) { padding: 0 14px; }.content-section { padding: 22px 20px; }.insight-row, .target-row { grid-template-columns: 1fr; gap: 8px; }.case-rail { grid-template-columns: 1fr; }.rail-section + .rail-section { border-left: 0; border-top: 1px solid var(--line); }.subject-detail-header, .subject-section-heading, .task-row { align-items: flex-start; flex-direction: column; }.subject-detail-header, .subject-section { padding-left: 20px; padding-right: 20px; }.subject-header-actions { width: 100%; flex-wrap: wrap; }.subject-counts { width: 100%; flex-wrap: wrap; }.editing-note { padding-left: 20px; padding-right: 20px; }.subject-fields > div { grid-template-columns: 1fr; gap: 7px; }.task-form-grid, .review-form-grid { grid-template-columns: 1fr; }.task-side { justify-items: start; }.task-meta { flex-wrap: wrap; }.checkin-row { grid-template-columns: 62px minmax(0, 1fr); } }
+@media (max-width: 760px) { .case-header, .title-line, .profile-card-header { align-items: flex-start; flex-direction: column; }.title-line { gap: 4px; }.title-line h1 { font-size: 27px; }.case-actions, .profile-actions { width: 100%; flex-wrap: wrap; }.case-actions :deep(.el-button), .profile-actions :deep(.el-button) { flex: 1; }.case-tabs :deep(.el-tabs__item) { padding: 0 14px; }.profile-card-header, .profile-section, .profile-form-block, .content-section { padding-left: 20px; padding-right: 20px; }.profile-grid, .profile-form-grid { grid-template-columns: 1fr; }.profile-grid .profile-wide, .profile-form-wide { grid-column: auto; }.insight-row, .target-row { grid-template-columns: 1fr; gap: 8px; }.case-rail { grid-template-columns: 1fr; }.rail-section + .rail-section { border-left: 0; border-top: 1px solid var(--line); }.subject-detail-header, .subject-section-heading, .task-row { align-items: flex-start; flex-direction: column; }.subject-detail-header, .subject-section { padding-left: 20px; padding-right: 20px; }.subject-header-actions { width: 100%; flex-wrap: wrap; }.subject-counts { width: 100%; flex-wrap: wrap; }.editing-note { padding-left: 20px; padding-right: 20px; }.subject-fields > div { grid-template-columns: 1fr; gap: 7px; }.task-form-grid, .review-form-grid { grid-template-columns: 1fr; }.task-side { justify-items: start; }.task-meta { flex-wrap: wrap; }.checkin-row { grid-template-columns: 62px minmax(0, 1fr); } }
 </style>

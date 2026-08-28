@@ -64,6 +64,15 @@ class MockLLMProvider(LLMProvider):
     def chat_with_metadata(
         self, system: str, user: str, response_format: str = "text"
     ) -> LLMResponse:
+        if "<monthly_data>" in user:
+            return LLMResponse(
+                text=(
+                    "## 学情总结\n本月学情整体平稳，周测与作业均分保持在中上区间，薄弱点集中在个别知识模块，作业与周测趋势一致，建议针对弱项进行专题归纳与限时训练。\n\n"
+                    "## 德育表现\n本月行为表现总体规范，课堂与日常管理较为稳定，个别时段存在注意力或执行细节波动，已通过谈话与家校协同跟进，日常优化措施持续落实中。\n\n"
+                    "## 改进方案\n1. 针对薄弱知识点每周安排2次专项练习，完成后由学科教师复核；2. 每周固定时间进行错题重做与方法总结；3. 德育方面落实日常记录与周度小结，强化自我管理与时间规划；4. 下月以周为节点检查目标达成并及时调整任务。"
+                ),
+                model="mock-monthly",
+            )
         if "<feedback_data>" in user:
             return LLMResponse(
                 text=(

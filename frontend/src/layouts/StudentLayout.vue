@@ -8,6 +8,8 @@
           <el-menu-item index="/student/assignments">我的作业</el-menu-item>
           <el-menu-item index="/student/my-analytics">我的学情</el-menu-item>
           <el-menu-item index="/student/my-feedback">课后反馈</el-menu-item>
+          <el-menu-item index="/student/my-weekly-scores">周测成绩</el-menu-item>
+          <el-menu-item index="/student/my-monthly-reports">月报</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>

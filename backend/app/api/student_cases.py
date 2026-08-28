@@ -19,6 +19,7 @@ from app.models.student_case import (
     CaseImportBatch,
     CaseImportDocument,
     CaseReview,
+    CaseStudentProfile,
     CaseTask,
     CaseVersion,
     StudentCase,
@@ -36,6 +37,8 @@ from app.schemas.student_case import (
     CaseProgressOut,
     CaseReviewCreate,
     CaseReviewOut,
+    CaseStudentProfileOut,
+    CaseStudentProfileUpsert,
     CaseTaskCreate,
     CaseTaskOut,
     CaseVersionOut,
@@ -69,10 +72,27 @@ _head_teacher = require_roles([ROLE_TEACHER])
 def _detail(db: Session, case: StudentCase, user: User) -> dict:
     tasks = db.query(CaseTask).filter_by(student_case_id=case.id).order_by(CaseTask.due_on).all()
     task_ids = [task.id for task in tasks]
+    profile = db.query(CaseStudentProfile).filter_by(student_case_id=case.id).first()
+    student = db.get(User, case.student_id)
+    cls = db.get(Class, case.class_id)
     return {
         **_case_out(db, case),
         "viewer_role": user.role,
         "can_manage": user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id),
+        "student_profile": profile or {
+            "id": None,
+            "student_case_id": case.id,
+            "student_name": student.name if student else "",
+            "gender": "",
+            "ethnicity": "",
+            "source_school": "",
+            "grade": cls.grade if cls else "",
+            "parent_evaluation": "",
+            "primary_needs": "",
+            "allergy_history": "",
+            "underlying_conditions": "",
+            "other_health_notes": "",
+        },
         "subject_plans": db.query(SubjectPlan).filter_by(student_case_id=case.id).order_by(SubjectPlan.id).all(),
         "goals": db.query(CaseGoal).filter_by(student_case_id=case.id).order_by(CaseGoal.id).all(),
         "tasks": tasks,
@@ -91,8 +111,9 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
 def _case_out(db: Session, case: StudentCase) -> dict:
     data = StudentCaseOut.model_validate(case).model_dump()
     student = db.get(User, case.student_id)
+    profile = db.query(CaseStudentProfile).filter_by(student_case_id=case.id).first()
     cls = db.get(Class, case.class_id)
-    data["student_name"] = student.name if student else None
+    data["student_name"] = profile.student_name if profile and profile.student_name else (student.name if student else None)
     data["class_name"] = cls.name if cls else None
     return data
 
@@ -336,6 +357,38 @@ def update_student_case(
     db.commit()
     db.refresh(case)
     return _case_out(db, case)
+
+
+@router.put("/{case_id}/student-profile", response_model=CaseStudentProfileOut)
+def upsert_student_profile(
+    case_id: int,
+    body: CaseStudentProfileUpsert,
+    db: Session = Depends(get_db),
+    user: User = Depends(_head_teacher),
+):
+    case = require_case_access(db, case_id, user, write=True)
+    require_case_manager(db, case, user)
+    profile = db.query(CaseStudentProfile).filter_by(student_case_id=case.id).first()
+    if profile is None:
+        profile = CaseStudentProfile(student_case_id=case.id)
+        db.add(profile)
+    # 基本资料允许在执行期补录，但每次变更都进入总案审计日志。
+    changes = body.model_dump()
+    for field, value in changes.items():
+        setattr(profile, field, value.strip())
+    db.flush()
+    audit(
+        db,
+        user.id,
+        "student_profile.upsert",
+        "case_student_profile",
+        profile.id,
+        case.id,
+        {"fields": list(changes)},
+    )
+    db.commit()
+    db.refresh(profile)
+    return profile
 
 
 @router.post("/{case_id}/transition", response_model=StudentCaseOut)

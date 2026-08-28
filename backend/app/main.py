@@ -15,10 +15,12 @@ from app.api import (
     feedback,
     grading,
     knowledge,
+    monthly_reports,
     questions,
     submissions,
     student_cases,
     users,
+    weekly_scores,
 )
 from app.auth.router import router as auth_router
 from app.core.config import settings
@@ -78,6 +80,8 @@ app.include_router(analytics.router, prefix=settings.api_prefix)
 app.include_router(feedback.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
 app.include_router(student_cases.router, prefix=settings.api_prefix)
+app.include_router(weekly_scores.router, prefix=settings.api_prefix)
+app.include_router(monthly_reports.router, prefix=settings.api_prefix)
 
 
 @app.get("/api/health")

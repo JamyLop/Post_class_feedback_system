@@ -67,6 +67,25 @@ class StudentCaseOut(BaseModel):
     class_name: str | None = None
 
 
+class CaseStudentProfileUpsert(BaseModel):
+    student_name: str = Field(default="", max_length=64)
+    gender: str = Field(default="", max_length=16)
+    ethnicity: str = Field(default="", max_length=32)
+    source_school: str = Field(default="", max_length=128)
+    grade: str = Field(default="", max_length=32)
+    parent_evaluation: str = Field(default="", max_length=4000)
+    primary_needs: str = Field(default="", max_length=4000)
+    allergy_history: str = Field(default="", max_length=2000)
+    underlying_conditions: str = Field(default="", max_length=2000)
+    other_health_notes: str = Field(default="", max_length=2000)
+
+
+class CaseStudentProfileOut(CaseStudentProfileUpsert):
+    model_config = ConfigDict(from_attributes=True)
+    id: int | None = None
+    student_case_id: int
+
+
 class CaseVersionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -168,6 +187,7 @@ class CaseReviewOut(CaseReviewCreate):
 class StudentCaseDetail(StudentCaseOut):
     viewer_role: str = ""
     can_manage: bool = False
+    student_profile: CaseStudentProfileOut
     subject_plans: list[SubjectPlanOut] = []
     goals: list[CaseGoalOut] = []
     tasks: list[CaseTaskOut] = []

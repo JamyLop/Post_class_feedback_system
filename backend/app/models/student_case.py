@@ -71,6 +71,27 @@ class StudentCase(TimestampMixin, Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
 
 
+class CaseStudentProfile(TimestampMixin, Base):
+    """总案内的学生基本资料；健康信息不写入登录账号表。"""
+
+    __tablename__ = "case_student_profiles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_case_id: Mapped[int] = mapped_column(
+        ForeignKey("student_cases.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    student_name: Mapped[str] = mapped_column(String(64), default="")
+    gender: Mapped[str] = mapped_column(String(16), default="")
+    ethnicity: Mapped[str] = mapped_column(String(32), default="")
+    source_school: Mapped[str] = mapped_column(String(128), default="")
+    grade: Mapped[str] = mapped_column(String(32), default="")
+    parent_evaluation: Mapped[str] = mapped_column(Text, default="")
+    primary_needs: Mapped[str] = mapped_column(Text, default="")
+    allergy_history: Mapped[str] = mapped_column(Text, default="")
+    underlying_conditions: Mapped[str] = mapped_column(Text, default="")
+    other_health_notes: Mapped[str] = mapped_column(Text, default="")
+
+
 class CaseVersion(Base):
     """不可变版本快照；服务层只允许插入和读取。"""
 

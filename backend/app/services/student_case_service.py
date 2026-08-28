@@ -18,6 +18,7 @@ from app.models.student_case import (
     CaseAuditLog,
     CaseGoal,
     CaseReview,
+    CaseStudentProfile,
     CaseTask,
     CaseVersion,
     StudentCase,
@@ -110,6 +111,11 @@ def snapshot_payload(db: Session, case: StudentCase) -> dict[str, Any]:
 
     return jsonable_encoder({
         "case": columns(case),
+        "student_profile": (
+            columns(profile)
+            if (profile := db.query(CaseStudentProfile).filter_by(student_case_id=case.id).first())
+            else None
+        ),
         "subject_plans": [columns(row) for row in db.query(SubjectPlan).filter_by(student_case_id=case.id)],
         "goals": [columns(row) for row in db.query(CaseGoal).filter_by(student_case_id=case.id)],
         "tasks": [columns(row) for row in db.query(CaseTask).filter_by(student_case_id=case.id)],

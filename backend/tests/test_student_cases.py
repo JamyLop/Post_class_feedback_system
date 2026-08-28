@@ -3,7 +3,13 @@
 from datetime import date, timedelta
 
 from app.models.class_ import Class, ClassStudent, ClassTeacher
-from app.models.student_case import CaseAuditLog, CaseTask, CaseVersion, TaskCheckin
+from app.models.student_case import (
+    CaseAuditLog,
+    CaseStudentProfile,
+    CaseTask,
+    CaseVersion,
+    TaskCheckin,
+)
 
 
 def _setup_high3(db, seed_users):
@@ -69,6 +75,63 @@ def test_high3_only_and_unique_case(client, auth, db, seed_users):
     )
     assert duplicate.status_code == 409
     assert case_id > 0
+
+
+def test_head_teacher_can_complete_student_profile_during_execution(
+    client, auth, db, seed_users
+):
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+
+    initial = client.get(f"/api/student-cases/{case_id}", headers=auth("teacher1"))
+    assert initial.status_code == 200, initial.text
+    assert initial.json()["student_profile"]["student_name"] == "张三"
+    assert initial.json()["student_profile"]["grade"] == "高三"
+
+    for target in ("pending_confirmation", "executing"):
+        changed = client.post(
+            f"/api/student-cases/{case_id}/transition",
+            headers=auth("teacher1"),
+            json={"target_status": target, "reason": "进入执行期"},
+        )
+        assert changed.status_code == 200, changed.text
+
+    payload = {
+        "student_name": "张三",
+        "gender": "男",
+        "ethnicity": "汉族",
+        "source_school": "西安市示范中学",
+        "grade": "高三",
+        "parent_evaluation": "学习态度认真，希望增强时间管理。",
+        "primary_needs": "需要数学基础巩固与考前情绪支持。",
+        "allergy_history": "花粉过敏",
+        "underlying_conditions": "无",
+        "other_health_notes": "体育活动前注意热身。",
+    }
+    saved = client.put(
+        f"/api/student-cases/{case_id}/student-profile",
+        headers=auth("teacher1"),
+        json=payload,
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["source_school"] == "西安市示范中学"
+    assert saved.json()["allergy_history"] == "花粉过敏"
+
+    forbidden = client.put(
+        f"/api/student-cases/{case_id}/student-profile",
+        headers=auth("teacher2"),
+        json=payload,
+    )
+    assert forbidden.status_code == 403
+
+    detail = client.get(f"/api/student-cases/{case_id}", headers=auth("teacher1"))
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["student_profile"]["primary_needs"].startswith("需要数学")
+    assert db.query(CaseStudentProfile).filter_by(student_case_id=case_id).count() == 1
+    assert db.query(CaseAuditLog).filter_by(
+        student_case_id=case_id,
+        action="student_profile.upsert",
+    ).count() == 1
 
 
 def test_status_permission_and_immutable_version(client, auth, db, seed_users):

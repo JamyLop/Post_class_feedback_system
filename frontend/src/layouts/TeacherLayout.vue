@@ -9,6 +9,8 @@
         <div class="nav-label">核心工作</div>
         <el-menu :default-active="activeMenu" router>
         <el-menu-item index="/teacher/student-cases"><el-icon><Files /></el-icon><span>学生档案</span></el-menu-item>
+        <el-menu-item index="/teacher/weekly-scores"><el-icon><DataAnalysis /></el-icon><span>周测成绩</span></el-menu-item>
+        <el-menu-item index="/teacher/monthly-reports"><el-icon><Notebook /></el-icon><span>月报</span></el-menu-item>
         <el-sub-menu index="data-collection">
           <template #title><el-icon><Collection /></el-icon><span>数据采集</span></template>
           <el-menu-item index="/teacher/assignments">作业管理</el-menu-item>
@@ -38,7 +40,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { Collection, Files, School } from '@element-plus/icons-vue'
+import { Collection, DataAnalysis, Files, Notebook, School } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
