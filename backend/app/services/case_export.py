@@ -8,6 +8,7 @@ from io import BytesIO
 from pathlib import Path
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
@@ -38,33 +39,37 @@ def _cadence_label(c: str) -> str:
 
 
 def _set_cell_text(cell, text: str) -> None:
-    """仅替换文本，保留原有段落/Run 的字体、颜色、对齐等格式。"""
-    # 保留首段格式，清空多余段落
-    # 清除除首段外所有段落
+    """仅替换文本，保留原有段落/Run 的字体、颜色、对齐等格式；\n 按段落拆分以保换行。"""
+    # 清除多余段落，保留首段
     while len(cell.paragraphs) > 1:
         p = cell.paragraphs[1]
         p._element.getparent().remove(p._element)
-    para = cell.paragraphs[0]
-    # 保留对齐等 pPr，清空 runs
-    # 记录首个 run 的格式以复用
-    if para.runs:
-        tmpl_run = para.runs[0]
-        tmpl_rPr = copy.deepcopy(tmpl_run._element.rPr) if tmpl_run._element.rPr is not None else None
-    else:
-        tmpl_rPr = None
-    # 清空 para 内容（保留 pPr）
-    for r in list(para.runs):
+    first_para = cell.paragraphs[0]
+    # 记录首段的段落属性与首 run 的字符属性
+    first_pPr = copy.deepcopy(first_para._p.get_or_add_pPr()) if first_para._p.get_or_add_pPr() is not None else None
+    tmpl_rPr = copy.deepcopy(first_para.runs[0]._element.rPr) if first_para.runs and first_para.runs[0]._element.rPr is not None else None
+    # 清空首段 runs
+    for r in list(first_para.runs):
         r._element.getparent().remove(r._element)
-    # 写入新文本，按原行用换行拆段（模板内可能无换行，此处保持换行语义）
-    # 若文本含换行，则在同一 cell 内用换行符 br 分隔，保持单段
-    # 简化：直接单 run 写入，换行用 \n 会被 Word 显示为换行
-    run = para.add_run(text or "")
+    # 按换行拆段
+    lines = (text or "").split("\n")
+    # 首行写入首段
+    run = first_para.add_run(lines[0] if lines else "")
     if tmpl_rPr is not None:
-        # 恢复模板 run 的 rPr
         run._element.get_or_add_rPr()
-        # 用模板 rPr 覆盖（保留字体/字号/颜色）
         run._element.rPr = copy.deepcopy(tmpl_rPr)
-    # 若模板无 run，则沿用 document 默认（不额外加色）
+    # 其余行各起一段，复用首段的段落属性
+    for line in lines[1:]:
+        p = cell.add_paragraph()
+        # 复用首段的段落属性
+        if first_pPr is not None:
+            p._p.get_or_add_pPr().append(copy.deepcopy(first_pPr))
+            # 清理重复的 pPr 标记
+            # 保留对齐等
+        run = p.add_run(line)
+        if tmpl_rPr is not None:
+            run._element.get_or_add_rPr()
+            run._element.rPr = copy.deepcopy(tmpl_rPr)
 
 
 def _clone_body_elements(src_doc: Document, dst_doc: Document) -> None:
@@ -107,7 +112,7 @@ def build_case_export_bytes(
 
     body_tpl = Document(str(body_path))
 
-    # 以封面为底，保留图片与 0 边距（封面为全幅底图，改边距会导致标题截断）
+    # 以封面为底，保留图片与 0 边距
     if TEMPLATE_COVER.exists():
         out = Document(str(TEMPLATE_COVER))
         for elem in out.element.body.iter():
@@ -116,6 +121,19 @@ def build_case_export_bytes(
                     elem.text = elem.text.replace("赵书瑶", student_name)
                 if "优学四班" in elem.text:
                     elem.text = elem.text.replace("优学四班", class_name.split("（")[0][:8])
+        # 英文标题 distribute 会导致末字被裁，改居中
+        for p in out.paragraphs:
+            if "STUDENT" in p.text:
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for elem in out.element.body.iter():
+            if elem.tag.endswith("}p"):
+                has_student = any(t.text and "STUDENT" in t.text for t in elem.iter() if t.tag.endswith("}t"))
+                if has_student:
+                    pPr = elem.find(qn("w:pPr"))
+                    if pPr is not None:
+                        jc = pPr.find(qn("w:jc"))
+                        if jc is not None:
+                            jc.set(qn("w:val"), "center")
         # 正文另起一节，沿用导出模板的纸张/边距，避免封面 0 边距污染表格
         if body_tpl.sections:
             from docx.shared import Cm
