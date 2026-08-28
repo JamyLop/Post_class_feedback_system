@@ -8,6 +8,8 @@ from io import BytesIO
 from pathlib import Path
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 from app.models.class_ import Class
 from app.models.student_case import CaseCycle, CaseReview, CaseTask, StudentCase, SubjectPlan, TaskCheckin
@@ -105,23 +107,29 @@ def build_case_export_bytes(
 
     body_tpl = Document(str(body_path))
 
-    # 输出文档：以 body 模板为基底，清空后重建；但为保留封面图片，需以封面为底
-    if cover_path and cover_path.exists():
-        out = Document(str(cover_path))
-        # 替换封面文本（保留图片）
+    # 以封面为底，保留图片与 0 边距（封面为全幅底图，改边距会导致标题截断）
+    if TEMPLATE_COVER.exists():
+        out = Document(str(TEMPLATE_COVER))
         for elem in out.element.body.iter():
             if elem.tag.endswith("}t") and elem.text:
                 if "赵书瑶" in elem.text:
                     elem.text = elem.text.replace("赵书瑶", student_name)
                 if "优学四班" in elem.text:
                     elem.text = elem.text.replace("优学四班", class_name.split("（")[0][:8])
-        # 统一边距为学校标准（封面 0 边距会导致正文溢出）
-        for sec in out.sections:
+        # 正文另起一节，沿用导出模板的纸张/边距，避免封面 0 边距污染表格
+        if body_tpl.sections:
             from docx.shared import Cm
-            sec.top_margin = Cm(1.8)
-            sec.bottom_margin = Cm(1.5)
-            sec.left_margin = Cm(1.8)
-            sec.right_margin = Cm(1.8)
+            body_sect = body_tpl.sections[0]._sectPr
+            new_sectPr = OxmlElement("w:sectPr")
+            for tag in ["w:pgSz", "w:pgMar", "w:cols", "w:docGrid"]:
+                el = body_sect.find(qn(tag))
+                if el is not None:
+                    new_sectPr.append(copy.deepcopy(el))
+            type_el = OxmlElement("w:type")
+            type_el.set(qn("w:val"), "nextPage")
+            new_sectPr.append(type_el)
+            p = out.add_paragraph()
+            p._p.append(new_sectPr)
     else:
         out = Document(str(body_path))
         body = out.element.body
@@ -129,7 +137,6 @@ def build_case_export_bytes(
             if not child.tag.endswith("sectPr"):
                 body.remove(child)
 
-    # 2) 准备学科数据映射
     plan_map = {p.subject: p for p in (subject_plans or [])}
     # 按固定顺序排序，模板本身为单科占位，这里为多科则循环生成多份
     ordered_subjects: list[str] = []
@@ -176,16 +183,15 @@ def build_case_export_bytes(
                 continue
             out.element.body.append(copy.deepcopy(elem))
 
-        # 每科另起一页（封面后首科亦分页），用 pageBreakBefore，不插入空白段
-        new_paras = out.paragraphs[paras_before : paras_before + 4]
-        if new_paras:
-            first_new = new_paras[0]
-            pPr = first_new._p.get_or_add_pPr()
-            from docx.oxml import OxmlElement
-            from docx.oxml.ns import qn
-            pb = OxmlElement("w:pageBreakBefore")
-            pb.set(qn("w:val"), "true")
-            pPr.append(pb)
+        # 科目间一科一页，首科紧接封面（封面自带分页），后续科目用 pageBreakBefore
+        if idx > 0:
+            new_paras = out.paragraphs[paras_before : paras_before + 4]
+            if new_paras:
+                first_new = new_paras[0]
+                pPr = first_new._p.get_or_add_pPr()
+                pb = OxmlElement("w:pageBreakBefore")
+                pb.set(qn("w:val"), "true")
+                pPr.append(pb)
 
         # 定位刚 appended 的最后若干元素中的段落/表格进行填充
         # 由于刚 append 的是整段 body 的拷贝，我们通过 out 的末尾段落/表格数量来索引
