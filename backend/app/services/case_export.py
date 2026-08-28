@@ -8,7 +8,6 @@ from io import BytesIO
 from pathlib import Path
 
 from docx import Document
-from docx.enum.text import WD_BREAK
 
 from app.models.class_ import Class
 from app.models.student_case import CaseCycle, CaseReview, CaseTask, StudentCase, SubjectPlan, TaskCheckin
@@ -76,16 +75,14 @@ def _clone_body_elements(src_doc: Document, dst_doc: Document) -> None:
 
 
 def _fill_cover_student_name(cover_elements: list, student_name: str, class_name: str) -> None:
-    # 封面的学生/班级信息目前以图像底图为主，文本框内为示例（赵书瑶/优学四班）
-    # 若存在 w:t 包含示例名/班，则替换；否则不额外新增，保持严格不加内容
+    short_class = class_name.split("（")[0][:8] if class_name else class_name
     for elem in cover_elements:
         for t in elem.iter():
             if t.tag.endswith("}t") and t.text:
                 if "赵书瑶" in t.text:
                     t.text = t.text.replace("赵书瑶", student_name)
                 if "优学四班" in t.text:
-                    t.text = t.text.replace("优学四班", class_name)
-                # 兼容可能的英文 school 名不替换
+                    t.text = t.text.replace("优学四班", short_class)
 
 
 def build_case_export_bytes(
@@ -108,32 +105,29 @@ def build_case_export_bytes(
 
     body_tpl = Document(str(body_path))
 
-    # 输出文档：以 body 模板为基底，清空后重建
-    out = Document(str(body_path))
-    # 清空 body（保留 sectPr）
-    body = out.element.body
-    for child in list(body):
-        if not child.tag.endswith("sectPr"):
-            body.remove(child)
-
-    # 1) 先写入封面（若存在），保持其图像与版式
+    # 输出文档：以 body 模板为基底，清空后重建；但为保留封面图片，需以封面为底
     if cover_path and cover_path.exists():
-        cover_doc = Document(str(cover_path))
-        # 深拷贝封面所有元素（图像底图+示例文字）
-        cover_elems = list(cover_doc.element.body)
-        # 替换示例姓名/班级（若存在）
-        _fill_cover_student_name(cover_elems, student_name, class_name)
-        for elem in cover_elems:
-            if elem.tag.endswith("sectPr"):
-                continue
-            out.element.body.append(copy.deepcopy(elem))
-        # 封面后分页（若封面与正文需分页，模板本身已含分页符则不再加）
-        # 显式分页：插入 w:br w:type="page"
-        # 仅当封面存在且正文将追加时，加分页段
-        if len(cover_elems) > 0:
-            p = out.add_paragraph()
-            run = p.add_run()
-            run.add_break(WD_BREAK.PAGE)
+        out = Document(str(cover_path))
+        # 替换封面文本（保留图片）
+        for elem in out.element.body.iter():
+            if elem.tag.endswith("}t") and elem.text:
+                if "赵书瑶" in elem.text:
+                    elem.text = elem.text.replace("赵书瑶", student_name)
+                if "优学四班" in elem.text:
+                    elem.text = elem.text.replace("优学四班", class_name.split("（")[0][:8])
+        # 统一边距为学校标准（封面 0 边距会导致正文溢出）
+        for sec in out.sections:
+            from docx.shared import Cm
+            sec.top_margin = Cm(1.8)
+            sec.bottom_margin = Cm(1.5)
+            sec.left_margin = Cm(1.8)
+            sec.right_margin = Cm(1.8)
+    else:
+        out = Document(str(body_path))
+        body = out.element.body
+        for child in list(body):
+            if not child.tag.endswith("sectPr"):
+                body.remove(child)
 
     # 2) 准备学科数据映射
     plan_map = {p.subject: p for p in (subject_plans or [])}
@@ -172,20 +166,26 @@ def build_case_export_bytes(
 
     for idx, subject in enumerate(ordered_subjects):
         plan = plan_map.get(subject)
-
-        # 在每科之间（除首科）插入分页符，保持一科一页的打印效果（与历史材料一致）
-        if idx > 0:
-            p = out.add_paragraph()
-            run = p.add_run()
-            run.add_break(WD_BREAK.PAGE)
+        paras_before = len(out.paragraphs)
+        tables_before = len(out.tables)
 
         # 克隆模板 body 的所有元素（段落+表格）
         # 为保持严格格式，直接深拷贝每个元素并替换文本
         for elem in list(body_tpl.element.body):
             if elem.tag.endswith("sectPr"):
                 continue
-            cloned = copy.deepcopy(elem)
-            out.element.body.append(cloned)
+            out.element.body.append(copy.deepcopy(elem))
+
+        # 每科另起一页（封面后首科亦分页），用 pageBreakBefore，不插入空白段
+        new_paras = out.paragraphs[paras_before : paras_before + 4]
+        if new_paras:
+            first_new = new_paras[0]
+            pPr = first_new._p.get_or_add_pPr()
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn
+            pb = OxmlElement("w:pageBreakBefore")
+            pb.set(qn("w:val"), "true")
+            pPr.append(pb)
 
         # 定位刚 appended 的最后若干元素中的段落/表格进行填充
         # 由于刚 append 的是整段 body 的拷贝，我们通过 out 的末尾段落/表格数量来索引
