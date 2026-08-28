@@ -33,7 +33,7 @@ from app.services.student_case_service import audit
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 SUPPORTED_EXTENSIONS = {".docx", ".doc", ".wps"}
-SUBJECTS = ("语文", "数学", "英语", "物理", "化学", "生物", "政治", "历史", "地理")
+SUBJECTS = ("语文", "数学", "英语", "物理", "化学", "生物", "政治", "历史", "地理", "德育")
 FIELD_MAP = {
     "学科问题定位": "problem_location",
     "问题定位": "problem_location",
@@ -182,7 +182,7 @@ def _split_comprehensive_field(text: str) -> dict[str, str]:
         return {}
     abbreviation_map = {
         "语": "语文", "数": "数学", "英": "英语", "物": "物理", "化": "化学",
-        "生": "生物", "政": "政治", "史": "历史", "地": "地理",
+        "生": "生物", "政": "政治", "史": "历史", "地": "地理", "德": "德育",
     }
 
     def expand_group(match: re.Match[str]) -> str:
@@ -195,11 +195,11 @@ def _split_comprehensive_field(text: str) -> dict[str, str]:
 
     # 兼容“弱科（数、物、化、英）：...”这类综合原因写法。
     text = re.sub(
-        r'(?:弱科|薄弱学科)?[（(]([语数英物化生政史地](?:[、,/／ ]+[语数英物化生政史地])+)[）)]\s*[：:]',
+        r'(?:弱科|薄弱学科)?[（(]([语数英物化生政史地德](?:[、,/／ ]+[语数英物化生政史地德])+)[）)]\s*[：:]',
         expand_group,
         text,
     )
-    pattern = r'((?:语文|数学|英语|物理|化学|生物|政治|历史|地理)(?:[\/、／ ]+(?:语文|数学|英语|物理|化学|生物|政治|历史|地理))*)[：:]'
+    pattern = r'((?:语文|数学|英语|物理|化学|生物|政治|历史|地理|德育)(?:[\/、／ ]+(?:语文|数学|英语|物理|化学|生物|政治|历史|地理|德育))*)[：:]'
     matches = list(re.finditer(pattern, text))
     if not matches:
         return {}
@@ -231,7 +231,7 @@ def _split_parenthesis_field(text: str) -> dict[str, str]:
     """处理如 '语文（81分）...、政治（15分）...' 的括号写法（徐援伟等文档）。"""
     if not text:
         return {}
-    matches = list(re.finditer(r'(语文|数学|英语|物理|化学|生物|政治|历史|地理)[（\(][^）\)]*[）\)]', text))
+    matches = list(re.finditer(r'(语文|数学|英语|物理|化学|生物|政治|历史|地理|德育)[（\(][^）\)]*[）\)]', text))
     if not matches:
         return {}
     result: dict[str, str] = {}

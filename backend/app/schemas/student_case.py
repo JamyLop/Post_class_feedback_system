@@ -149,7 +149,7 @@ class TaskCheckinOut(TaskCheckinCreate):
 
 class CaseReviewCreate(BaseModel):
     task_id: int | None = None
-    review_level: Literal["subject", "head_teacher", "school"]
+    review_level: Literal["subject", "head_teacher", "school", "principal"]
     subject: str = Field(default="", max_length=32)
     problem: str = Field(default="", max_length=4000)
     corrective_action: str = Field(default="", max_length=4000)

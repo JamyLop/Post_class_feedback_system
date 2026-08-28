@@ -446,9 +446,9 @@ def create_review(
     user: User = Depends(_staff),
 ):
     case = require_case_access(db, case_id, user, write=False, subject=body.subject)
-    if body.review_level == "school" and user.role != ROLE_ADMIN:
-        raise HTTPException(status_code=403, detail="校级督查仅管理员可提交")
-    if body.review_level != "school":
+    if body.review_level in {"school", "principal"} and user.role != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="校级/校长督查仅管理员可提交")
+    if body.review_level not in {"school", "principal"}:
         require_case_manager(db, case, user)
     review = CaseReview(student_case_id=case_id, reviewer_id=user.id, **body.model_dump())
     db.add(review)

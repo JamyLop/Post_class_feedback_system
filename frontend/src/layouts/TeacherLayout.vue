@@ -98,20 +98,25 @@ function onLogout() {
 .pilot-note { display: flex; align-items: center; gap: 9px; margin: 12px; padding: 12px; color: var(--sidebar-muted); background: rgb(255 255 255 / 5%); border-radius: 9px; font-size: 12px; }
 .pilot-dot { width: 7px; height: 7px; border-radius: 50%; background: #53d58a; box-shadow: 0 0 0 3px rgb(83 213 138 / 14%); }
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 64px;
+  height: var(--header-h);
   padding: 0 28px;
-  background: var(--surface);
+  background: color-mix(in oklch, var(--surface) 92%, white);
+  backdrop-filter: blur(10px) saturate(1.05);
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgb(15 23 42 / 4%);
 }
 .header-context { display: flex; align-items: baseline; gap: 10px; }
-.header-context span { font-weight: 700; }
-.header-context small { color: var(--ink-muted); }
+.header-context span { font-weight: 750; letter-spacing: -.01em; font-size: 14px; }
+.header-context small { color: var(--ink-muted); font-size: 12.5px; background: var(--surface-soft); border: 1px solid var(--line); padding: 3px 8px; border-radius: 999px; }
 .header-actions, .user-chip { display: flex; align-items: center; gap: 12px; }
 .user-chip { gap: 8px; color: var(--ink-secondary); font-size: 13px; }
-.avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--brand-strong); background: var(--brand-soft); font-weight: 700; }
+.avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--brand-strong); background: var(--brand-soft); border: 1px solid color-mix(in oklch, var(--brand) 10%, transparent); font-weight: 750; }
 .workspace { min-width: 0; padding: 0; overflow-x: hidden; overflow-y: auto; background: var(--app-bg); }
 
 @media (max-width: 900px) {
