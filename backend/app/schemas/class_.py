@@ -71,6 +71,16 @@ class StudentAdd(BaseModel):
     student_ids: list[int] = Field(min_length=1)
 
 
+class StudentCreateAndEnroll(BaseModel):
+    """班主任在班级内直接新建学生并入班，仅需录入档案信息，账号自动生成。"""
+
+    name: str = Field(min_length=1, max_length=64, description="学生姓名")
+    gender: str = Field(default="", max_length=16, description="性别")
+    ethnicity: str = Field(default="", max_length=32, description="民族")
+    grade: str = Field(default="", max_length=32, description="年级")
+    source_school: str = Field(default="", max_length=128, description="生源地学校")
+
+
 class ClassStudentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

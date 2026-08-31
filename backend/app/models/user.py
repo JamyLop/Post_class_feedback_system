@@ -37,3 +37,8 @@ class User(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(64))
     role: Mapped[str] = mapped_column(String(16), index=True)
     status: Mapped[str] = mapped_column(String(16), default=USER_STATUS_ACTIVE)
+    # 学生档案扩展（班主任新建学生时录入，无需手动维护账号）
+    gender: Mapped[str] = mapped_column(String(16), default="", server_default="")
+    ethnicity: Mapped[str] = mapped_column(String(32), default="", server_default="")
+    source_school: Mapped[str] = mapped_column(String(128), default="", server_default="")
+    grade: Mapped[str] = mapped_column(String(32), default="", server_default="")

@@ -1,0 +1,106 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录绑定"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "一生一案"
+      }
+    }
+  ],
+  "subPackages": [
+    {
+      "root": "subParent",
+      "pages": [
+        {
+          "path": "children/index",
+          "style": { "navigationBarTitleText": "我的孩子" }
+        },
+        {
+          "path": "caseDetail/index",
+          "style": { "navigationBarTitleText": "档案详情" }
+        },
+        {
+          "path": "taskDetail/index",
+          "style": { "navigationBarTitleText": "任务详情" }
+        }
+      ]
+    },
+    {
+      "root": "subStudent",
+      "pages": [
+        {
+          "path": "assignments/index",
+          "style": { "navigationBarTitleText": "我的作业" }
+        },
+        {
+          "path": "assignmentDetail/index",
+          "style": { "navigationBarTitleText": "作业详情" }
+        },
+        {
+          "path": "analytics/index",
+          "style": { "navigationBarTitleText": "学情分析" }
+        },
+        {
+          "path": "myCase/index",
+          "style": { "navigationBarTitleText": "我的档案" }
+        }
+      ]
+    },
+    {
+      "root": "subTeacher",
+      "pages": [
+        {
+          "path": "todo/index",
+          "style": { "navigationBarTitleText": "待办督查" }
+        },
+        {
+          "path": "checkin/index",
+          "style": { "navigationBarTitleText": "快速打卡" }
+        },
+        {
+          "path": "reviewCreate/index",
+          "style": { "navigationBarTitleText": "提交督查" }
+        }
+      ]
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "一生一案",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f8fafc",
+    "app-plus": {
+      "background": "#f8fafc"
+    }
+  },
+  "tabBar": {
+    "color": "#64748b",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "subParent/children/index",
+        "text": "孩子"
+      },
+      {
+        "pagePath": "subStudent/assignments/index",
+        "text": "作业"
+      },
+      {
+        "pagePath": "subTeacher/todo/index",
+        "text": "待办"
+      }
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "miniprogram",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "uni",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "dev:mp": "uni -p mp-weixin",
+    "build": "uni build",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "build:mp": "uni build -p mp-weixin",
+    "lint": "echo \"no lint configured\""
+  },
+  "dependencies": {
+    "pinia": "2.3.1",
+    "vue": "3.5.11",
+    "vue-i18n": "^9.13.1"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/uni-app": "3.0.0-alpha-5020520260829001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5020520260829001",
+    "@vitejs/plugin-vue": "^5.0.5",
+    "vite": "^5.4.8"
+  },
+  "overrides": {
+    "vue": "3.5.11",
+    "@vue/shared": "3.5.11",
+    "@vue/compiler-sfc": "3.5.11",
+    "@vue/compiler-core": "3.5.11",
+    "@vue/compiler-dom": "3.5.11",
+    "@vue/compiler-ssr": "3.5.11",
+    "@vue/server-renderer": "3.5.11",
+    "@vue/runtime-dom": "3.5.11",
+    "@vue/runtime-core": "3.5.11"
+  }
+}

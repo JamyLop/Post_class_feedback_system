@@ -34,32 +34,65 @@
       </el-table>
     </div>
 
-    <el-dialog v-model="dialogVisible" title="添加学生到本班级" width="520px">
-      <el-input v-model="keyword" placeholder="搜索学生用户名 / 姓名" clearable style="margin-bottom: 14px" @input="onSearch" />
-      <el-table
-        :data="candidates"
-        height="320"
-        empty-text="输入关键词搜索学生"
-        @selection-change="(rows) => (selected = rows)"
-      >
-        <el-table-column type="selection" width="50" />
-        <el-table-column prop="name" label="姓名" width="120" />
-        <el-table-column prop="username" label="登录用户名" />
-      </el-table>
+    <el-dialog v-model="dialogVisible" title="添加学生到本班级" width="560px" @close="onDialogClose">
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="新建学生" name="create">
+          <el-alert type="info" :closable="false" show-icon title="仅需录入学生档案信息，账号由系统自动生成" style="margin-bottom: 14px" />
+          <el-form :model="newForm" label-width="92px" @submit.prevent>
+            <el-form-item label="姓名" required>
+              <el-input v-model="newForm.name" placeholder="请输入学生姓名" maxlength="64" />
+            </el-form-item>
+            <el-form-item label="性别">
+              <el-select v-model="newForm.gender" clearable placeholder="请选择" style="width: 100%">
+                <el-option label="男" value="男" />
+                <el-option label="女" value="女" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="民族">
+              <el-input v-model="newForm.ethnicity" placeholder="例如：汉族" maxlength="32" />
+            </el-form-item>
+            <el-form-item label="年级">
+              <el-input v-model="newForm.grade" placeholder="例如：高三" maxlength="32" />
+            </el-form-item>
+            <el-form-item label="生源地学校">
+              <el-input v-model="newForm.source_school" placeholder="填写学生原就读学校" maxlength="128" />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="选择已有学生" name="existing">
+          <el-input v-model="keyword" placeholder="搜索学生用户名 / 姓名" clearable style="margin-bottom: 14px" @input="onSearch" />
+          <el-table
+            :data="candidates"
+            height="320"
+            empty-text="输入关键词搜索学生"
+            @selection-change="(rows) => (selected = rows)"
+          >
+            <el-table-column type="selection" width="50" />
+            <el-table-column prop="name" label="姓名" width="120" />
+            <el-table-column prop="username" label="登录用户名" />
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!selected.length" @click="onAdd">添加选中学生 ({{ selected.length }})</el-button>
+        <template v-if="activeTab === 'create'">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="creating" class="no-wrap-btn" @click="onCreateAndAdd">新建并加入班级</el-button>
+        </template>
+        <template v-else>
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" :disabled="!selected.length" class="no-wrap-btn" @click="onAdd">添加选中学生 ({{ selected.length }})</el-button>
+        </template>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { addStudents, listStudents, listUsers } from '../../api/classes'
+import { addStudents, listStudents, listUsers, createStudentAndAdd, getClass } from '../../api/classes'
 
 const route = useRoute()
 const classId = route.params.id
@@ -69,21 +102,31 @@ const keyword = ref('')
 const selected = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
+const activeTab = ref('create')
+const creating = ref(false)
+const classInfo = ref(null)
+const newForm = reactive({ name: '', gender: '', ethnicity: '', grade: '', source_school: '' })
 
 async function load() {
   loading.value = true
   try {
-    students.value = await listStudents(classId)
+    const [list, cls] = await Promise.all([listStudents(classId), getClass(classId).catch(() => null)])
+    students.value = list
+    if (cls) classInfo.value = cls
+    // 预填年级默认值
+    if (cls?.grade && !newForm.grade) newForm.grade = cls.grade
   } finally {
     loading.value = false
   }
 }
 
 async function openAddDialog() {
+  activeTab.value = 'create'
   dialogVisible.value = true
   keyword.value = ''
   selected.value = []
   candidates.value = await listUsers('student', '')
+  Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '' })
 }
 
 async function onSearch() {
@@ -99,6 +142,36 @@ async function onAdd() {
   } catch (err) {
     ElMessage.error(err.response?.data?.detail || '添加失败')
   }
+}
+
+async function onCreateAndAdd() {
+  if (!newForm.name.trim()) {
+    ElMessage.warning('请填写学生姓名')
+    return
+  }
+  creating.value = true
+  try {
+    await createStudentAndAdd(classId, {
+      name: newForm.name.trim(),
+      gender: newForm.gender || '',
+      ethnicity: newForm.ethnicity?.trim() || '',
+      grade: newForm.grade?.trim() || '',
+      source_school: newForm.source_school?.trim() || '',
+    })
+    ElMessage.success('新建学生并加入班级成功，账号已自动生成')
+    dialogVisible.value = false
+    Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '' })
+    load()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '创建失败')
+  } finally {
+    creating.value = false
+  }
+}
+
+function onDialogClose() {
+  selected.value = []
+  creating.value = false
 }
 
 onMounted(load)
@@ -171,5 +244,13 @@ onMounted(load)
   display: block;
   font-size: 11px;
   color: #94a3b8;
+}
+
+.no-wrap-btn {
+  white-space: nowrap;
+}
+
+:deep(.el-form-item__label) {
+  white-space: nowrap;
 }
 </style>

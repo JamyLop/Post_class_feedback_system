@@ -7,12 +7,15 @@ from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.class_ import Class, ClassStudent
 from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
+from app.core.security import hash_password
+
 from app.schemas.class_ import (
     ClassCreate,
     ClassOut,
     ClassStudentOut,
     ClassUpdate,
     StudentAdd,
+    StudentCreateAndEnroll,
     validate_class_category,
 )
 
@@ -173,6 +176,66 @@ def add_students(
         added.append(stu)
     db.commit()
     return added
+
+
+def _ensure_user_profile_columns(db: Session) -> None:
+    """兼容存量库：若 users 表缺少档案扩展列则在线补齐，避免额外迁移。"""
+    try:
+        from sqlalchemy import text
+
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(16) DEFAULT ''"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ethnicity VARCHAR(32) DEFAULT ''"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS source_school VARCHAR(128) DEFAULT ''"))
+        db.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS grade VARCHAR(32) DEFAULT \'\''))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _generate_student_username(db: Session) -> str:
+    import uuid
+
+    for _ in range(20):
+        cand = f"stu_{uuid.uuid4().hex[:8]}"
+        if db.query(User).filter(User.username == cand).first() is None:
+            return cand
+    import random
+    import time
+
+    return f"stu_{int(time.time()) % 10000000:07d}{random.randint(10, 99)}"
+
+
+@router.post("/{class_id}/students/create", response_model=ClassStudentOut)
+def create_and_add_student(
+    class_id: int,
+    body: StudentCreateAndEnroll,
+    db: Session = Depends(get_db),
+    user: User = Depends(_manager),
+):
+    """在班级内直接新建学生账号并加入班级（仅录入档案信息，账号自动生成）。"""
+    cls = _check_class_owner(db, class_id, user)
+    _ensure_user_profile_columns(db)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="姓名不能为空")
+    username = _generate_student_username(db)
+    # 默认初始密码 123456，班主任无需关心账号
+    stu = User(
+        username=username,
+        password_hash=hash_password("123456"),
+        name=name,
+        role=ROLE_STUDENT,
+        gender=(body.gender or "").strip(),
+        ethnicity=(body.ethnicity or "").strip(),
+        source_school=(body.source_school or "").strip(),
+        grade=(body.grade or cls.grade or "").strip(),
+    )
+    db.add(stu)
+    db.flush()
+    db.add(ClassStudent(class_id=class_id, student_id=stu.id))
+    db.commit()
+    db.refresh(stu)
+    return stu
 
 
 @router.get("/{class_id}/students", response_model=list[ClassStudentOut])
