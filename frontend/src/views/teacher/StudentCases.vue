@@ -91,7 +91,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="class_name" label="所属班级" min-width="140" />
-        <el-table-column prop="admission_target" label="主要需求" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="admission_target" label="升学目标" min-width="240" show-overflow-tooltip />
         <el-table-column prop="current_summary" label="当前学情进展" min-width="240" show-overflow-tooltip />
         <el-table-column label="方案状态" width="130">
           <template #default="{ row }">
@@ -140,7 +140,7 @@
         </el-form-item>
         <el-form-item label="家长评价">
           <el-input
-            v-model="createForm.overall_problem"
+            v-model="createForm.parent_evaluation"
             type="textarea"
             :autosize="{ minRows: 3, maxRows: 8 }"
             placeholder="记录家长对学生的评价、关注点或家校协同建议"
@@ -148,7 +148,7 @@
         </el-form-item>
         <el-form-item label="主要需求">
           <el-input
-            v-model="createForm.admission_target"
+            v-model="createForm.primary_needs"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
             placeholder="例如：学生主要需求、期望支持方向或家校配合事项"
@@ -187,7 +187,7 @@ const rows = ref([]), loading = ref(false), status = ref(''), keyword = ref('')
 const workFilter = ref('all')
 const cycles = ref([]), classes = ref([]), classStudents = ref([]), allStudents = ref([])
 const createVisible = ref(false), creating = ref(false)
-const createForm = reactive({ cycle_id: null, class_id: null, student_id: null, overall_problem: '', admission_target: '', current_summary: '' })
+const createForm = reactive({ cycle_id: null, class_id: null, student_id: null, parent_evaluation: '', primary_needs: '', current_summary: '' })
 const progress = ref({ total: 0, draft: 0, pending_confirmation: 0, revision_required: 0, executing: 0, overdue_tasks: 0 })
 const statuses = [
   ['draft', '草稿'],
@@ -275,8 +275,8 @@ async function openCreate() {
       cycle_id: defaultCycleId,
       class_id: firstClass?.id || null,
       student_id: null,
-      overall_problem: '',
-      admission_target: '',
+      parent_evaluation: '',
+      primary_needs: '',
       current_summary: '班主任手工建档，待完善学科方案',
     })
     if (firstClass) await loadClassStudents(firstClass.id)

@@ -209,7 +209,7 @@
         </el-tab-pane>
 
         <el-tab-pane label="总览" name="overview">
-          <div v-if="editingOverview" class="editing-note overview-editing-note"><el-icon><EditPen /></el-icon><span>正在编辑总览，保存后将更新家长评价、主要需求和当前状态说明。</span></div>
+          <div v-if="editingOverview" class="editing-note overview-editing-note"><el-icon><EditPen /></el-icon><span>正在编辑总览，保存后将更新总体问题、升学目标和当前状态说明。</span></div>
           <div class="overview-toolbar" v-if="canEditOverview">
             <span class="overview-toolbar-tip">总览由班主任维护，正式执行前可直接完善</span>
             <template v-if="!editingOverview">
@@ -223,15 +223,15 @@
           <div v-if="!editingOverview" class="overview-layout">
             <main class="reading-column">
               <article class="content-section">
-                <div class="section-heading"><div><span class="section-marker"></span><h2>家长评价</h2></div><span>历史材料诊断摘要</span></div>
+                <div class="section-heading"><div><span class="section-marker"></span><h2>总体问题</h2></div><span>历史材料诊断摘要</span></div>
                 <div v-if="problemSections.length" class="insight-list">
                   <div v-for="item in problemSections" :key="`${item.label}-${item.text}`" class="insight-row"><span class="subject-label">{{ item.label }}</span><p>{{ item.text }}</p></div>
                 </div>
-                <p v-else class="placeholder-copy">尚未填写家长评价。</p>
+                <p v-else class="placeholder-copy">尚未填写总体问题。</p>
               </article>
 
               <article class="content-section">
-                <div class="section-heading"><div><span class="section-marker"></span><h2>主要需求</h2></div><span>分阶段目标</span></div>
+                <div class="section-heading"><div><span class="section-marker"></span><h2>升学目标</h2></div><span>分阶段目标</span></div>
                 <div v-if="targetSections.length" class="target-list">
                   <section v-for="(item, index) in targetSections" :key="`${item.label}-${item.text}`" class="target-stage" :class="{ 'is-expanded': expandedTargetIndex === index }">
                     <button class="target-row target-stage-trigger" type="button" :aria-expanded="expandedTargetIndex === index" @click="toggleTargetStage(index)">
@@ -290,7 +290,7 @@
                     </div>
                   </section>
                 </div>
-                <p v-else class="placeholder-copy">尚未填写主要需求。</p>
+                <p v-else class="placeholder-copy">尚未填写升学目标。</p>
               </article>
             </main>
 
@@ -310,8 +310,8 @@
             </aside>
           </div>
           <el-form v-else label-position="top" class="overview-edit-form">
-            <el-form-item label="家长评价"><el-input v-model="overviewForm.overall_problem" type="textarea" :autosize="{ minRows: 4, maxRows: 14 }" placeholder="填写家长评价，例如家长对学生的评价、关注点或家校协同建议" /></el-form-item>
-            <el-form-item label="主要需求"><el-input v-model="overviewForm.admission_target" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="填写主要需求，例如学生主要需求、期望支持方向或家校配合事项" /></el-form-item>
+            <el-form-item label="总体问题"><el-input v-model="overviewForm.overall_problem" type="textarea" :autosize="{ minRows: 4, maxRows: 14 }" placeholder="完整填写学生总体问题诊断，例如各学科薄弱点、共性原因等" /></el-form-item>
+            <el-form-item label="升学目标"><el-input v-model="overviewForm.admission_target" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="填写升学目标，例如目标院校、目标分数及分阶段目标" /></el-form-item>
             <el-form-item label="当前状态说明"><el-input v-model="overviewForm.current_summary" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" placeholder="填写当前状态说明，例如：已完成首轮方案核对、待家长确认等" /></el-form-item>
           </el-form>
         </el-tab-pane>
@@ -557,7 +557,7 @@ const gradeOptions = ['初一', '初二', '初三', '高一', '高二', '高三'
 const subjectOrder = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '德育']
 const transitionError = ref('')
 const statusCopy = {
-  draft: { title: '历史材料已导入，等待教师核对', desc: '请由班主任核对家长评价、主要需求和学科方案，确认无误后提交待确认。' },
+  draft: { title: '历史材料已导入，等待教师核对', desc: '请由班主任核对总体问题、升学目标和学科方案，确认无误后提交待确认。' },
   pending_confirmation: { title: '等待班主任最终确认', desc: '已提交待确认，请复核后确认进入执行；确认后家长可见正式方案，总览将锁定。' },
   executing: { title: '方案正在执行中', desc: '家长已可见当前版本。请通过任务与执行记录跟踪进展，必要时发起阶段复盘。' },
   pending_review: { title: '已进入阶段复盘', desc: '请完成督查复盘记录，确认调整后将生成新版本，归档则结束本周期。' },

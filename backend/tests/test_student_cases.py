@@ -94,6 +94,41 @@ def test_high3_only_and_unique_case(client, auth, db, seed_users):
     assert case_id > 0
 
 
+def test_create_case_stores_family_feedback_in_student_profile(client, auth, db, seed_users):
+    class_id = _setup_high3(db, seed_users)
+    cycle = client.post(
+        "/api/student-cases/cycles",
+        headers=auth("admin"),
+        json={
+            "name": "2026届高三备考周期",
+            "school_year": "2025-2026",
+            "starts_on": str(date.today()),
+            "ends_on": str(date.today() + timedelta(days=180)),
+        },
+    )
+    created = client.post(
+        "/api/student-cases",
+        headers=auth("teacher1"),
+        json={
+            "cycle_id": cycle.json()["id"],
+            "student_id": seed_users["student1"],
+            "class_id": class_id,
+            "owner_teacher_id": seed_users["teacher1"],
+            "parent_evaluation": "学习态度认真，需加强时间管理。",
+            "primary_needs": "希望获得数学基础巩固支持。",
+            "current_summary": "班主任手工建档",
+        },
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["overall_problem"] == ""
+    assert created.json()["admission_target"] == ""
+
+    detail = client.get(f"/api/student-cases/{created.json()['id']}", headers=auth("teacher1"))
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["student_profile"]["parent_evaluation"].startswith("学习态度认真")
+    assert detail.json()["student_profile"]["primary_needs"].startswith("希望获得数学")
+
+
 def test_head_teacher_can_complete_student_profile_during_execution(
     client, auth, db, seed_users
 ):

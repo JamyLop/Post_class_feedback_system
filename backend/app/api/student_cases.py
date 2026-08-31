@@ -311,14 +311,35 @@ def create_student_case(
     if not is_head_teacher(db, body.class_id, user.id):
         raise HTTPException(status_code=403, detail="仅班主任可建立学生总案")
     verify_case_membership(db, body.student_id, body.class_id)
-    case = StudentCase(**body.model_dump())
+    # 家庭反馈属于学生基本资料，不得混入总体问题和升学目标等总案诊断字段。
+    case_data = body.model_dump(exclude={"parent_evaluation", "primary_needs"})
+    case = StudentCase(**case_data)
     db.add(case)
     try:
         db.flush()
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="该学生在此周期已有总案") from exc
+    student = db.get(User, body.student_id)
+    profile = CaseStudentProfile(
+        student_case_id=case.id,
+        student_name=student.name if student else "",
+        grade=cls.grade or "",
+        parent_evaluation=body.parent_evaluation.strip(),
+        primary_needs=body.primary_needs.strip(),
+    )
+    db.add(profile)
+    db.flush()
     audit(db, user.id, "case.create", "student_case", case.id, case.id)
+    audit(
+        db,
+        user.id,
+        "student_profile.create",
+        "case_student_profile",
+        profile.id,
+        case.id,
+        {"fields": ["student_name", "grade", "parent_evaluation", "primary_needs"]},
+    )
     db.commit()
     db.refresh(case)
     return _case_out(db, case)

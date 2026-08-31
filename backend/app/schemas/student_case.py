@@ -32,6 +32,8 @@ class StudentCaseCreate(BaseModel):
     overall_problem: str = ""
     admission_target: str = ""
     current_summary: str = ""
+    parent_evaluation: str = Field(default="", max_length=4000)
+    primary_needs: str = Field(default="", max_length=4000)
 
 
 class StudentCaseUpdate(BaseModel):
