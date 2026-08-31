@@ -303,11 +303,11 @@ def create_student_case(
     user: User = Depends(_head_teacher),
 ):
     cycle = db.get(CaseCycle, body.cycle_id)
-    if cycle is None or cycle.grade != "高三":
-        raise HTTPException(status_code=404, detail="高三试点周期不存在")
+    if cycle is None:
+        raise HTTPException(status_code=404, detail="学年周期不存在")
     cls = db.get(Class, body.class_id)
-    if cls is None or cls.grade != "高三":
-        raise HTTPException(status_code=409, detail="第一版只能为高三班级建立总案")
+    if cls is None:
+        raise HTTPException(status_code=404, detail="班级不存在")
     if not is_head_teacher(db, body.class_id, user.id):
         raise HTTPException(status_code=403, detail="仅班主任可建立学生总案")
     verify_case_membership(db, body.student_id, body.class_id)

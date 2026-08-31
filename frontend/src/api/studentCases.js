@@ -2,6 +2,7 @@ import http from './index'
 
 export const listStudentCases = (params = {}) => http.get('/student-cases', { params })
 export const listCaseCycles = () => http.get('/student-cases/cycles')
+export const createCaseCycle = (data) => http.post('/student-cases/cycles', data)
 export const createStudentCase = (data) => http.post('/student-cases', data)
 export const getStudentCase = (id) => http.get(`/student-cases/${id}`)
 export const getFamilyCases = () => http.get('/student-cases/children')

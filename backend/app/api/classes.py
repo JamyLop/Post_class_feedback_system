@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.class_ import Class, ClassStudent
-from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 from app.core.security import hash_password
+from app.models.class_ import StudentGuardian
 
 from app.schemas.class_ import (
     ClassCreate,
@@ -57,12 +58,14 @@ def list_classes(
     if user.role == ROLE_ADMIN:
         return db.query(Class).order_by(Class.id.desc()).all()
     if user.role == ROLE_TEACHER:
-        return (
-            db.query(Class)
-            .filter(Class.teacher_id == user.id)
-            .order_by(Class.id.desc())
-            .all()
-        )
+        from app.models.class_ import ClassTeacher
+
+        legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
+        relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
+        all_ids = set(legacy_ids + relation_ids)
+        if not all_ids:
+            return []
+        return db.query(Class).filter(Class.id.in_(all_ids)).order_by(Class.id.desc()).all()
     # 学生：返回自己所在班级
     return (
         db.query(Class)
@@ -213,11 +216,18 @@ def create_and_add_student(
     user: User = Depends(_manager),
 ):
     """在班级内直接新建学生账号并加入班级（仅录入档案信息，账号自动生成）。"""
+    import re
+
     cls = _check_class_owner(db, class_id, user)
     _ensure_user_profile_columns(db)
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="姓名不能为空")
+    parent_phone = (body.parent_phone or "").strip()
+    if not parent_phone:
+        raise HTTPException(status_code=422, detail="家长手机号为必填")
+    if not re.fullmatch(r"1[3-9]\d{9}", parent_phone):
+        raise HTTPException(status_code=400, detail="家长手机号需为11位手机号")
     username = _generate_student_username(db)
     # 默认初始密码 123456，班主任无需关心账号
     stu = User(
@@ -233,6 +243,40 @@ def create_and_add_student(
     db.add(stu)
     db.flush()
     db.add(ClassStudent(class_id=class_id, student_id=stu.id))
+    # 家长联系方式必填：手机号即家长登录账号，自动注册并绑定
+    parent_name = (body.parent_name or "").strip() or "家长"
+    relationship = (body.parent_relationship or "").strip() or "guardian"
+    existing_parent = db.query(User).filter(User.username == parent_phone).first()
+    if existing_parent is None:
+        parent_user = User(
+            username=parent_phone,
+            password_hash=hash_password("88888888"),
+            name=parent_name,
+            role=ROLE_PARENT,
+        )
+        db.add(parent_user)
+        db.flush()
+    else:
+        parent_user = existing_parent
+        if parent_user.role != ROLE_PARENT:
+            raise HTTPException(status_code=409, detail=f"手机号 {parent_phone} 已被其他角色账号占用")
+        if parent_name != "家长" and parent_user.name != parent_name:
+            parent_user.name = parent_name
+            db.flush()
+    link = (
+        db.query(StudentGuardian)
+        .filter_by(parent_id=parent_user.id, student_id=stu.id)
+        .first()
+    )
+    if link is None:
+        link = StudentGuardian(
+            parent_id=parent_user.id, student_id=stu.id, relationship=relationship
+        )
+        db.add(link)
+        db.flush()
+    elif relationship and link.relationship != relationship:
+        link.relationship = relationship
+        db.flush()
     db.commit()
     db.refresh(stu)
     return stu

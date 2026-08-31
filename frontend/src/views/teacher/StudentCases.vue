@@ -2,7 +2,7 @@
   <section class="page cases-page">
     <header class="page-head">
       <div class="head-info">
-        <span class="overline">高三 · 2026-2027 备考周期</span>
+        <span class="overline">2026-2027学年</span>
         <h1>学生档案</h1>
         <p>跟进每位学生的总案状态与阶段任务，落实一生一策。</p>
       </div>
@@ -91,7 +91,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="class_name" label="所属班级" min-width="140" />
-        <el-table-column prop="admission_target" label="升学目标" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="admission_target" label="主要需求" min-width="240" show-overflow-tooltip />
         <el-table-column prop="current_summary" label="当前学情进展" min-width="240" show-overflow-tooltip />
         <el-table-column label="方案状态" width="130">
           <template #default="{ row }">
@@ -117,14 +117,14 @@
     <el-dialog v-model="createVisible" title="新建学生总案" width="600px" destroy-on-close>
       <el-form label-position="top">
         <div class="create-grid">
-          <el-form-item label="备考周期">
-            <el-select v-model="createForm.cycle_id" placeholder="选择高三备考周期">
-              <el-option v-for="item in cycles" :key="item.id" :label="item.name" :value="item.id" />
+          <el-form-item label="学年">
+            <el-select v-model="createForm.cycle_id" placeholder="选择学年" filterable style="width:100%">
+              <el-option v-for="item in cycleOptions" :key="item.id" :label="cycleLabel(item)" :value="item.id" />
             </el-select>
           </el-form-item>
           <el-form-item label="班级">
-            <el-select v-model="createForm.class_id" placeholder="选择高三班级" @change="loadClassStudents">
-              <el-option v-for="item in high3Classes" :key="item.id" :label="item.name" :value="item.id" />
+            <el-select v-model="createForm.class_id" placeholder="选择班级" empty-text="暂无班级，请先在班级管理创建班级" @change="loadClassStudents">
+              <el-option v-for="item in availableClasses" :key="item.id" :label="`${item.name}（${item.grade}·${item.school_year}）`" :value="item.id" />
             </el-select>
           </el-form-item>
         </div>
@@ -138,20 +138,20 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="总体问题与短板">
+        <el-form-item label="家长评价">
           <el-input
             v-model="createForm.overall_problem"
             type="textarea"
             :autosize="{ minRows: 3, maxRows: 8 }"
-            placeholder="记录学生主要学习瓶颈或待突破问题"
+            placeholder="记录家长对学生的评价、关注点或家校协同建议"
           />
         </el-form-item>
-        <el-form-item label="升学目标">
+        <el-form-item label="主要需求">
           <el-input
             v-model="createForm.admission_target"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
-            placeholder="例如：目标院校、专业方向或高考目标位次"
+            placeholder="例如：学生主要需求、期望支持方向或家校配合事项"
           />
         </el-form-item>
         <el-form-item label="当前状态说明">
@@ -177,7 +177,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { addStudents, listClasses, listStudents } from '../../api/classes'
-import { createStudentCase, getCaseProgress, listCaseCycles, listStudentCases } from '../../api/studentCases'
+import { createCaseCycle, createStudentCase, getCaseProgress, listCaseCycles, listStudentCases } from '../../api/studentCases'
 import { listUsers } from '../../api/users'
 import { useAuthStore } from '../../stores/auth'
 
@@ -200,6 +200,24 @@ const statuses = [
 ].map(([value, label]) => ({ value, label }))
 
 const statusLabel = (value) => statuses.find((item) => item.value === value)?.label || value
+const cycleLabel = (item) => {
+  if (!item) return ''
+  if (item.school_year) return `${item.school_year}学年`
+  return (item.name || '').replace('高三备考周期', '学年').replace('备考周期', '学年')
+}
+// 与班级管理保持一致的学年范围：2020-2021 至 2100-2101
+const schoolYears = Array.from({ length: 81 }, (_, i) => {
+  const start = 2020 + i
+  return `${start}-${start + 1}`
+})
+const cycleOptions = computed(() => {
+  const byYear = new Map(cycles.value.map((c) => [c.school_year, c]))
+  return schoolYears.map((year) => {
+    const existing = byYear.get(year)
+    if (existing) return existing
+    return { id: year, school_year: year, name: `${year}学年`, is_active: false, _virtual: true }
+  })
+})
 
 const filteredRows = computed(() => {
   let result = rows.value
@@ -216,7 +234,9 @@ const filteredRows = computed(() => {
   return result
 })
 
-const high3Classes = computed(() => classes.value.filter((item) => item.grade === '高三'))
+const availableClasses = computed(() => classes.value)
+// 兼容旧命名，保留 high3Classes 供遗留逻辑引用
+const high3Classes = availableClasses
 const classStudentIds = computed(() => new Set(classStudents.value.map((item) => item.id)))
 const availableStudents = computed(() => {
   const existing = new Set(rows.value.filter((item) => item.cycle_id === createForm.cycle_id).map((item) => item.student_id))
@@ -246,9 +266,13 @@ async function openCreate() {
       listUsers('student'),
     ])
     const activeCycle = cycles.value.find((item) => item.is_active) || cycles.value[0]
-    const firstClass = high3Classes.value[0]
+    const firstClass = availableClasses.value[0]
+    // 默认学年优先跟随首选班级的学年，其次跟随活动周期，再回落到 2026-2027
+    const defaultYear = firstClass?.school_year || activeCycle?.school_year || '2026-2027'
+    const defaultCycle = cycles.value.find((c) => c.school_year === defaultYear)
+    const defaultCycleId = defaultCycle ? defaultCycle.id : defaultYear
     Object.assign(createForm, {
-      cycle_id: activeCycle?.id || null,
+      cycle_id: defaultCycleId,
       class_id: firstClass?.id || null,
       student_id: null,
       overall_problem: '',
@@ -269,15 +293,31 @@ async function loadClassStudents(classId) {
 
 async function submitCreate() {
   if (!createForm.cycle_id || !createForm.class_id || !createForm.student_id) {
-    ElMessage.warning('请选择备考周期、班级和学生')
+    ElMessage.warning('请选择学年、班级和学生')
     return
   }
   creating.value = true
   try {
+    // 若选择的是尚未落库的学年（虚拟选项，值为 "2027-2028" 这类），先按班级学年范围自动创建周期
+    let cycleId = createForm.cycle_id
+    if (typeof cycleId === 'string' && cycleId.includes('-')) {
+      const year = cycleId
+      const startYear = Number.parseInt(year.split('-')[0], 10)
+      const payload = {
+        name: `${year}学年`,
+        school_year: year,
+        starts_on: `${startYear}-08-01`,
+        ends_on: `${startYear + 1}-06-30`,
+      }
+      const createdCycle = await createCaseCycle(payload)
+      // 刷新本地周期缓存，避免下次重复创建
+      cycles.value.push(createdCycle)
+      cycleId = createdCycle.id
+    }
     if (!classStudentIds.value.has(createForm.student_id)) {
       await addStudents(createForm.class_id, [createForm.student_id])
     }
-    const created = await createStudentCase({ ...createForm, owner_teacher_id: auth.user.id })
+    const created = await createStudentCase({ ...createForm, cycle_id: cycleId, owner_teacher_id: auth.user.id })
     ElMessage.success('学生总案已创建')
     createVisible.value = false
     router.push(`/teacher/student-cases/${created.id}`)

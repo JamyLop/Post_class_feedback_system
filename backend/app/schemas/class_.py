@@ -79,6 +79,9 @@ class StudentCreateAndEnroll(BaseModel):
     ethnicity: str = Field(default="", max_length=32, description="民族")
     grade: str = Field(default="", max_length=32, description="年级")
     source_school: str = Field(default="", max_length=128, description="生源地学校")
+    parent_name: str = Field(default="", max_length=64, description="家长姓名")
+    parent_phone: str = Field(min_length=1, max_length=32, description="家长手机号（必填，自动注册家长账号）")
+    parent_relationship: str = Field(default="", max_length=24, description="与学生关系")
 
 
 class ClassStudentOut(BaseModel):

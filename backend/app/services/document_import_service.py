@@ -105,7 +105,7 @@ def ensure_pilot_structure(
     ).first()
     if cycle is None:
         cycle = CaseCycle(
-            name="2026-2027高三备考周期",
+            name="2026-2027学年",
             grade="高三",
             school_year="2026-2027",
             starts_on=date(2026, 8, 1),
@@ -113,6 +113,10 @@ def ensure_pilot_structure(
             is_active=True,
         )
         db.add(cycle)
+        db.flush()
+    elif cycle.name != "2026-2027学年":
+        # 存量数据兼容：旧名称含“高三备考周期”，统一修正为“2026-2027学年”
+        cycle.name = "2026-2027学年"
         db.flush()
 
     cls = db.query(Class).filter_by(name="高三试点班（待确认）", grade="高三").first()
