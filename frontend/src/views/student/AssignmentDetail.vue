@@ -1,9 +1,14 @@
 <template>
-  <div class="page" v-loading="loading">
+  <div class="page student-answer-page" v-loading="loading">
     <div class="page-header">
-      <span class="page-title">{{ assignment.title }}</span>
       <div>
-        <el-button @click="loadSubmissions">我的提交</el-button>
+        <el-button link class="back-btn" @click="$router.push('/student/assignments')">
+          <el-icon><ArrowLeft /></el-icon>返回作业列表
+        </el-button>
+        <h1 class="page-title">{{ assignment.title || '加载中...' }}</h1>
+      </div>
+      <div class="header-actions">
+        <el-button @click="loadSubmissions">提交记录</el-button>
         <el-button type="primary" :loading="submitting" @click="onSubmit">提交作业</el-button>
       </div>
     </div>
@@ -12,53 +17,66 @@
       v-if="mySubmissions.length"
       type="info"
       :closable="false"
-      style="margin-bottom: 16px"
+      style="margin-bottom: 4px"
     >
-      最近提交：第 {{ mySubmissions[0].id }} 次，状态
-      {{ { submitted: '已提交', processing: '处理中', failed: '失败' }[mySubmissions[0].status] || mySubmissions[0].status }}
+      最近提交：第 {{ mySubmissions[0].id }} 次 · 状态：
+      <strong>{{ { submitted: '已提交等待批改', processing: '处理中', failed: '处理失败' }[mySubmissions[0].status] || mySubmissions[0].status }}</strong>
     </el-alert>
 
-    <el-tabs v-model="tab">
-      <el-tab-pane label="文本作答" name="text">
-        <el-card v-for="(q, i) in assignment.questions" :key="q.id" style="margin-bottom: 12px">
-          <div class="q-head">
-            <span>第 {{ i + 1 }} 题（{{ q.score }} 分 · {{ typeLabel(q.question_type) }}）</span>
+    <div class="answer-surface">
+      <el-tabs v-model="tab">
+        <el-tab-pane label="📝 逐题文本作答" name="text">
+          <div class="questions-list">
+            <el-card
+              v-for="(q, i) in assignment.questions"
+              :key="q.id"
+              shadow="never"
+              class="question-card"
+            >
+              <div class="q-head">
+                <span class="q-index">第 {{ i + 1 }} 题</span>
+                <span class="q-meta">{{ typeLabel(q.question_type) }} · {{ q.score }} 分</span>
+              </div>
+              <div class="q-content">{{ q.content }}</div>
+              <el-input
+                v-model="textAnswers[q.id]"
+                type="textarea"
+                :rows="3"
+                placeholder="请在此填写本题解答..."
+                style="margin-top: 10px"
+              />
+            </el-card>
           </div>
-          <div class="q-content">{{ q.content }}</div>
-          <el-input
-            v-model="textAnswers[q.id]"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入本题答案"
-            style="margin-top: 8px"
-          />
-        </el-card>
-      </el-tab-pane>
-      <el-tab-pane label="图片 / PDF 上传" name="file">
-        <el-upload
-          drag
-          :auto-upload="false"
-          :limit="1"
-          accept="image/*,.pdf"
-          :on-change="(f) => (file = f.raw)"
-        >
-          <el-icon style="font-size: 40px; color: #909399"><UploadFilled /></el-icon>
-          <div class="el-upload__text">拖拽文件到此处，或<em>点击上传</em></div>
-          <template #tip>
-            <div class="el-upload__tip">支持图片或 PDF，提交后由系统 OCR 识别</div>
-          </template>
-        </el-upload>
-      </el-tab-pane>
-    </el-tabs>
+        </el-tab-pane>
+        <el-tab-pane label="📎 图片 / PDF 整份上传" name="file">
+          <el-upload
+            drag
+            :auto-upload="false"
+            :limit="1"
+            accept="image/*,.pdf"
+            :on-change="(f) => (file = f.raw)"
+            class="upload-area"
+          >
+            <el-icon style="font-size: 44px; color: #94a3b8"><UploadFilled /></el-icon>
+            <div class="el-upload__text">将作业文件拖拽至此，或 <em>点击选择文件</em></div>
+            <template #tip>
+              <div class="el-upload__tip">支持 JPG / PNG / PDF，系统将通过 AI-OCR 自动识别内容</div>
+            </template>
+          </el-upload>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
 
-    <el-dialog v-model="historyVisible" title="我的提交" width="600px">
-      <el-table :data="mySubmissions">
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column label="类型" width="90">
+    <el-dialog v-model="historyVisible" title="我的提交记录" width="600px">
+      <el-table :data="mySubmissions" empty-text="暂无提交记录">
+        <el-table-column prop="id" label="序号" width="80" />
+        <el-table-column label="提交方式" width="100">
           <template #default="{ row }">{{ { text: '文本', image: '图片', pdf: 'PDF' }[row.content_type] }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="120">
-          <template #default="{ row }">{{ row.status }}</template>
+        <el-table-column label="批改状态" width="130">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain">{{ row.status }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column prop="submitted_at" label="提交时间" />
       </el-table>
@@ -142,12 +160,75 @@ onMounted(load)
 </script>
 
 <style scoped>
+.student-answer-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.page-title {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.answer-surface {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  box-shadow: none;
+  padding: 20px;
+}
+
+.questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.question-card {
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+}
+
 .q-head {
-  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 8px;
 }
+
+.q-index {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.q-meta {
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
 .q-content {
   white-space: pre-wrap;
-  color: #303133;
+  color: #334155;
+  line-height: 1.65;
+  font-size: 14px;
 }
 </style>

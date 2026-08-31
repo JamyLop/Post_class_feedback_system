@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from app.models.class_ import Class, ClassStudent, ClassTeacher
 from app.models.student_case import (
     CaseAuditLog,
+    CaseReview,
     CaseStudentProfile,
     CaseTask,
     CaseVersion,
@@ -59,6 +60,22 @@ def _create_cycle_and_case(client, auth, class_id, seed_users):
     return cycle.json()["id"], case.json()["id"]
 
 
+def _submit_and_approve(client, auth, case_id):
+    submitted = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "pending_confirmation", "reason": "提交德育审查"},
+    )
+    assert submitted.status_code == 200, submitted.text
+    approved = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={"decision": "approved", "corrective_action": "审查通过"},
+    )
+    assert approved.status_code == 200, approved.text
+    return approved
+
+
 def test_high3_only_and_unique_case(client, auth, db, seed_users):
     class_id = _setup_high3(db, seed_users)
     cycle_id, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
@@ -88,13 +105,7 @@ def test_head_teacher_can_complete_student_profile_during_execution(
     assert initial.json()["student_profile"]["student_name"] == "张三"
     assert initial.json()["student_profile"]["grade"] == "高三"
 
-    for target in ("pending_confirmation", "executing"):
-        changed = client.post(
-            f"/api/student-cases/{case_id}/transition",
-            headers=auth("teacher1"),
-            json={"target_status": target, "reason": "进入执行期"},
-        )
-        assert changed.status_code == 200, changed.text
+    _submit_and_approve(client, auth, case_id)
 
     payload = {
         "student_name": "张三",
@@ -157,7 +168,26 @@ def test_status_permission_and_immutable_version(client, auth, db, seed_users):
     parent_hidden = client.get(f"/api/student-cases/{case_id}", headers=auth("parent1"))
     assert parent_hidden.status_code == 403
 
-    for target in ("pending_confirmation", "executing", "pending_review", "adjusted"):
+    submitted = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "pending_confirmation", "reason": "提交审查"},
+    )
+    assert submitted.status_code == 200, submitted.text
+    self_approved = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "executing", "reason": "越权自审"},
+    )
+    assert self_approved.status_code == 403
+    _submit_and_approve_after_submission = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={"decision": "approved", "corrective_action": "审查通过"},
+    )
+    assert _submit_and_approve_after_submission.status_code == 200, _submit_and_approve_after_submission.text
+
+    for target in ("pending_review", "adjusted"):
         changed = client.post(
             f"/api/student-cases/{case_id}/transition",
             headers=auth("teacher1"),
@@ -187,6 +217,80 @@ def test_status_permission_and_immutable_version(client, auth, db, seed_users):
         json={"overall_problem": "直接覆盖"},
     )
     assert blocked.status_code == 409
+
+
+def test_deyu_can_return_to_head_teacher_and_close_after_resubmission(client, auth, db, seed_users):
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    linked = client.post(
+        "/api/admin/guardian-links",
+        headers=auth("admin"),
+        json={"parent_id": seed_users["parent1"], "student_id": seed_users["student1"], "relationship": "father"},
+    )
+    assert linked.status_code == 200, linked.text
+    submitted = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "pending_confirmation", "reason": "提交德育审查"},
+    )
+    assert submitted.status_code == 200, submitted.text
+
+    incomplete = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={"decision": "changes_requested", "problem": "目标不具体"},
+    )
+    assert incomplete.status_code == 400
+
+    returned = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={
+            "decision": "changes_requested",
+            "subject": "数学",
+            "problem": "数学目标缺少量化标准",
+            "corrective_action": "补充阶段目标分数和周任务",
+            "correction_due_on": str(date.today() + timedelta(days=3)),
+        },
+    )
+    assert returned.status_code == 200, returned.text
+    assert returned.json()["workflow_status"] == "open"
+    assert returned.json()["assigned_to"] == seed_users["teacher1"]
+
+    teacher_detail = client.get(f"/api/student-cases/{case_id}", headers=auth("teacher1"))
+    assert teacher_detail.status_code == 200
+    assert teacher_detail.json()["status"] == "revision_required"
+    assert teacher_detail.json()["reviews"][0]["corrective_action"].startswith("补充阶段")
+
+    revised = client.patch(
+        f"/api/student-cases/{case_id}",
+        headers=auth("teacher1"),
+        json={"current_summary": "已补充数学阶段目标和周任务"},
+    )
+    assert revised.status_code == 200, revised.text
+    resubmitted = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "pending_confirmation", "reason": "已按意见完成整改"},
+    )
+    assert resubmitted.status_code == 200, resubmitted.text
+    review = db.query(CaseReview).filter_by(student_case_id=case_id, decision="changes_requested").one()
+    assert review.workflow_status == "resubmitted"
+    assert review.resubmitted_at is not None
+
+    approved = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={"decision": "approved", "corrective_action": "整改符合要求"},
+    )
+    assert approved.status_code == 200, approved.text
+    assert client.get(f"/api/student-cases/{case_id}", headers=auth("teacher1")).json()["status"] == "executing"
+    parent_detail = client.get(f"/api/student-cases/{case_id}", headers=auth("parent1"))
+    assert parent_detail.status_code == 200, parent_detail.text
+    assert parent_detail.json()["reviews"] == []
+    db.refresh(review)
+    assert review.workflow_status == "closed"
+    assert review.resolved_at is not None
 
 
 def test_only_head_teacher_can_manage_case_content(client, auth, db, seed_users):

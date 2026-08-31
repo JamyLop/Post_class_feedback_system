@@ -1,46 +1,46 @@
 :root {
-  --app-bg: oklch(0.973 0.005 247);
-  --surface: oklch(1 0 0);
-  --surface-soft: oklch(0.966 0.008 247);
-  --ink: oklch(0.23 0.028 253);
-  --ink-secondary: oklch(0.44 0.022 253);
-  --ink-muted: oklch(0.58 0.018 253);
-  --line: oklch(0.907 0.01 250);
-  --line-strong: oklch(0.87 0.012 250);
-  --brand: oklch(0.56 0.16 254);
-  --brand-strong: oklch(0.45 0.15 254);
-  --brand-soft: oklch(0.951 0.02 254);
-  --warning: oklch(0.67 0.14 65);
-  --warning-soft: oklch(0.965 0.03 73);
-  --success: oklch(0.56 0.115 155);
-  --sidebar: oklch(0.205 0.038 250);
-  --sidebar-muted: oklch(0.72 0.02 250);
-  --radius-sm: 9px;
-  --radius-md: 14px;
-  --radius-lg: 16px;
-  --shadow-soft: 0 1px 2px rgb(15 23 42 / 5%), 0 4px 12px rgb(15 23 42 / 5%);
-  --shadow-raised: 0 2px 10px rgb(15 23 42 / 6%), 0 8px 24px rgb(15 23 42 / 4%);
-  --shadow-sticky: 0 4px 16px rgb(15 23 42 / 6%);
-  --header-h: 64px;
+  --app-bg: #f2f3f5;
+  --surface: #ffffff;
+  --surface-soft: #f8f9fb;
+  --ink: #1a2233;
+  --ink-2: #3a455c;
+  --ink-secondary: #3a455c;
+  --ink-muted: #6b778d;
+  --line: #e6e8eb;
+  --line-soft: #eef0f3;
+  --line-strong: #d6dae1;
+  --brand: #2f5bff;
+  --brand-soft: #eef2ff;
+  --brand-strong: #2347d0;
+  --warning: #d97706;
+  --warning-soft: #fff7ed;
+  --success: #0e9f6e;
+  --side-bg: #131a2b;
+  --side-line: #1e2740;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.04);
+  --shadow-raised: 0 4px 16px rgba(16, 24, 40, 0.08);
+  --header-h: 56px;
   --content-max: 1280px;
-  --el-color-primary: #2f6fed;
-  --el-border-radius-base: 10px;
-  --el-text-color-primary: #1e293b;
-  --el-text-color-regular: #475569;
-  --el-border-color-light: #e2e8f0;
-  --el-border-color-lighter: #eef2f7;
+  --el-color-primary: #2f5bff;
+  --el-border-radius-base: 8px;
+  --el-text-color-primary: #1a2233;
+  --el-text-color-regular: #3a455c;
+  --el-border-color-light: #e6e8eb;
+  --el-border-color-lighter: #eef0f3;
 }
 
 * { box-sizing: border-box; }
 
-html,
-body,
-#app {
+html, body, #app {
   margin: 0;
   height: 100%;
   color: var(--ink);
   background: var(--app-bg);
-  font-family: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -48,34 +48,60 @@ body,
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 26px 28px 44px;
+  padding: 22px 24px 40px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .page-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: -0.015em;
 }
 
-button,
-a,
-[role='button'] {
-  -webkit-tap-highlight-color: transparent;
+/* 表格 - 去掉生硬的灰底表头，改用细线分隔 */
+.el-table th.el-table__cell {
+  background: #fbfcfe !important;
+  color: #5b667a !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  border-bottom: 1px solid var(--line) !important;
 }
+
+.el-table {
+  --el-table-border-color: var(--line-soft);
+  font-size: 13.5px;
+}
+
+.el-card {
+  border-radius: var(--radius) !important;
+  border-color: var(--line) !important;
+}
+
+.el-button {
+  font-weight: 500;
+}
+
+.el-input__wrapper, .el-select__wrapper {
+  border-radius: 8px;
+}
+
+button, a, [role='button'] { -webkit-tap-highlight-color: transparent; }
 
 :focus-visible {
-  outline: 3px solid color-mix(in oklch, var(--brand) 35%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--brand) 30%, transparent);
   outline-offset: 2px;
 }
 
 @media (max-width: 900px) {
-  .page { padding: 22px 20px 40px; }
+  .page { padding: 16px 14px 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -83,6 +109,5 @@ a,
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
   }
 }

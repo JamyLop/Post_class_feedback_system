@@ -62,7 +62,7 @@ def seed_users(db, _clean_tables):
     """基线账号：admin / teacher1 / teacher2 / student1 / student2 与一个知识点。"""
     from app.core.security import hash_password
     from app.models.knowledge import KnowledgePoint
-    from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+    from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 
     users = [
         ("admin", ROLE_ADMIN, "管理员"),
@@ -72,6 +72,7 @@ def seed_users(db, _clean_tables):
         ("student2", ROLE_STUDENT, "李四"),
         ("student3", ROLE_STUDENT, "王五"),
         ("parent1", ROLE_PARENT, "张三家长"),
+        ("deyu1", ROLE_DEYU_DIRECTOR, "德育主任"),
     ]
     created = {}
     for username, role, name in users:

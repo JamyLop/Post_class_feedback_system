@@ -10,6 +10,7 @@ export const updateStudentCase = (id, data) => http.patch(`/student-cases/${id}`
 export const updateStudentProfile = (id, data) => http.put(`/student-cases/${id}/student-profile`, data)
 export const transitionStudentCase = (id, data) => http.post(`/student-cases/${id}/transition`, data)
 export const createCaseReview = (caseId, data) => http.post(`/student-cases/${caseId}/reviews`, data)
+export const decideDeyuReview = (caseId, data) => http.post(`/student-cases/${caseId}/deyu-review`, data)
 export const exportStudentCase = (id) => http.get(`/student-cases/${id}/export`, { responseType: 'blob' })
 export const upsertSubjectPlan = (caseId, subject, data) => http.put(`/student-cases/${caseId}/subject-plans/${encodeURIComponent(subject)}`, data)
 export const createCaseTask = (caseId, data) => http.post(`/student-cases/${caseId}/tasks`, data)

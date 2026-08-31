@@ -3,6 +3,8 @@
 from datetime import date, datetime, timezone
 from urllib.parse import quote
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
@@ -11,9 +13,12 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.student_case import (
     CASE_STATUSES,
+    CASE_STATUS_PENDING_CONFIRMATION,
+    CASE_STATUS_REVISION_REQUIRED,
     CaseCycle,
     CaseGoal,
     CaseImportBatch,
@@ -26,7 +31,7 @@ from app.models.student_case import (
     SubjectPlan,
     TaskCheckin,
 )
-from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_TEACHER, User
 from app.schemas.student_case import (
     CaseCycleCreate,
     CaseCycleOut,
@@ -37,6 +42,7 @@ from app.schemas.student_case import (
     CaseProgressOut,
     CaseReviewCreate,
     CaseReviewOut,
+    DeyuReviewDecision,
     CaseStudentProfileOut,
     CaseStudentProfileUpsert,
     CaseTaskCreate,
@@ -65,8 +71,21 @@ from app.services.student_case_service import (
 from app.services.case_export import build_case_export_bytes
 
 router = APIRouter(prefix="/student-cases", tags=["student-cases"])
-_staff = require_roles([ROLE_ADMIN, ROLE_TEACHER])
+# 校长 + 德育主任 + 班主任均可查看督查进度；仅班主任可写
+_staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER])
 _head_teacher = require_roles([ROLE_TEACHER])
+_deyu_director = require_roles([ROLE_DEYU_DIRECTOR])
+
+
+def _mask_health_for_viewer(profile_data: dict, viewer_role: str) -> dict:
+    """若体检史设为不展示且查看者非校长(admin)，则隐藏具体内容。德育主任同班主任一样不可见。"""
+    if profile_data.get("health_visible") is False and viewer_role != ROLE_ADMIN:
+        masked = dict(profile_data)
+        masked["allergy_history"] = ""
+        masked["underlying_conditions"] = ""
+        masked["other_health_notes"] = ""
+        return masked
+    return profile_data
 
 
 def _detail(db: Session, case: StudentCase, user: User) -> dict:
@@ -75,24 +94,70 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
     profile = db.query(CaseStudentProfile).filter_by(student_case_id=case.id).first()
     student = db.get(User, case.student_id)
     cls = db.get(Class, case.class_id)
+    guardians = db.query(StudentGuardian).filter_by(student_id=case.student_id).all()
+    guardian_accounts = []
+    for link in guardians:
+        parent = db.get(User, link.parent_id)
+        if parent:
+            guardian_accounts.append(
+                {"id": link.id, "parent_id": parent.id, "username": parent.username, "name": parent.name, "relationship": link.relationship}
+            )
+    default_profile = {
+        "id": None,
+        "student_case_id": case.id,
+        "student_name": student.name if student else "",
+        "gender": "",
+        "ethnicity": "",
+        "source_school": "",
+        "grade": cls.grade if cls else "",
+        "parent_evaluation": "",
+        "primary_needs": "",
+        "allergy_history": "",
+        "underlying_conditions": "",
+        "other_health_notes": "",
+        "health_visible": True,
+        "parent_name": "",
+        "parent_phone": "",
+        "parent_relationship": "",
+        "entrance_scores": "",
+        "entrance_total_score": None,
+        "entrance_chinese": None,
+        "entrance_math": None,
+        "entrance_english": None,
+        "entrance_physics": None,
+        "entrance_chemistry": None,
+        "entrance_biology": None,
+        "entrance_politics": None,
+        "entrance_history": None,
+        "entrance_geography": None,
+    }
+    if profile is not None:
+        # SQLAlchemy 对象转 dict 以便做权限过滤，避免直接修改 ORM 导致意外提交
+        profile_dict = {c.name: getattr(profile, c.name) for c in CaseStudentProfile.__table__.columns}
+        profile_out = _mask_health_for_viewer(profile_dict, user.role)
+    else:
+        profile_out = default_profile
+    review_query = db.query(CaseReview).filter_by(student_case_id=case.id)
+    if user.role == ROLE_PARENT:
+        # 德育退回意见属于校内协作信息，家长只查看明确共享的督查结论。
+        review_query = review_query.filter(CaseReview.visibility == "shared")
+        # 家长响应不得包含其他监护人账号/手机号，按矩阵脱敏
+        guardian_accounts = []
+        # 家长侧不暴露 parent_phone、健康明细等敏感信息
+        if isinstance(profile_out, dict):
+            profile_out = {
+                **profile_out,
+                "parent_phone": "",
+                "allergy_history": "",
+                "underlying_conditions": "",
+                "other_health_notes": "",
+            }
     return {
         **_case_out(db, case),
         "viewer_role": user.role,
         "can_manage": user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id),
-        "student_profile": profile or {
-            "id": None,
-            "student_case_id": case.id,
-            "student_name": student.name if student else "",
-            "gender": "",
-            "ethnicity": "",
-            "source_school": "",
-            "grade": cls.grade if cls else "",
-            "parent_evaluation": "",
-            "primary_needs": "",
-            "allergy_history": "",
-            "underlying_conditions": "",
-            "other_health_notes": "",
-        },
+        "student_profile": profile_out,
+        "guardian_accounts": guardian_accounts,
         "subject_plans": db.query(SubjectPlan).filter_by(student_case_id=case.id).order_by(SubjectPlan.id).all(),
         "goals": db.query(CaseGoal).filter_by(student_case_id=case.id).order_by(CaseGoal.id).all(),
         "tasks": tasks,
@@ -104,7 +169,7 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
             if task_ids
             else []
         ),
-        "reviews": db.query(CaseReview).filter_by(student_case_id=case.id).order_by(CaseReview.reviewed_at.desc()).all(),
+        "reviews": review_query.order_by(CaseReview.reviewed_at.desc()).all(),
     }
 
 
@@ -177,7 +242,7 @@ def supervision_progress(
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
         query = query.filter(StudentCase.class_id.in_(set(legacy_ids + relation_ids)))
-    elif user.role != ROLE_ADMIN:
+    elif user.role not in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         # 学生不属于一生一案的内容管理或发布对象，保留其原作业系统权限即可。
         query = query.filter(StudentCase.id == -1)
     cases = query.all()
@@ -280,7 +345,7 @@ def list_student_cases(
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
         query = query.filter(StudentCase.class_id.in_(set(legacy_ids + relation_ids)))
-    elif user.role != ROLE_ADMIN:
+    elif user.role not in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         query = query.filter(StudentCase.id == -1)
     if class_id is not None:
         query = query.filter(StudentCase.class_id == class_id)
@@ -348,7 +413,7 @@ def update_student_case(
     case = require_case_access(db, case_id, user, write=True)
     require_case_manager(db, case, user)
     changes = body.model_dump(exclude_none=True, exclude={"change_reason"})
-    if case.status not in {"draft", "pending_confirmation"} and changes:
+    if case.status not in {"draft", "revision_required"} and changes:
         # 执行中的正式内容不得无痕覆盖；调整前先走复盘状态机。
         raise HTTPException(status_code=409, detail="执行中的总案须先进入阶段复盘并生成新版本")
     for field, value in changes.items():
@@ -375,7 +440,11 @@ def upsert_student_profile(
     # 基本资料允许在执行期补录，但每次变更都进入总案审计日志。
     changes = body.model_dump()
     for field, value in changes.items():
-        setattr(profile, field, value.strip())
+        setattr(profile, field, value.strip() if isinstance(value, str) else value)
+    # 家长手机号格式校验
+    parent_phone = (changes.get("parent_phone") or "").strip()
+    if parent_phone and not re.fullmatch(r"1[3-9]\d{9}", parent_phone):
+        raise HTTPException(status_code=400, detail="家长联系方式需为11位手机号")
     db.flush()
     audit(
         db,
@@ -386,6 +455,38 @@ def upsert_student_profile(
         case.id,
         {"fields": list(changes)},
     )
+    # 自动注册家长账号：以手机号为用户名，默认密码 88888888
+    if parent_phone:
+        parent_name = (changes.get("parent_name") or "").strip() or "家长"
+        relationship = (changes.get("parent_relationship") or "").strip() or "guardian"
+        existing_parent = db.query(User).filter(User.username == parent_phone).first()
+        if existing_parent is None:
+            parent_user = User(
+                username=parent_phone,
+                password_hash=hash_password("88888888"),
+                name=parent_name,
+                role=ROLE_PARENT,
+            )
+            db.add(parent_user)
+            db.flush()
+            audit(db, user.id, "parent.auto_create", "user", parent_user.id, case.id, {"username": parent_phone})
+        else:
+            parent_user = existing_parent
+            if parent_user.role != ROLE_PARENT:
+                raise HTTPException(status_code=409, detail=f"手机号 {parent_phone} 已被其他角色账号占用")
+            # 同步更新家长姓名（若有提供）
+            if parent_name != "家长" and parent_user.name != parent_name:
+                parent_user.name = parent_name
+                db.flush()
+        link = db.query(StudentGuardian).filter_by(parent_id=parent_user.id, student_id=case.student_id).first()
+        if link is None:
+            link = StudentGuardian(parent_id=parent_user.id, student_id=case.student_id, relationship=relationship)
+            db.add(link)
+            db.flush()
+            audit(db, user.id, "guardian.auto_link", "student_guardian", link.id, case.id, {"parent_id": parent_user.id})
+        elif relationship and link.relationship != relationship:
+            link.relationship = relationship
+            db.flush()
     db.commit()
     db.refresh(profile)
     return profile
@@ -400,6 +501,34 @@ def change_case_status(
 ):
     case = require_case_access(db, case_id, user, write=True)
     require_case_manager(db, case, user)
+    if case.status == CASE_STATUS_PENDING_CONFIRMATION and body.target_status == "executing":
+        raise HTTPException(status_code=403, detail="方案须由德育主任审查通过后才能进入执行")
+    if case.status == CASE_STATUS_REVISION_REQUIRED and body.target_status == CASE_STATUS_PENDING_CONFIRMATION:
+        returned_review = (
+            db.query(CaseReview)
+            .filter_by(
+                student_case_id=case.id,
+                review_level="deyu",
+                decision="changes_requested",
+                workflow_status="open",
+                assigned_to=user.id,
+            )
+            .order_by(CaseReview.reviewed_at.desc())
+            .first()
+        )
+        if returned_review is None:
+            raise HTTPException(status_code=409, detail="未找到需要重新提交的德育退回意见")
+        returned_review.workflow_status = "resubmitted"
+        returned_review.resubmitted_at = datetime.now(timezone.utc)
+        audit(
+            db,
+            user.id,
+            "deyu_review.resubmit",
+            "case_review",
+            returned_review.id,
+            case.id,
+            {"reason": body.reason, "target_version": returned_review.target_version},
+        )
     transition_case(db, case, body.target_status, user, body.reason)
     db.commit()
     db.refresh(case)
@@ -428,7 +557,7 @@ def upsert_subject_plan(
         raise HTTPException(status_code=400, detail="路径学科与请求内容不一致")
     case = require_case_access(db, case_id, user, write=True, subject=subject)
     require_case_manager(db, case, user)
-    if case.status not in {"draft", "pending_confirmation", "adjusted"}:
+    if case.status not in {"draft", "revision_required", "adjusted"}:
         raise HTTPException(status_code=409, detail="当前状态不能修改学科方案")
     plan = db.query(SubjectPlan).filter_by(student_case_id=case_id, subject=subject).first()
     if plan is None:
@@ -471,6 +600,8 @@ def create_task(
 ):
     case = require_case_access(db, case_id, user, write=True, subject=body.subject)
     require_case_manager(db, case, user)
+    if case.status == CASE_STATUS_PENDING_CONFIRMATION:
+        raise HTTPException(status_code=409, detail="德育审查期间不能修改任务，请先撤回或等待审查意见")
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能新增任务")
     task = CaseTask(student_case_id=case_id, created_by=user.id, **body.model_dump())
@@ -495,6 +626,8 @@ def update_task(
         raise HTTPException(status_code=404, detail="任务不存在")
     case = require_case_access(db, case_id, user, write=True, subject=body.subject)
     require_case_manager(db, case, user)
+    if case.status == CASE_STATUS_PENDING_CONFIRMATION:
+        raise HTTPException(status_code=409, detail="德育审查期间不能修改任务，请先撤回或等待审查意见")
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能修改任务")
     for field, value in body.model_dump().items():
@@ -539,14 +672,93 @@ def create_review(
     user: User = Depends(_staff),
 ):
     case = require_case_access(db, case_id, user, write=False, subject=body.subject)
+    if body.review_level == "deyu":
+        raise HTTPException(status_code=400, detail="德育方案审查请使用审查通过或退回修改操作")
+    # 权限：校长 -> school/principal；德育主任 -> deyu；班主任 -> head_teacher/subject
     if body.review_level in {"school", "principal"} and user.role != ROLE_ADMIN:
-        raise HTTPException(status_code=403, detail="校级/校长督查仅管理员可提交")
-    if body.review_level not in {"school", "principal"}:
+        raise HTTPException(status_code=403, detail="校级/校长督查仅校长可提交")
+    if body.review_level == "deyu" and user.role != ROLE_DEYU_DIRECTOR:
+        raise HTTPException(status_code=403, detail="德育督查仅德育主任可提交")
+    if body.review_level not in {"school", "principal", "deyu"}:
         require_case_manager(db, case, user)
     review = CaseReview(student_case_id=case_id, reviewer_id=user.id, **body.model_dump())
     db.add(review)
     db.flush()
     audit(db, user.id, "review.create", "case_review", review.id, case.id, {"level": body.review_level})
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.post("/{case_id}/deyu-review", response_model=CaseReviewOut)
+def decide_deyu_review(
+    case_id: int,
+    body: DeyuReviewDecision,
+    db: Session = Depends(get_db),
+    user: User = Depends(_deyu_director),
+):
+    """德育主任审查班主任方案；通过后发布执行，退回后生成班主任整改待办。"""
+    case = require_case_access(db, case_id, user, write=False, subject=body.subject)
+    if case.status != CASE_STATUS_PENDING_CONFIRMATION:
+        raise HTTPException(status_code=409, detail="仅待德育审查的方案可以执行审查决定")
+
+    now = datetime.now(timezone.utc)
+    if body.decision == "changes_requested":
+        if not body.problem.strip() or not body.corrective_action.strip() or body.correction_due_on is None:
+            raise HTTPException(status_code=400, detail="退回修改必须填写问题、具体修改要求和整改截止日期")
+        workflow_status = "open"
+        assigned_to = case.owner_teacher_id
+        resolved_at = None
+        transition_target = CASE_STATUS_REVISION_REQUIRED
+        transition_reason = body.corrective_action.strip()
+    else:
+        # 复审通过时关闭本轮所有已重新提交的退回意见，同时保留每轮审查原文。
+        previous_returns = db.query(CaseReview).filter(
+            CaseReview.student_case_id == case.id,
+            CaseReview.review_level == "deyu",
+            CaseReview.decision == "changes_requested",
+            CaseReview.workflow_status.in_(["open", "resubmitted"]),
+        ).all()
+        for returned_review in previous_returns:
+            returned_review.workflow_status = "closed"
+            returned_review.resolved_at = now
+        workflow_status = "closed"
+        assigned_to = None
+        resolved_at = now
+        transition_target = "executing"
+        transition_reason = body.corrective_action.strip() or "德育主任审查通过"
+
+    review = CaseReview(
+        student_case_id=case.id,
+        review_level="deyu",
+        subject=body.subject.strip(),
+        reviewer_id=user.id,
+        problem=body.problem.strip(),
+        corrective_action=body.corrective_action.strip(),
+        correction_due_on=body.correction_due_on,
+        decision=body.decision,
+        workflow_status=workflow_status,
+        target_version=case.version,
+        assigned_to=assigned_to,
+        visibility="internal",
+        resolved_at=resolved_at,
+    )
+    db.add(review)
+    db.flush()
+    audit(
+        db,
+        user.id,
+        "deyu_review.decide",
+        "case_review",
+        review.id,
+        case.id,
+        {
+            "decision": body.decision,
+            "assigned_to": assigned_to,
+            "target_version": case.version,
+        },
+    )
+    transition_case(db, case, transition_target, user, transition_reason)
     db.commit()
     db.refresh(review)
     return review

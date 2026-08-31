@@ -100,9 +100,19 @@ def seed() -> None:
                 by_code[code] = exists.id
 
         # ========== 3. 班级 ==========
-        cls = db.query(Class).filter(Class.name == "八年级(1)班").first()
+        cls = (
+            db.query(Class)
+            .filter(Class.name.in_(["初二(1)班", "八年级(1)班"]))
+            .first()
+        )
         if cls is None:
-            cls = Class(name="八年级(1)班", grade="八年级", teacher_id=teacher1.id)
+            cls = Class(
+                name="初二(1)班",
+                grade="初二",
+                education_stage="初中",
+                class_type="全年班",
+                teacher_id=teacher1.id,
+            )
             db.add(cls)
             db.flush()
             for stu in students:

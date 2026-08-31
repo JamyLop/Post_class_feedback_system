@@ -18,6 +18,7 @@ from app.models.invite import (
 from app.models.submission import Submission
 from app.models.user import (
     ROLE_ADMIN,
+    ROLE_DEYU_DIRECTOR,
     ROLE_PARENT,
     ROLE_STUDENT,
     ROLE_TEACHER,
@@ -68,9 +69,9 @@ def create_invite_code(
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
-    """创建邀请码：支持教师、学生和家长，管理员账号不开放自助注册。"""
+    """创建邀请码：支持班主任、德育主任、学生和家长，校长账号不开放自助注册。"""
     if body.role not in ROLES or body.role == ROLE_ADMIN:
-        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、student 或 parent")
+        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、deyu_director、student 或 parent")
     code = _generate_code()
     # 保证生成的邀请码在库中唯一
     while db.query(InviteCode).filter(InviteCode.code == code).first():

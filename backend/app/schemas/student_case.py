@@ -44,7 +44,7 @@ class StudentCaseUpdate(BaseModel):
 
 class StudentCaseTransition(BaseModel):
     target_status: Literal[
-        "draft", "pending_confirmation", "executing", "pending_review", "adjusted", "archived"
+        "draft", "pending_confirmation", "revision_required", "executing", "pending_review", "adjusted", "archived"
     ]
     reason: str = Field(default="", max_length=500)
 
@@ -78,6 +78,21 @@ class CaseStudentProfileUpsert(BaseModel):
     allergy_history: str = Field(default="", max_length=2000)
     underlying_conditions: str = Field(default="", max_length=2000)
     other_health_notes: str = Field(default="", max_length=2000)
+    health_visible: bool = Field(default=True, description="体检史是否对非校长角色可见")
+    parent_name: str = Field(default="", max_length=64)
+    parent_phone: str = Field(default="", max_length=32)
+    parent_relationship: str = Field(default="", max_length=24)
+    entrance_scores: str = Field(default="", max_length=2000, description="入学成绩（总分及各科明细，兼容旧版）")
+    entrance_total_score: int | None = Field(default=None, ge=0, le=750, description="入学总分")
+    entrance_chinese: int | None = Field(default=None, ge=0, le=150)
+    entrance_math: int | None = Field(default=None, ge=0, le=150)
+    entrance_english: int | None = Field(default=None, ge=0, le=150)
+    entrance_physics: int | None = Field(default=None, ge=0, le=150)
+    entrance_chemistry: int | None = Field(default=None, ge=0, le=150)
+    entrance_biology: int | None = Field(default=None, ge=0, le=150)
+    entrance_politics: int | None = Field(default=None, ge=0, le=150)
+    entrance_history: int | None = Field(default=None, ge=0, le=150)
+    entrance_geography: int | None = Field(default=None, ge=0, le=150)
 
 
 class CaseStudentProfileOut(CaseStudentProfileUpsert):
@@ -168,7 +183,7 @@ class TaskCheckinOut(TaskCheckinCreate):
 
 class CaseReviewCreate(BaseModel):
     task_id: int | None = None
-    review_level: Literal["subject", "head_teacher", "school", "principal"]
+    review_level: Literal["subject", "head_teacher", "school", "principal", "deyu"]
     subject: str = Field(default="", max_length=32)
     problem: str = Field(default="", max_length=4000)
     corrective_action: str = Field(default="", max_length=4000)
@@ -181,13 +196,37 @@ class CaseReviewOut(CaseReviewCreate):
     id: int
     student_case_id: int
     reviewer_id: int
+    decision: str = ""
+    workflow_status: str = "closed"
+    target_version: int | None = None
+    assigned_to: int | None = None
+    visibility: str = "shared"
+    resubmitted_at: datetime | None = None
+    resolved_at: datetime | None = None
     reviewed_at: datetime
+
+
+class DeyuReviewDecision(BaseModel):
+    decision: Literal["approved", "changes_requested"]
+    subject: str = Field(default="", max_length=32)
+    problem: str = Field(default="", max_length=4000)
+    corrective_action: str = Field(default="", max_length=4000)
+    correction_due_on: date | None = None
+
+
+class GuardianAccountOut(BaseModel):
+    id: int
+    parent_id: int
+    username: str
+    name: str
+    relationship: str
 
 
 class StudentCaseDetail(StudentCaseOut):
     viewer_role: str = ""
     can_manage: bool = False
     student_profile: CaseStudentProfileOut
+    guardian_accounts: list[GuardianAccountOut] = []
     subject_plans: list[SubjectPlanOut] = []
     goals: list[CaseGoalOut] = []
     tasks: list[CaseTaskOut] = []
@@ -199,6 +238,7 @@ class CaseProgressOut(BaseModel):
     total: int
     draft: int
     pending_confirmation: int
+    revision_required: int
     executing: int
     pending_review: int
     adjusted: int

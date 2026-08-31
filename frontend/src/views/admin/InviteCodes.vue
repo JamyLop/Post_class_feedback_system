@@ -1,57 +1,72 @@
 <template>
-  <div class="page">
+  <div class="page admin-invite-page">
     <div class="page-header">
-      <span class="page-title">邀请码管理</span>
-      <el-button type="primary" @click="openCreate">生成邀请码</el-button>
+      <div>
+        <h1 class="page-title">注册邀请码管理</h1>
+        <p class="header-desc">生成、分发并管控各类角色账户的一次性注册邀请码，防止未授权用户自行创建账户。</p>
+      </div>
+      <el-button type="primary" @click="openCreate">
+        <el-icon><Plus /></el-icon>生成新邀请码
+      </el-button>
     </div>
 
-    <el-radio-group v-model="role" style="margin-bottom: 12px" @change="load">
-      <el-radio-button value="">全部</el-radio-button>
-      <el-radio-button value="student">学生</el-radio-button>
-      <el-radio-button value="teacher">教师</el-radio-button>
-      <el-radio-button value="parent">家长</el-radio-button>
-    </el-radio-group>
+    <div class="table-card">
+      <div class="filter-bar">
+        <el-radio-group v-model="role" @change="load">
+          <el-radio-button value="">全部角色</el-radio-button>
+          <el-radio-button value="student">学生</el-radio-button>
+          <el-radio-button value="teacher">班主任</el-radio-button>
+          <el-radio-button value="deyu_director">德育主任</el-radio-button>
+          <el-radio-button value="parent">家长</el-radio-button>
+        </el-radio-group>
+      </div>
 
-    <el-table :data="codes" v-loading="loading">
-      <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column prop="code" label="邀请码" width="140">
-        <template #default="{ row }">
-          <el-tag>{{ row.code }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="role" label="角色" width="90">
-        <template #default="{ row }">{{ roleLabel(row.role) }}</template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="90">
-        <template #default="{ row }">
-          <el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="expires_at" label="有效期至" width="200">
-        <template #default="{ row }">{{ row.expires_at || '永久有效' }}</template>
-      </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="200" />
-      <el-table-column label="操作" width="160">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="copyCode(row.code)">复制</el-button>
-          <el-button
-            v-if="row.status === 'active'"
-            link
-            type="warning"
-            @click="onDisable(row)"
-          >
-            停用
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+      <el-table :data="codes" v-loading="loading" empty-text="暂无邀请码记录" style="width: 100%">
+        <el-table-column prop="id" label="序号" width="80" />
+        <el-table-column prop="code" label="邀请码" width="160">
+          <template #default="{ row }">
+            <code class="invite-code-text">{{ row.code }}</code>
+          </template>
+        </el-table-column>
+        <el-table-column prop="role" label="适用角色" width="120">
+          <template #default="{ row }">
+            <span class="role-badge">{{ roleLabel(row.role) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="当前状态" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="statusType(row.status)" effect="plain">{{ statusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="expires_at" label="有效期至" min-width="160">
+          <template #default="{ row }">
+            <span :class="{ 'expired-text': isExpired(row.expires_at) }">{{ row.expires_at || '永久有效' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="生成时间" min-width="160" />
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="copyCode(row.code)">复制码</el-button>
+            <el-button
+              v-if="row.status === 'active'"
+              link
+              type="warning"
+              @click="onDisable(row)"
+            >
+              停用
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-dialog v-model="dialogVisible" title="生成邀请码" width="420px">
       <el-form label-width="80px">
         <el-form-item label="角色">
           <el-radio-group v-model="form.role">
             <el-radio value="student">学生</el-radio>
-            <el-radio value="teacher">教师</el-radio>
+            <el-radio value="teacher">班主任</el-radio>
+            <el-radio value="deyu_director">德育主任</el-radio>
             <el-radio value="parent">家长</el-radio>
           </el-radio-group>
         </el-form-item>
@@ -75,6 +90,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { listInviteCodes, createInviteCode, disableInviteCode } from '../../api/admin'
 
 const codes = ref([])
@@ -84,13 +100,16 @@ const dialogVisible = ref(false)
 const form = reactive({ role: 'student', expires_at: null })
 
 function roleLabel(r) {
-  return { teacher: '教师', student: '学生', parent: '家长' }[r] || r
+  return { teacher: '班主任', deyu_director: '德育主任', student: '学生', parent: '家长' }[r] || r
 }
 function statusLabel(s) {
-  return { active: '未使用', used: '已使用', disabled: '已停用' }[s] || s
+  return { active: '可用', used: '已使用', disabled: '已停用' }[s] || s
 }
 function statusType(s) {
   return { active: 'success', used: 'info', disabled: 'danger' }[s] || 'info'
+}
+function isExpired(val) {
+  return val && new Date(val) < new Date()
 }
 
 async function load() {
@@ -131,3 +150,69 @@ async function onDisable(row) {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.admin-invite-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.page-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.header-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  box-shadow: none;
+  overflow: hidden;
+  padding: 16px 18px;
+}
+
+.filter-bar {
+  margin-bottom: 16px;
+}
+
+.invite-code-text {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+}
+
+.role-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.expired-text {
+  color: #ef4444;
+}
+</style>

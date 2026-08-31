@@ -118,7 +118,11 @@ def ensure_pilot_structure(
     cls = db.query(Class).filter_by(name="高三试点班（待确认）", grade="高三").first()
     if cls is None:
         cls = Class(
-            name="高三试点班（待确认）", grade="高三", teacher_id=owner_teacher.id
+            name="高三试点班（待确认）",
+            grade="高三",
+            education_stage="高中",
+            class_type="全年班",
+            teacher_id=owner_teacher.id,
         )
         db.add(cls)
         db.flush()

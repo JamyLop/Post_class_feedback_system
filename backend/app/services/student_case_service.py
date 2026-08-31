@@ -15,6 +15,7 @@ from app.models.student_case import (
     CASE_STATUS_EXECUTING,
     CASE_STATUS_PENDING_CONFIRMATION,
     CASE_STATUS_PENDING_REVIEW,
+    CASE_STATUS_REVISION_REQUIRED,
     CaseAuditLog,
     CaseGoal,
     CaseReview,
@@ -24,11 +25,16 @@ from app.models.student_case import (
     StudentCase,
     SubjectPlan,
 )
-from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_TEACHER, User
 
 ALLOWED_TRANSITIONS = {
     CASE_STATUS_DRAFT: {CASE_STATUS_PENDING_CONFIRMATION},
-    CASE_STATUS_PENDING_CONFIRMATION: {CASE_STATUS_DRAFT, CASE_STATUS_EXECUTING},
+    CASE_STATUS_PENDING_CONFIRMATION: {
+        CASE_STATUS_DRAFT,
+        CASE_STATUS_REVISION_REQUIRED,
+        CASE_STATUS_EXECUTING,
+    },
+    CASE_STATUS_REVISION_REQUIRED: {CASE_STATUS_PENDING_CONFIRMATION},
     CASE_STATUS_EXECUTING: {CASE_STATUS_PENDING_REVIEW},
     CASE_STATUS_PENDING_REVIEW: {CASE_STATUS_ADJUSTED, CASE_STATUS_ARCHIVED},
     CASE_STATUS_ADJUSTED: {CASE_STATUS_EXECUTING, CASE_STATUS_PENDING_REVIEW},
@@ -80,7 +86,11 @@ def require_case_access(
         raise HTTPException(status_code=404, detail="学生总案不存在")
     if user.role == ROLE_ADMIN:
         if write:
-            raise HTTPException(status_code=403, detail="管理员只能督查，不能修改班主任维护的总案")
+            raise HTTPException(status_code=403, detail="校长只能督查，不能修改班主任维护的总案")
+        return case
+    if user.role == ROLE_DEYU_DIRECTOR:
+        if write:
+            raise HTTPException(status_code=403, detail="德育主任只能审查，不能直接修改班主任维护的总案")
         return case
     if user.role == ROLE_PARENT:
         linked = db.query(StudentGuardian).filter_by(

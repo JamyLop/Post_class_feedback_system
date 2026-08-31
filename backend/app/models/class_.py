@@ -15,6 +15,9 @@ class Class(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(64))
     grade: Mapped[str] = mapped_column(String(32))
+    education_stage: Mapped[str] = mapped_column(String(16), default="高中")
+    class_type: Mapped[str] = mapped_column(String(16), default="全年班")
+    short_term_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
     school_year: Mapped[str] = mapped_column(String(16), default="未设置", index=True)
     teacher_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True

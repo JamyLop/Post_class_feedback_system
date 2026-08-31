@@ -100,7 +100,12 @@ def test_parse_then_batch_import_flow(client, auth, seed_users):
     # 加入新作业并发布
     cls_id = client.post(
         "/api/classes",
-        json={"name": "解析班", "grade": "初二"},
+        json={
+            "name": "解析班",
+            "education_stage": "初中",
+            "grade": "初二",
+            "class_type": "全年班",
+        },
         headers=headers,
     ).json()["id"]
     client.post(

@@ -30,3 +30,4 @@ from app.models.student_case import (  # noqa: F401
 )
 from app.models.weekly_score import WeeklyTestScore  # noqa: F401
 from app.models.monthly_report import MonthlyReport  # noqa: F401
+from app.models.user_external_identity import UserExternalIdentity  # noqa: F401

@@ -2,60 +2,59 @@
   <el-container class="app-shell">
     <el-aside width="228px" class="aside">
       <div class="brand">
-        <div class="brand-mark">案</div>
+        <div class="brand-mark">德</div>
         <div class="brand-copy">
           <strong>一生一案</strong>
-          <span>学业发展管理</span>
+          <span>德育发展督导</span>
         </div>
       </div>
 
       <el-scrollbar class="nav-scroll">
-        <div class="nav-label">教学管理</div>
-        <el-menu :default-active="activeMenu" router>
+        <div class="nav-label">方案督导与审查</div>
+        <el-menu :default-active="$route.path" router>
+          <el-menu-item index="/deyu/cases">
+            <el-icon><Check /></el-icon>
+            <span>方案审查</span>
+          </el-menu-item>
           <el-menu-item index="/teacher/student-cases">
             <el-icon><Files /></el-icon>
-            <span>学生档案</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/weekly-scores">
-            <el-icon><DataAnalysis /></el-icon>
-            <span>周测成绩</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/monthly-reports">
-            <el-icon><Notebook /></el-icon>
-            <span>学业月报</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/classes">
-            <el-icon><School /></el-icon>
-            <span>班级与教师</span>
+            <span>学生档案（查阅）</span>
           </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
-      <div class="aside-foot">
-        <span>高三备考 · 2026-2027</span>
+      <div class="deyu-note">
+        <span class="deyu-dot"></span>
+        <div class="deyu-text">
+          <strong>德育协同评价</strong>
+          <small>把关育人质量与成长关怀</small>
+        </div>
       </div>
     </el-aside>
 
     <el-container class="main-container">
       <el-header class="header">
         <div class="header-left">
-          <span class="role-title">{{ auth.role === 'deyu_director' ? '德育主任工作台' : auth.role === 'admin' ? '校级工作台' : '班主任工作台' }}</span>
-          <span class="context-tag">{{ pageContext }}</span>
+          <span class="role-title">德育主任督导台</span>
+          <span class="context-tag">育人关怀与档案审查</span>
         </div>
+
         <div class="header-right">
           <div class="user-profile">
-            <span class="avatar-badge">{{ auth.user?.name?.slice(0, 1) || '用' }}</span>
+            <span class="avatar-badge">德</span>
             <div class="user-meta">
-              <strong class="user-name">{{ auth.user?.name || '教师' }}</strong>
-              <small class="user-role-text">{{ auth.role === 'deyu_director' ? '德育主任' : auth.role === 'admin' ? '校长' : '班主任' }}</small>
+              <strong class="user-name">{{ auth.user?.name || '德育主任' }}</strong>
+              <small class="user-role-text">德育主任</small>
             </div>
           </div>
           <div class="divider"></div>
-          <el-button link class="logout-btn" @click="onLogout">退出</el-button>
+          <el-button link class="logout-btn" @click="onLogout">
+            退出
+          </el-button>
         </div>
       </el-header>
 
-      <el-main ref="workspaceRef" class="workspace">
+      <el-main class="workspace">
         <router-view />
       </el-main>
     </el-container>
@@ -63,35 +62,12 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
-import { DataAnalysis, Files, Notebook, School } from '@element-plus/icons-vue'
-import { useRoute, useRouter } from 'vue-router'
+import { Check, Files } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
-const route = useRoute()
 const auth = useAuthStore()
-const workspaceRef = ref(null)
-
-const activeMenu = computed(() => route.path)
-
-const pageContext = computed(() => {
-  if (route.path.includes('/student-cases/')) return '档案详情'
-  if (route.path === '/teacher/student-cases') return '档案库'
-  if (route.path === '/teacher/weekly-scores') return '周测'
-  if (route.path === '/teacher/monthly-reports') return '月报'
-  if (route.path === '/teacher/classes') return '班级'
-  return '教学'
-})
-
-watch(
-  () => route.fullPath,
-  async () => {
-    await nextTick()
-    const workspace = workspaceRef.value?.$el || workspaceRef.value
-    workspace?.scrollTo({ top: 0, left: 0 })
-  },
-)
 
 function onLogout() {
   auth.logout()
@@ -130,8 +106,8 @@ function onLogout() {
   width: 30px;
   height: 30px;
   border-radius: 7px;
-  color: #fff;
-  background: #2f5bff;
+  color: #ffffff;
+  background: #0e9f6e;
   font-weight: 700;
   font-size: 14px;
 }
@@ -161,7 +137,6 @@ function onLogout() {
   padding: 6px 18px 8px;
   color: #5a6782;
   font-size: 11px;
-  font-weight: 500;
 }
 
 :deep(.el-menu) {
@@ -184,7 +159,7 @@ function onLogout() {
 }
 
 :deep(.el-menu-item.is-active) {
-  color: #fff;
+  color: #ffffff;
   background: rgba(255, 255, 255, 0.08);
   font-weight: 600;
   position: relative;
@@ -193,12 +168,9 @@ function onLogout() {
 :deep(.el-menu-item.is-active)::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 2.5px;
-  border-radius: 999px;
-  background: #5b7cff;
+  left: 0; top: 8px; bottom: 8px;
+  width: 2.5px; border-radius: 999px;
+  background: #0e9f6e;
 }
 
 :deep(.el-menu-item .el-icon) {
@@ -206,11 +178,34 @@ function onLogout() {
   margin-right: 9px;
 }
 
-.aside-foot {
-  padding: 12px 16px;
+.deyu-note {
+  padding: 11px 16px;
   border-top: 1px solid var(--side-line);
   font-size: 11px;
   color: #5a6782;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deyu-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #0e9f6e;
+}
+
+.deyu-text strong {
+  display: block;
+  color: #c8d2e3;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.deyu-text small {
+  display: block;
+  color: #5a6782;
+  font-size: 11px;
 }
 
 .main-container {
@@ -270,8 +265,8 @@ function onLogout() {
   height: 30px;
   border-radius: 999px;
   background: #eef2ff;
-  color: #2f5bff;
-  border: 1px solid #dfe6ff;
+  color: #0e9f6e;
+  border: 1px solid #d1f0e0;
   display: grid;
   place-items: center;
   font-weight: 600;
@@ -316,12 +311,29 @@ function onLogout() {
 }
 
 @media (max-width: 900px) {
-  .aside { width: 60px !important; }
-  .brand-copy, .nav-label, .aside-foot, .user-meta { display: none; }
-  .brand { justify-content: center; padding: 0; }
-  :deep(.el-menu-item) { justify-content: center; padding: 0 !important; margin: 1px 6px; }
-  :deep(.el-menu-item span) { display: none; }
-  :deep(.el-menu-item .el-icon) { margin-right: 0; }
-  .header { padding: 0 12px; }
+  .aside {
+    width: 64px !important;
+  }
+  .brand-copy, .nav-label, .deyu-note, .user-meta {
+    display: none;
+  }
+  .brand {
+    justify-content: center;
+    padding: 0;
+  }
+  :deep(.el-menu-item) {
+    justify-content: center;
+    padding: 0 !important;
+    margin: 2px 4px;
+  }
+  :deep(.el-menu-item span) {
+    display: none;
+  }
+  :deep(.el-menu-item .el-icon) {
+    margin-right: 0;
+  }
+  .header {
+    padding: 0 16px;
+  }
 }
 </style>

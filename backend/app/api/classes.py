@@ -13,6 +13,7 @@ from app.schemas.class_ import (
     ClassStudentOut,
     ClassUpdate,
     StudentAdd,
+    validate_class_category,
 )
 
 router = APIRouter(prefix="/classes", tags=["classes"])
@@ -87,10 +88,27 @@ def update_class(
     user: User = Depends(_manager),
 ):
     cls = _check_class_owner(db, class_id, user)
+    changes = body.model_dump(exclude_unset=True)
+    education_stage = changes.get("education_stage", cls.education_stage)
+    grade = changes.get("grade", cls.grade)
+    class_type = changes.get("class_type", cls.class_type)
+    short_term_type = changes.get("short_term_type", cls.short_term_type)
+    # 编辑时基于“现有值 + 本次改动”整体校验，不能只校验单个字段。
+    try:
+        validate_class_category(education_stage, grade, class_type, short_term_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     if body.name is not None:
         cls.name = body.name
+    if body.education_stage is not None:
+        cls.education_stage = body.education_stage
     if body.grade is not None:
         cls.grade = body.grade
+    if body.class_type is not None:
+        cls.class_type = body.class_type
+    if "short_term_type" in changes:
+        cls.short_term_type = body.short_term_type
     if body.school_year is not None:
         cls.school_year = body.school_year
     db.commit()

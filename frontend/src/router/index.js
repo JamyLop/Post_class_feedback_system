@@ -19,6 +19,16 @@ const routes = [
     ],
   },
   {
+    path: '/deyu',
+    component: () => import('../layouts/DeyuLayout.vue'),
+    meta: { roles: ['deyu_director'] },
+    children: [
+      { path: '', redirect: '/deyu/cases' },
+      { path: 'cases', component: () => import('../views/deyu/DeyuCases.vue') },
+      { path: 'cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
+    ],
+  },
+  {
     path: '/parent',
     component: () => import('../layouts/ParentLayout.vue'),
     meta: { roles: ['parent'] },
@@ -31,7 +41,7 @@ const routes = [
   {
     path: '/',
     component: () => import('../layouts/TeacherLayout.vue'),
-    meta: { roles: ['admin', 'teacher'] },
+    meta: { roles: ['admin', 'teacher', 'deyu_director'] },
     children: [
       { path: '', redirect: '/teacher/student-cases' },
       { path: 'teacher/student-cases', component: () => import('../views/teacher/StudentCases.vue') },
@@ -88,7 +98,7 @@ router.beforeEach((to) => {
   const role = auth.role
   if (to.meta.roles) {
     // 有 token 但角色数据陈旧/无效：登出并回登录页，避免守卫死循环白屏
-    if (!['admin', 'teacher', 'student', 'parent'].includes(role)) {
+    if (!['admin', 'deyu_director', 'teacher', 'student', 'parent'].includes(role)) {
       auth.logout()
       return '/login'
     }

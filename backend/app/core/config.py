@@ -67,5 +67,9 @@ class Settings(BaseSettings):
     ocr_timeout_seconds: int = 60
     ocr_max_retries: int = 1
 
+    wx_appid: str = ""
+    wx_secret: str = ""
+    wx_mock: bool = False
+
 
 settings = Settings()

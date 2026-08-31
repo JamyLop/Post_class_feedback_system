@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +27,7 @@ from app.models.base import TimestampMixin
 
 CASE_STATUS_DRAFT = "draft"
 CASE_STATUS_PENDING_CONFIRMATION = "pending_confirmation"
+CASE_STATUS_REVISION_REQUIRED = "revision_required"
 CASE_STATUS_EXECUTING = "executing"
 CASE_STATUS_PENDING_REVIEW = "pending_review"
 CASE_STATUS_ADJUSTED = "adjusted"
@@ -34,6 +36,7 @@ CASE_STATUS_ARCHIVED = "archived"
 CASE_STATUSES = (
     CASE_STATUS_DRAFT,
     CASE_STATUS_PENDING_CONFIRMATION,
+    CASE_STATUS_REVISION_REQUIRED,
     CASE_STATUS_EXECUTING,
     CASE_STATUS_PENDING_REVIEW,
     CASE_STATUS_ADJUSTED,
@@ -90,6 +93,21 @@ class CaseStudentProfile(TimestampMixin, Base):
     allergy_history: Mapped[str] = mapped_column(Text, default="")
     underlying_conditions: Mapped[str] = mapped_column(Text, default="")
     other_health_notes: Mapped[str] = mapped_column(Text, default="")
+    health_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    parent_name: Mapped[str] = mapped_column(String(64), default="")
+    parent_phone: Mapped[str] = mapped_column(String(32), default="", index=True)
+    parent_relationship: Mapped[str] = mapped_column(String(24), default="")
+    entrance_scores: Mapped[str] = mapped_column(Text, default="")
+    entrance_total_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_chinese: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_math: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_english: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_physics: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_chemistry: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_biology: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_politics: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_history: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entrance_geography: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class CaseVersion(Base):
@@ -213,6 +231,14 @@ class CaseReview(Base):
     corrective_action: Mapped[str] = mapped_column(Text, default="")
     correction_due_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     recheck_result: Mapped[str] = mapped_column(Text, default="")
+    # 德育审查意见必须绑定方案版本和责任班主任，不能退化成一条无归属留言。
+    decision: Mapped[str] = mapped_column(String(24), default="", index=True)
+    workflow_status: Mapped[str] = mapped_column(String(24), default="closed", index=True)
+    target_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    visibility: Mapped[str] = mapped_column(String(16), default="shared", index=True)
+    resubmitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
