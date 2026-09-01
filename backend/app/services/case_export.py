@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -47,6 +48,8 @@ HEADER_FILL_DARK = "1E3A5F"
 LIGHT_FILL = "F8FAFC"
 
 TEMPLATE_COVER = Path(__file__).resolve().parents[3] / "docx" / "一生一案" / "导出模板" / "封面.docx"
+# 用户确认的正式导出底稿。缺失时才退回旧版程序化版式，避免部署漏带模板时导出中断。
+CASE_EXPORT_TEMPLATE = Path(__file__).resolve().parents[3] / "docx" / "一生一案" / "导出模板" / "一生一案_导出模板.docx"
 
 
 def _format_date(d) -> str:
@@ -779,6 +782,241 @@ def _add_subject_section(doc: Document, subject: str, plan: SubjectPlan | None, 
                 p4 = doc.add_paragraph(); p4.paragraph_format.leftIndent = Cm(0.4); run = p4.add_run(f"复查：{r.recheck_result[:200]}"); _set_fonts(run, size=7.5, color=MUTED)
 
 
+def _template_cell_text(cell, value: object) -> None:
+    """替换模板单元格文字，同时保留原段落及首个文字的版式。"""
+    text = str(value or "—")
+    paragraph = cell.paragraphs[0]
+    saved_rpr = None
+    for run in paragraph.runs:
+        if run._r.rPr is not None:
+            saved_rpr = deepcopy(run._r.rPr)
+            break
+    for run in list(paragraph.runs):
+        paragraph._p.remove(run._r)
+    new_run = paragraph.add_run(text)
+    if saved_rpr is not None:
+        new_run._r.insert(0, saved_rpr)
+    paragraph.paragraph_format.space_after = Pt(0)
+
+
+def _template_paragraph_text(paragraph, value: object) -> None:
+    """替换模板段落文字，同时保留标题段落的字体和对齐样式。"""
+    text = str(value or "—")
+    saved_rpr = None
+    for run in paragraph.runs:
+        if run._r.rPr is not None:
+            saved_rpr = deepcopy(run._r.rPr)
+            break
+    for run in list(paragraph.runs):
+        paragraph._p.remove(run._r)
+    new_run = paragraph.add_run(text)
+    if saved_rpr is not None:
+        new_run._r.insert(0, saved_rpr)
+
+
+def _profile_value(profile: Any | None, key: str, default: str = "—") -> str:
+    value = _pv(profile, key)
+    if value is None:
+        return default
+    value = str(value).strip()
+    return value or default
+
+
+def _page_break_element() -> OxmlElement:
+    paragraph = OxmlElement("w:p")
+    p_pr = OxmlElement("w:pPr")
+    page_break = OxmlElement("w:pageBreakBefore")
+    p_pr.append(page_break)
+    paragraph.append(p_pr)
+    return paragraph
+
+
+def _paragraph_element(doc: Document, marker: str) -> OxmlElement | None:
+    for paragraph in doc.paragraphs:
+        if marker in (paragraph.text or ""):
+            return paragraph._p
+    return None
+
+
+def _clone_subject_template_pages(doc: Document, count: int) -> Document:
+    """按模板原样复制“每科一表”和任务表；克隆后重开以获得新的表格包装对象。"""
+    if count <= 1:
+        return doc
+    subject_heading = _paragraph_element(doc, "学科方案（每科一表）")
+    subject_title = _paragraph_element(doc, "科目 一生一案")
+    task_heading = _paragraph_element(doc, "3.1 本学科任务")
+    following_text = _paragraph_element(doc, "如有多学科方案")
+    review_heading = _paragraph_element(doc, "督查、整改与阶段复盘")
+    if any(element is None for element in (subject_heading, subject_title, task_heading, following_text, review_heading)) or len(doc.tables) < 4:
+        raise ValueError("导出模板缺少学科方案复制所需的固定区域")
+
+    source_elements = [subject_heading, subject_title, doc.tables[2]._tbl, task_heading, doc.tables[3]._tbl, following_text]
+    # 依次在督查章节前插入副本，确保所有学科都保持模板的固定顺序与页面结构。
+    for _ in range(count - 1):
+        review_heading.addprevious(_page_break_element())
+        for element in source_elements:
+            clone = deepcopy(element)
+            if element is subject_heading:
+                # 模板首个学科标题自带分页；副本前已插入分页，须移除重复属性，避免空白页。
+                p_pr = clone.find(qn("w:pPr"))
+                if p_pr is not None:
+                    page_break = p_pr.find(qn("w:pageBreakBefore"))
+                    if page_break is not None:
+                        p_pr.remove(page_break)
+            review_heading.addprevious(clone)
+    bio = BytesIO()
+    doc.save(bio)
+    bio.seek(0)
+    return Document(bio)
+
+
+def _fill_template_profile(table, profile: Any | None, student_name: str, class_name: str) -> None:
+    """模板第 1 表：学生基本信息。模板结构固定，按行列填值而不修改单元格结构。"""
+    if len(table.rows) < 9:
+        raise ValueError("导出模板的学生基本信息表结构不完整")
+    data = {
+        (0, 1): student_name or _profile_value(profile, "student_name"),
+        (0, 3): _profile_value(profile, "gender"),
+        (1, 1): _profile_value(profile, "ethnicity"),
+        (1, 3): _profile_value(profile, "grade", "高三"),
+        (2, 1): class_name or "—",
+        (2, 3): _profile_value(profile, "source_school"),
+        (3, 1): _profile_value(profile, "parent_name"),
+        (3, 3): _profile_value(profile, "parent_phone"),
+        (7, 1): _profile_value(profile, "parent_evaluation"),
+        (8, 1): _profile_value(profile, "primary_needs"),
+    }
+    for (row, col), value in data.items():
+        _template_cell_text(table.cell(row, col), value)
+    scores = "  ".join([
+        f"语文 {_profile_value(profile, 'entrance_chinese', '—')}",
+        f"数学 {_profile_value(profile, 'entrance_math', '—')}",
+        f"英语 {_profile_value(profile, 'entrance_english', '—')}",
+        f"物理 {_profile_value(profile, 'entrance_physics', '—')}",
+        f"化学 {_profile_value(profile, 'entrance_chemistry', '—')}",
+        f"生物 {_profile_value(profile, 'entrance_biology', '—')}",
+        f"政治 {_profile_value(profile, 'entrance_politics', '—')}",
+        f"历史 {_profile_value(profile, 'entrance_history', '—')}",
+        f"地理 {_profile_value(profile, 'entrance_geography', '—')}",
+        f"总分 {_profile_value(profile, 'entrance_total_score', '—')}",
+    ])
+    _template_cell_text(table.cell(6, 1), scores)
+    if _pv(profile, "health_visible") is False:
+        health = "健康信息已设为仅校长可见，本次导出不展示具体内容。"
+        for row in (4, 5):
+            _template_cell_text(table.cell(row, 1), health)
+    else:
+        _template_cell_text(table.cell(4, 1), _profile_value(profile, "other_health_notes"))
+        _template_cell_text(table.cell(4, 3), _profile_value(profile, "underlying_conditions"))
+        _template_cell_text(table.cell(5, 1), _profile_value(profile, "allergy_history"))
+
+
+def _fill_template_subject(plan_table, task_table, plan: SubjectPlan, tasks: list[CaseTask], checkins: list[TaskCheckin], teacher_name: str) -> None:
+    if len(plan_table.rows) < 6 or len(task_table.rows) < 2:
+        raise ValueError("导出模板的学科方案区域不完整")
+    subject = plan.subject or "—"
+    fields = {
+        (0, 1): subject,
+        (0, 3): teacher_name or "—",
+        (1, 1): plan.problem_location or "—",
+        (2, 1): plan.cause_analysis or "—",
+        (3, 1): plan.struggle_goal or "—",
+        (4, 1): plan.gaokao_requirement or "—",
+        (5, 1): plan.reinforcement or "—",
+    }
+    for (row, col), value in fields.items():
+        _template_cell_text(plan_table.cell(row, col), value)
+    latest_checkins = {}
+    for checkin in checkins or []:
+        if checkin.task_id not in latest_checkins or checkin.checked_in_at > latest_checkins[checkin.task_id].checked_in_at:
+            latest_checkins[checkin.task_id] = checkin
+    for row_index, task in enumerate(tasks[: len(task_table.rows) - 1], start=1):
+        checkin = latest_checkins.get(task.id)
+        _template_cell_text(task_table.cell(row_index, 0), task.title or "—")
+        _template_cell_text(task_table.cell(row_index, 1), _format_date(task.due_on))
+        _template_cell_text(task_table.cell(row_index, 2), f"{checkin.completion_rate}%" if checkin else "未打卡")
+        _template_cell_text(task_table.cell(row_index, 3), (checkin.self_check if checkin and checkin.self_check else "待教师确认"))
+        _template_cell_text(task_table.cell(row_index, 4), _format_date(checkin.checked_in_at) if checkin else "—")
+
+
+def _fill_template_subject_titles(doc: Document, plans: list[SubjectPlan]) -> None:
+    """将模板固定标题“科目一生一案”替换成各学科名称，避免导出后仍显示占位词。"""
+    title_paragraphs = [
+        paragraph
+        for paragraph in doc.paragraphs
+        if "科目" in (paragraph.text or "") and "一生一案" in (paragraph.text or "")
+    ]
+    for paragraph, plan in zip(title_paragraphs, plans):
+        _template_paragraph_text(paragraph, f"{plan.subject or '—'}一生一案")
+
+
+def _build_template_export_bytes(
+    case: StudentCase,
+    student_name: str,
+    class_name: str,
+    subject_plans: list[SubjectPlan],
+    tasks: list[CaseTask],
+    checkins: list[TaskCheckin],
+    reviews: list[CaseReview],
+    *,
+    profile: Any | None,
+    goals: list | None,
+    teacher_names: dict[int, str] | None,
+) -> bytes:
+    """基于用户确认的 DOCX 底稿填充实际一生一案数据。"""
+    doc = Document(CASE_EXPORT_TEMPLATE)
+    plan_map = {plan.subject: plan for plan in (subject_plans or [])}
+    ordered_subjects = [subject for subject in SUBJECT_ORDER if subject in plan_map]
+    ordered_subjects.extend(subject for subject in plan_map if subject not in ordered_subjects)
+    ordered_plans = [plan_map[subject] for subject in ordered_subjects]
+    # 无学科方案时仍保留模板自带的一张可填写学科页；有多科时按科复制。
+    template_subject_count = max(1, len(ordered_plans))
+    doc = _clone_subject_template_pages(doc, template_subject_count)
+    if len(doc.tables) < 7:
+        raise ValueError("导出模板表格数量不足")
+
+    _fill_template_profile(doc.tables[0], profile, student_name, class_name)
+    overview = doc.tables[1]
+    _template_cell_text(overview.cell(0, 1), (case.overall_problem or "—") + (f"\n当前学习状态：{case.current_summary}" if case.current_summary else ""))
+    _template_cell_text(overview.cell(1, 1), case.admission_target or "—")
+
+    subject_table_start = 2
+    _fill_template_subject_titles(doc, ordered_plans)
+    for index, plan in enumerate(ordered_plans):
+        plan_table = doc.tables[subject_table_start + index * 2]
+        task_table = doc.tables[subject_table_start + index * 2 + 1]
+        plan_tasks = sorted([task for task in (tasks or []) if task.subject == plan.subject], key=lambda task: task.due_on)
+        teacher_name = (teacher_names or {}).get(getattr(plan, "teacher_id", None), "")
+        _fill_template_subject(plan_table, task_table, plan, plan_tasks, checkins or [], teacher_name)
+
+    after_subject_tables = subject_table_start + template_subject_count * 2
+    review_table, adjustment_table, workflow_table = doc.tables[after_subject_tables: after_subject_tables + 3]
+    for index, review in enumerate(sorted(reviews or [], key=lambda item: item.reviewed_at, reverse=True)[: len(review_table.rows) - 1], start=1):
+        values = [
+            {"head_teacher": "班主任", "subject": "学科", "deyu": "德育", "school": "校级", "principal": "校长"}.get(review.review_level, review.review_level),
+            review.subject or "综合",
+            review.problem or "—",
+            review.corrective_action or "—",
+            _format_date(review.correction_due_on),
+            review.recheck_result or "待复查",
+            "—",
+            _format_date(review.reviewed_at),
+        ]
+        for col, value in enumerate(values):
+            _template_cell_text(review_table.cell(index, col), value)
+    if goals:
+        goal_summary = "；".join(f"{goal.title}：{goal.baseline_value or '—'}→{goal.target_value or '—'}" for goal in goals[:3])
+        _template_cell_text(adjustment_table.cell(0, 3), goal_summary or "—")
+    _template_cell_text(adjustment_table.cell(2, 1), f"V{case.version}")
+    _template_cell_text(adjustment_table.cell(2, 3), _status_label(case.status))
+    _template_cell_text(workflow_table.cell(1, 1), _status_label(case.status))
+    _template_cell_text(workflow_table.cell(1, 4), _format_date(case.updated_at))
+
+    bio = BytesIO()
+    doc.save(bio)
+    return bio.getvalue()
+
+
 def build_case_export_bytes(
     case: StudentCase,
     student_name: str,
@@ -799,6 +1037,20 @@ def build_case_export_bytes(
 
     兼容旧调用：profile/goals 可为空，内部降级。
     """
+    if CASE_EXPORT_TEMPLATE.exists():
+        return _build_template_export_bytes(
+            case=case,
+            student_name=student_name,
+            class_name=class_name,
+            subject_plans=subject_plans,
+            tasks=tasks,
+            checkins=checkins,
+            reviews=reviews,
+            profile=profile,
+            goals=goals,
+            teacher_names=teacher_names,
+        )
+
     doc = Document()
     _ensure_a4_margins(doc)
     _add_header_footer(doc, cycle_name=cycle_name)
