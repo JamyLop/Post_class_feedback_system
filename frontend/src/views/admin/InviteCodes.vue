@@ -38,12 +38,14 @@
             <el-tag size="small" :type="statusType(row.status)" effect="plain">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="expires_at" label="有效期至" min-width="160">
+        <el-table-column label="有效期至" min-width="170">
           <template #default="{ row }">
-            <span :class="{ 'expired-text': isExpired(row.expires_at) }">{{ row.expires_at || '永久有效' }}</span>
+            <span :class="{ 'expired-text': isExpired(row.expires_at) }">{{ formatExpire(row.expires_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="生成时间" min-width="160" />
+        <el-table-column label="生成时间" min-width="170">
+          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="copyCode(row.code)">复制码</el-button>
@@ -110,6 +112,17 @@ function statusType(s) {
 }
 function isExpired(val) {
   return val && new Date(val) < new Date()
+}
+function formatTime(val) {
+  if (!val) return '-'
+  const d = new Date(val)
+  if (Number.isNaN(d.getTime())) return val
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+function formatExpire(val) {
+  if (!val) return '永久有效'
+  return formatTime(val)
 }
 
 async function load() {

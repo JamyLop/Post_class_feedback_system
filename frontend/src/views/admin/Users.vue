@@ -34,12 +34,9 @@
         <el-table-column prop="id" label="序号" width="80" />
         <el-table-column label="姓名 / 身份" min-width="160">
           <template #default="{ row }">
-            <div class="user-info-cell">
-              <span class="avatar">{{ row.name?.slice(0, 1) || '用' }}</span>
-              <div>
-                <strong>{{ row.name }}</strong>
-                <small>{{ row.username }}</small>
-              </div>
+            <div>
+              <span class="name-text">{{ row.name }}</span>
+              <small class="username-text">{{ row.username }}</small>
             </div>
           </template>
         </el-table-column>
@@ -248,34 +245,18 @@ onMounted(load)
   flex-wrap: wrap;
 }
 
-.user-info-cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.name-text {
+  font-size: 14px;
+  font-weight: 650;
+  color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  color: #2f5bff;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.user-info-cell strong {
-  font-size: 13.5px;
-  color: var(--ink);
-}
-
-.user-info-cell small {
+.username-text {
   display: block;
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
 }
 
 .role-badge {

@@ -36,9 +36,13 @@ class AdminStats(BaseModel):
     teacher_count: int
     student_count: int
     parent_count: int
+    deyu_director_count: int = 0
     class_count: int
-    assignment_count: int
-    submission_count: int
+    # 兼容旧前端，仍保留但前端已不再展示；底层已回退到 StudentCase / WeeklyTestScore
+    assignment_count: int = 0
+    submission_count: int = 0
+    # 新增：一生一案看板所需
+    case_count: int = 0
 
 
 class GuardianLinkCreate(BaseModel):

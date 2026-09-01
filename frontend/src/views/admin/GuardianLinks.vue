@@ -13,27 +13,19 @@
     <div class="table-card">
       <el-table :data="links" v-loading="loading" empty-text="暂无家长学生关联记录" style="width: 100%">
         <el-table-column label="家长账号" min-width="160">
-          <template #default="{ row }">
-            <div class="user-info-cell">
-              <span class="avatar parent-avatar">{{ row.parent_name?.slice(0, 1) || '家' }}</span>
-              <strong>{{ row.parent_name }}</strong>
-            </div>
-          </template>
+          <template #default="{ row }"><span class="name-text">{{ row.parent_name }}</span></template>
         </el-table-column>
         <el-table-column label="关联学生" min-width="160">
-          <template #default="{ row }">
-            <div class="user-info-cell">
-              <span class="avatar student-avatar">{{ row.student_name?.slice(0, 1) || '生' }}</span>
-              <strong>{{ row.student_name }}</strong>
-            </div>
-          </template>
+          <template #default="{ row }"><span class="name-text">{{ row.student_name }}</span></template>
         </el-table-column>
         <el-table-column prop="relationship" label="关系类型" width="120">
           <template #default="{ row }">
             <span class="relation-badge">{{ relationshipLabel(row.relationship) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="关联建立时间" min-width="170" />
+        <el-table-column label="关联建立时间" min-width="170">
+          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
             <el-button link type="danger" @click="remove(row)">解除关联</el-button>
@@ -85,6 +77,14 @@ const visible = ref(false)
 const form = reactive({ parent_id: null, student_id: null, relationship: 'guardian' })
 
 const relationshipLabel = (value) => ({ father: '父亲', mother: '母亲', guardian: '法定监护人' }[value] || value)
+
+function formatTime(val) {
+  if (!val) return '-'
+  const d = new Date(val)
+  if (Number.isNaN(d.getTime())) return val
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 
 async function load() {
   loading.value = true
@@ -162,32 +162,11 @@ onMounted(load)
   padding: 16px 18px;
 }
 
-.user-info-cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 12px;
-}
-
-.parent-avatar {
-  color: #059669;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-}
-
-.student-avatar {
-  color: #2f5bff;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+.name-text {
+  font-size: 14px;
+  font-weight: 650;
+  color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
 .relation-badge {

@@ -461,6 +461,12 @@ def export_student_case(
     student = db.get(User, case.student_id)
     cls = db.get(Class, case.class_id)
     cycle = db.get(CaseCycle, case.cycle_id)
+    # 正式版式需要档案与教师姓名（档案取 _detail 已脱敏/兜底后的展示版，保证无档案时也能导出）
+    teacher_ids = {p.teacher_id for p in detail["subject_plans"] if getattr(p, "teacher_id", None)}
+    teacher_names: dict[int, str] = {}
+    if teacher_ids:
+        for u in db.query(User).filter(User.id.in_(teacher_ids)).all():
+            teacher_names[u.id] = u.name
     data = build_case_export_bytes(
         case=case,
         student_name=student.name if student else f"学生#{case.student_id}",
@@ -471,6 +477,10 @@ def export_student_case(
         checkins=detail["task_checkins"],
         reviews=detail["reviews"],
         cycle=cycle,
+        profile=detail.get("student_profile"),
+        goals=detail["goals"],
+        guardians=detail["guardian_accounts"],
+        teacher_names=teacher_names,
     )
     audit(db, user.id, "case.export", "student_case", case.id, case.id, {"version": case.version, "status": case.status})
     db.commit()

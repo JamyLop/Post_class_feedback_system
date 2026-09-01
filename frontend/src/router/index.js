@@ -12,6 +12,7 @@ const routes = [
     children: [
       { path: '', redirect: '/admin/case-supervision' },
       { path: 'case-supervision', component: () => import('../views/admin/CaseSupervision.vue') },
+      { path: 'cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
       { path: 'users', component: () => import('../views/admin/Users.vue') },
       { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },
