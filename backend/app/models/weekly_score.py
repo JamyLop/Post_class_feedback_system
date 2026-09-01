@@ -23,7 +23,8 @@ class WeeklyTestScore(Base):
     exam_date: Mapped[date] = mapped_column(Date, index=True)
     exam_name: Mapped[str] = mapped_column(String(64), default="")
     score: Mapped[float] = mapped_column(Float)
-    max_score: Mapped[float] = mapped_column(Float, default=100)
+    # 满分由成绩录入者按本次考试填写，系统不根据学科猜测。
+    max_score: Mapped[float] = mapped_column(Float)
     rank_in_class: Mapped[int | None] = mapped_column(Integer, nullable=True)
     remark: Mapped[str] = mapped_column(Text, default="")
     recorded_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)

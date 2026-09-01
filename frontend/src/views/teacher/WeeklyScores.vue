@@ -71,8 +71,8 @@
         </div>
         <el-form-item label="周次/名称"><el-input v-model="singleForm.exam_name" placeholder="如：第3周周测" /></el-form-item>
         <div class="form-grid">
-          <el-form-item label="得分"><el-input-number v-model="singleForm.score" :min="0" :max="singleForm.max_score" :step="1" style="width: 100%" /></el-form-item>
-          <el-form-item label="满分"><el-input-number v-model="singleForm.max_score" :min="1" :max="1000" :step="10" style="width: 100%" /></el-form-item>
+          <el-form-item label="得分"><el-input-number v-model="singleForm.score" :min="0" :max="singleForm.max_score || 1000" :step="1" style="width: 100%" /></el-form-item>
+          <el-form-item label="考试满分（必填）"><el-input-number v-model="singleForm.max_score" :min="1" :max="1000" :step="10" placeholder="请录入满分" style="width: 100%" /></el-form-item>
         </div>
         <div class="form-grid">
           <el-form-item label="班级排名"><el-input-number v-model="singleForm.rank_in_class" :min="1" :step="1" placeholder="可选" style="width: 100%" /></el-form-item>
@@ -92,7 +92,7 @@
         </div>
         <div class="form-grid">
           <el-form-item label="周次/名称"><el-input v-model="batchForm.exam_name" placeholder="如：第5周周测" /></el-form-item>
-          <el-form-item label="满分"><el-input-number v-model="batchForm.max_score" :min="1" :max="1000" :step="10" style="width: 100%" /></el-form-item>
+          <el-form-item label="考试满分（必填）"><el-input-number v-model="batchForm.max_score" :min="1" :max="1000" :step="10" placeholder="请录入满分" style="width: 100%" /></el-form-item>
         </div>
         <div class="batch-note">为下方每名学生填写分数，留空则跳过该生；已存在的同日同科成绩将被覆盖。</div>
         <el-table :data="batchStudents" max-height="360" border>
@@ -145,10 +145,10 @@ const filteredRows = computed(() => {
 const singleVisible = ref(false)
 const editingId = ref(null)
 const singleClassStudents = ref([])
-const singleForm = ref({ class_id: null, student_id: null, subject: '数学', exam_date: new Date().toISOString().slice(0,10), exam_name: '', score: 0, max_score: 100, rank_in_class: null, remark: '' })
+const singleForm = ref({ class_id: null, student_id: null, subject: '数学', exam_date: new Date().toISOString().slice(0,10), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' })
 
 const batchVisible = ref(false)
-const batchForm = ref({ class_id: null, subject: '数学', exam_date: new Date().toISOString().slice(0,10), exam_name: '', max_score: 100 })
+const batchForm = ref({ class_id: null, subject: '数学', exam_date: new Date().toISOString().slice(0,10), exam_name: '', max_score: null })
 const batchStudents = ref([])
 
 const trendVisible = ref(false)
@@ -177,7 +177,7 @@ function todayStr() { return new Date().toISOString().slice(0,10) }
 
 async function openSingleDialog() {
   editingId.value = null
-  singleForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, student_id: null, subject: filters.value.subject || '数学', exam_date: todayStr(), exam_name: '', score: 0, max_score: 100, rank_in_class: null, remark: '' }
+  singleForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, student_id: null, subject: filters.value.subject || '数学', exam_date: todayStr(), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' }
   if (singleForm.value.class_id) singleClassStudents.value = await listStudents(singleForm.value.class_id)
   singleVisible.value = true
 }
@@ -197,6 +197,10 @@ async function editRow(row) {
 async function submitSingle() {
   if (!singleForm.value.class_id || !singleForm.value.student_id || !singleForm.value.subject || !singleForm.value.exam_date) {
     ElMessage.warning('请完整填写班级、学生、学科和日期')
+    return
+  }
+  if (!singleForm.value.max_score) {
+    ElMessage.warning('请填写本次考试满分')
     return
   }
   if (singleForm.value.score > singleForm.value.max_score) {
@@ -221,7 +225,7 @@ async function removeRow(row) {
 }
 
 async function openBatchDialog() {
-  batchForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, subject: filters.value.subject || '数学', exam_date: todayStr(), exam_name: '', max_score: 100 }
+  batchForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, subject: filters.value.subject || '数学', exam_date: todayStr(), exam_name: '', max_score: null }
   batchStudents.value = []
   if (batchForm.value.class_id) await loadBatchStudents()
   batchVisible.value = true
@@ -236,6 +240,10 @@ async function loadBatchStudents() {
 async function submitBatch() {
   if (!batchForm.value.class_id || !batchForm.value.subject || !batchForm.value.exam_date) {
     ElMessage.warning('请选择班级、学科和日期')
+    return
+  }
+  if (!batchForm.value.max_score) {
+    ElMessage.warning('请填写本次考试满分')
     return
   }
   const records = batchStudents.value

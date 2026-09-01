@@ -1,4 +1,4 @@
-"""月报异步生成任务。"""
+"""月度评价异步生成任务。"""
 
 import logging
 from datetime import datetime, timezone

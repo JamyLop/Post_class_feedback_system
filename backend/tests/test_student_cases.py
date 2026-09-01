@@ -14,7 +14,12 @@ from app.models.student_case import (
 
 
 def _setup_high3(db, seed_users):
-    cls = Class(name="高三(1)班", grade="高三", teacher_id=seed_users["teacher1"])
+    cls = Class(
+        name="高三(1)班",
+        grade="高三",
+        school_year_starts_on=date(2025, 9, 1),
+        teacher_id=seed_users["teacher1"],
+    )
     db.add(cls)
     db.flush()
     db.add_all([
@@ -125,6 +130,7 @@ def test_create_case_stores_family_feedback_in_student_profile(client, auth, db,
 
     detail = client.get(f"/api/student-cases/{created.json()['id']}", headers=auth("teacher1"))
     assert detail.status_code == 200, detail.text
+    assert detail.json()["class_starts_on"] == "2025-09-01"
     assert detail.json()["student_profile"]["parent_evaluation"].startswith("学习态度认真")
     assert detail.json()["student_profile"]["primary_needs"].startswith("希望获得数学")
 

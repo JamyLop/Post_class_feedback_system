@@ -10,7 +10,7 @@ class WeeklyTestScoreCreate(BaseModel):
     exam_date: date
     exam_name: str = Field(default="", max_length=64)
     score: float = Field(ge=0)
-    max_score: float = Field(default=100, gt=0, le=1000)
+    max_score: float = Field(gt=0, le=1000)
     rank_in_class: int | None = Field(default=None, ge=1)
     remark: str = Field(default="", max_length=500)
 
@@ -30,7 +30,7 @@ class WeeklyTestScoreBatchCreate(BaseModel):
     subject: str = Field(min_length=1, max_length=32)
     exam_date: date
     exam_name: str = Field(default="", max_length=64)
-    max_score: float = Field(default=100, gt=0, le=1000)
+    max_score: float = Field(gt=0, le=1000)
     records: list[dict] = Field(description="每条含 student_id, score, rank_in_class, remark")
 
 

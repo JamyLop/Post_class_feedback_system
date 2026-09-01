@@ -303,10 +303,11 @@ async function submitCreate() {
     if (typeof cycleId === 'string' && cycleId.includes('-')) {
       const year = cycleId
       const startYear = Number.parseInt(year.split('-')[0], 10)
+      const selectedClass = classes.value.find((item) => item.id === createForm.class_id)
       const payload = {
         name: `${year}学年`,
         school_year: year,
-        starts_on: `${startYear}-08-01`,
+        starts_on: selectedClass?.school_year_starts_on || `${startYear}-08-01`,
         ends_on: `${startYear + 1}-06-30`,
       }
       const createdCycle = await createCaseCycle(payload)

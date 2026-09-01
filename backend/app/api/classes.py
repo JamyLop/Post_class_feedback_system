@@ -117,6 +117,8 @@ def update_class(
         cls.short_term_type = body.short_term_type
     if body.school_year is not None:
         cls.school_year = body.school_year
+    if body.school_year_starts_on is not None:
+        cls.school_year_starts_on = body.school_year_starts_on
     db.commit()
     db.refresh(cls)
     return cls

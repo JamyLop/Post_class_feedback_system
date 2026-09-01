@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     debug: bool = True
     log_dir: str = "logs"
     api_prefix: str = "/api"
+    backend_port: int = 8000
     secret_key: str = "dev-secret-change-me"
     access_token_expire_minutes: int = 1440
     cors_origins: List[str] = ["*"]

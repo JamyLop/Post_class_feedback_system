@@ -22,7 +22,7 @@
           </el-menu-item>
           <el-menu-item index="/teacher/monthly-reports">
             <el-icon><Notebook /></el-icon>
-            <span>学业月报</span>
+            <span>月度评价</span>
           </el-menu-item>
           <el-menu-item index="/teacher/classes">
             <el-icon><School /></el-icon>
@@ -79,7 +79,7 @@ const pageContext = computed(() => {
   if (route.path.includes('/student-cases/')) return '档案详情'
   if (route.path === '/teacher/student-cases') return '档案库'
   if (route.path === '/teacher/weekly-scores') return '周测'
-  if (route.path === '/teacher/monthly-reports') return '月报'
+  if (route.path === '/teacher/monthly-reports') return '月度评价'
   if (route.path === '/teacher/classes') return '班级'
   return '教学'
 })

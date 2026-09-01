@@ -134,8 +134,60 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
     if profile is not None:
         # SQLAlchemy 对象转 dict 以便做权限过滤，避免直接修改 ORM 导致意外提交
         profile_dict = {c.name: getattr(profile, c.name) for c in CaseStudentProfile.__table__.columns}
+        # 关键修复：建档时家长联系方式仅写入 StudentGuardian，新建总案未回填到
+        # case_student_profiles，导致详情页“三栏”显示暂未填写。存量数据在此做
+        # 展示层兜底 + 惰性回写，下次查询即持久一致。
+        student_backfill_fields: list[str] = []
+        if student is not None:
+            for fld in ("gender", "ethnicity", "source_school", "grade"):
+                if not (profile_dict.get(fld) or "").strip():
+                    val = getattr(student, fld, "") or ""
+                    if val:
+                        profile_dict[fld] = val
+                        if fld != "grade":  # grade 仅展示兜底，避免覆盖档案年级
+                            student_backfill_fields.append(fld)
+            if not (profile_dict.get("student_name") or "").strip() and student.name:
+                profile_dict["student_name"] = student.name
+                student_backfill_fields.append("student_name")
+        needs_backfill = False
+        if not (profile_dict.get("parent_name") or "").strip() or not (profile_dict.get("parent_phone") or "").strip():
+            if guardian_accounts:
+                first = guardian_accounts[0]
+                if not (profile_dict.get("parent_name") or "").strip():
+                    profile_dict["parent_name"] = first["name"] or ""
+                    needs_backfill = True
+                if not (profile_dict.get("parent_phone") or "").strip():
+                    profile_dict["parent_phone"] = first["username"] or ""
+                    needs_backfill = True
+                if not (profile_dict.get("parent_relationship") or "").strip():
+                    profile_dict["parent_relationship"] = first["relationship"] or ""
+                    needs_backfill = True
+        if needs_backfill or student_backfill_fields:
+            try:
+                for fld in ("parent_name", "parent_phone", "parent_relationship"):
+                    if profile_dict.get(fld) and not (getattr(profile, fld, "") or "").strip():
+                        setattr(profile, fld, profile_dict[fld])
+                for fld in student_backfill_fields:
+                    if profile_dict.get(fld) and not (getattr(profile, fld, "") or "").strip():
+                        setattr(profile, fld, profile_dict[fld])
+                db.flush()
+                db.commit()
+            except Exception:
+                db.rollback()
         profile_out = _mask_health_for_viewer(profile_dict, user.role)
     else:
+        # 尚未建档案明细时也用监护人/学生表兜底，避免新建学生后档案页直接显示空白
+        if student is not None:
+            for fld in ("gender", "ethnicity", "source_school"):
+                if getattr(student, fld, ""):
+                    default_profile[fld] = getattr(student, fld)
+            if student.name:
+                default_profile["student_name"] = student.name
+        if guardian_accounts:
+            first = guardian_accounts[0]
+            default_profile["parent_name"] = first["name"] or ""
+            default_profile["parent_phone"] = first["username"] or ""
+            default_profile["parent_relationship"] = first["relationship"] or ""
         profile_out = default_profile
     review_query = db.query(CaseReview).filter_by(student_case_id=case.id)
     if user.role == ROLE_PARENT:
@@ -180,6 +232,7 @@ def _case_out(db: Session, case: StudentCase) -> dict:
     cls = db.get(Class, case.class_id)
     data["student_name"] = profile.student_name if profile and profile.student_name else (student.name if student else None)
     data["class_name"] = cls.name if cls else None
+    data["class_starts_on"] = cls.school_year_starts_on if cls else None
     return data
 
 
@@ -321,12 +374,21 @@ def create_student_case(
         db.rollback()
         raise HTTPException(status_code=409, detail="该学生在此周期已有总案") from exc
     student = db.get(User, body.student_id)
+    # 新建总案时同步入学时已录的家长联系方式，避免档案页显示空白
+    guardian_link = db.query(StudentGuardian).filter_by(student_id=body.student_id).first()
+    guardian_parent = db.get(User, guardian_link.parent_id) if guardian_link else None
     profile = CaseStudentProfile(
         student_case_id=case.id,
         student_name=student.name if student else "",
-        grade=cls.grade or "",
+        gender=getattr(student, "gender", "") or "",
+        ethnicity=getattr(student, "ethnicity", "") or "",
+        source_school=getattr(student, "source_school", "") or "",
+        grade=getattr(student, "grade", "") or cls.grade or "",
         parent_evaluation=body.parent_evaluation.strip(),
         primary_needs=body.primary_needs.strip(),
+        parent_name=guardian_parent.name if guardian_parent else "",
+        parent_phone=guardian_parent.username if guardian_parent else "",
+        parent_relationship=guardian_link.relationship if guardian_link else "",
     )
     db.add(profile)
     db.flush()

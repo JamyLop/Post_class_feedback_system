@@ -1,4 +1,4 @@
-"""月报生成引擎：汇总月度学情 + 德育表现，调用 LLM 生成结构化月报。"""
+"""月度评价生成引擎：汇总月度学情 + 德育表现，调用 LLM 生成结构化月度评价。"""
 
 import calendar
 import json
@@ -14,7 +14,7 @@ from app.models.submission import SUBMISSION_STATUS_TEACHER_REVIEWED, Submission
 from app.models.weekly_score import WeeklyTestScore
 
 PROMPT_VERSION = "monthly_v1"
-SYSTEM_PROMPT = """你是一名严谨的高三班主任助手。你只能依据提供的结构化月度数据生成学生月报。
+SYSTEM_PROMPT = """你是一名严谨的高三班主任助手。你只能依据提供的结构化月度数据生成学生月度评价。
 禁止编造分数、排名、行为或不存在的事件。输出必须包含三个小节标题：
 ## 学情总结
 ## 德育表现
@@ -130,7 +130,7 @@ def build_monthly_snapshot(
     return _json_safe(snapshot)
 
 def generate_monthly_report(snapshot: dict) -> LLMResponse:
-    user = """根据以下真实月度结构化数据生成学生月报，严格分为三节，不得编造。
+    user = """根据以下真实月度结构化数据生成学生月度评价，严格分为三节，不得编造。
 <monthly_data>
 {data}
 </monthly_data>
@@ -142,6 +142,6 @@ def generate_monthly_report(snapshot: dict) -> LLMResponse:
     response = get_llm_provider().chat_with_metadata(SYSTEM_PROMPT, user)
     content = response.text.strip()
     if not content:
-        raise ValueError("模型返回了空月报")
+        raise ValueError("模型返回了空月度评价")
     response.text = content[:4000]
     return response

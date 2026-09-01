@@ -67,6 +67,7 @@ class StudentCaseOut(BaseModel):
     updated_at: datetime
     student_name: str | None = None
     class_name: str | None = None
+    class_starts_on: date | None = None
 
 
 class CaseStudentProfileUpsert(BaseModel):

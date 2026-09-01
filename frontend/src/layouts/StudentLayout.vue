@@ -30,7 +30,7 @@
           </el-menu-item>
           <el-menu-item index="/student/my-monthly-reports">
             <el-icon><Notebook /></el-icon>
-            <span>学业月报</span>
+            <span>月度评价</span>
           </el-menu-item>
         </el-menu>
       </el-scrollbar>

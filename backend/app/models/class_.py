@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import TimestampMixin
@@ -19,6 +19,10 @@ class Class(TimestampMixin, Base):
     class_type: Mapped[str] = mapped_column(String(16), default="全年班")
     short_term_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
     school_year: Mapped[str] = mapped_column(String(16), default="未设置", index=True)
+    # 任务时间轴必须锚定真实开学日，不能再由当前日期或任务日期反推。
+    school_year_starts_on: Mapped[date] = mapped_column(
+        Date, default=lambda: date(date.today().year, 8, 1)
+    )
     teacher_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )

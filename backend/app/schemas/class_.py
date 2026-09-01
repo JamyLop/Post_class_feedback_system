@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -36,12 +37,19 @@ class ClassCreate(BaseModel):
     class_type: ClassType
     short_term_type: ShortTermType | None = None
     school_year: str = Field(default="2026-2027", min_length=4, max_length=16)
+    school_year_starts_on: date | None = None
 
     @model_validator(mode="after")
     def validate_category(self):
         validate_class_category(
             self.education_stage, self.grade, self.class_type, self.short_term_type
         )
+        if self.school_year_starts_on is None:
+            try:
+                start_year = int(self.school_year.split("-", 1)[0])
+            except (TypeError, ValueError):
+                start_year = date.today().year
+            self.school_year_starts_on = date(start_year, 8, 1)
         return self
 
 
@@ -52,6 +60,7 @@ class ClassUpdate(BaseModel):
     class_type: ClassType | None = None
     short_term_type: ShortTermType | None = None
     school_year: str | None = Field(default=None, min_length=4, max_length=16)
+    school_year_starts_on: date | None = None
 
 
 class ClassOut(BaseModel):
@@ -64,6 +73,7 @@ class ClassOut(BaseModel):
     class_type: ClassType
     short_term_type: ShortTermType | None
     school_year: str
+    school_year_starts_on: date
     teacher_id: int
 
 

@@ -1,4 +1,4 @@
-"""月报 API：AI生成月报（学情+德育+改进方案），班主任可编辑发布。"""
+"""月度评价 API：AI生成月度评价（学情+德育+改进方案），班主任可编辑发布。"""
 
 import calendar
 import logging
@@ -51,7 +51,7 @@ def _authorize_student_class(db: Session, student_id: int, class_id: int, user: 
         # 也允许通过 ClassTeacher 关联
         from app.models.class_ import ClassTeacher
         if not db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=user.id).first():
-            raise HTTPException(status_code=403, detail="无权操作该班级月报")
+            raise HTTPException(status_code=403, detail="无权操作该班级月度评价")
     member = db.query(ClassStudent).filter(ClassStudent.class_id == class_id, ClassStudent.student_id == student_id).first()
     if member is None:
         raise HTTPException(status_code=403, detail="学生不属于该班级")
@@ -59,17 +59,17 @@ def _authorize_student_class(db: Session, student_id: int, class_id: int, user: 
 def _report_access(db: Session, report_id: int, user: User) -> MonthlyReport:
     r = db.get(MonthlyReport, report_id)
     if r is None:
-        raise HTTPException(status_code=404, detail="月报不存在")
+        raise HTTPException(status_code=404, detail="月度评价不存在")
     if user.role == ROLE_ADMIN:
         return r
     if user.role == ROLE_STUDENT:
         if r.student_id != user.id or r.status != MONTHLY_STATUS_PUBLISHED:
-            raise HTTPException(status_code=403, detail="无权查看该月报")
+            raise HTTPException(status_code=403, detail="无权查看该月度评价")
         return r
     if user.role == ROLE_PARENT:
         linked = db.query(StudentGuardian).filter_by(parent_id=user.id, student_id=r.student_id).first()
         if linked is None or r.status != MONTHLY_STATUS_PUBLISHED:
-            raise HTTPException(status_code=403, detail="无权查看该月报")
+            raise HTTPException(status_code=403, detail="无权查看该月度评价")
         return r
     _authorize_student_class(db, r.student_id, r.class_id, user)
     return r
@@ -154,7 +154,7 @@ def generate_monthly(
             report.status = MONTHLY_STATUS_FAILED
             report.error_message = str(inner)[:1000]
             db.commit()
-            raise HTTPException(status_code=500, detail=f"月报生成失败: {inner}") from inner
+            raise HTTPException(status_code=500, detail=f"月度评价生成失败: {inner}") from inner
     else:
         try:
             generate_monthly_report_task.delay(report.id)
@@ -181,7 +181,7 @@ def generate_monthly(
                 report.status = MONTHLY_STATUS_FAILED
                 report.error_message = str(inner)[:1000]
                 db.commit()
-                raise HTTPException(status_code=500, detail=f"月报生成失败: {inner}") from inner
+                raise HTTPException(status_code=500, detail=f"月度评价生成失败: {inner}") from inner
     db.refresh(report)
     return _enrich(report, db)
 
@@ -232,7 +232,7 @@ def get_report(report_id: int, db: Session = Depends(get_db), user: User = Depen
 def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
     if r.status not in (MONTHLY_STATUS_GENERATED, MONTHLY_STATUS_PUBLISHED):
-        raise HTTPException(status_code=409, detail="月报尚未生成，不能编辑")
+        raise HTTPException(status_code=409, detail="月度评价尚未生成，不能编辑")
     r.final_content = body.final_content.strip()
     r.reviewed_by = user.id
     if r.status == MONTHLY_STATUS_PUBLISHED:
@@ -247,9 +247,9 @@ def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Dep
 def publish_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
     if r.status != MONTHLY_STATUS_GENERATED:
-        raise HTTPException(status_code=409, detail="只有已生成的月报可以发布")
+        raise HTTPException(status_code=409, detail="只有已生成的月度评价可以发布")
     if not r.final_content.strip():
-        raise HTTPException(status_code=409, detail="月报内容为空，不能发布")
+        raise HTTPException(status_code=409, detail="月度评价内容为空，不能发布")
     from datetime import datetime, timezone
     r.status = MONTHLY_STATUS_PUBLISHED
     r.reviewed_by = user.id

@@ -18,7 +18,11 @@
             <strong class="class-name-text">{{ row.name }}</strong>
           </template>
         </el-table-column>
-        <el-table-column prop="school_year" label="学年" width="150" />
+        <el-table-column label="学年" width="170">
+          <template #default="{ row }">
+            <div class="school-year-cell"><strong>{{ row.school_year }}</strong><span>{{ row.school_year_starts_on }} 开始</span></div>
+          </template>
+        </el-table-column>
         <el-table-column prop="education_stage" label="学段" width="100">
           <template #default="{ row }">
             <el-tag size="small" effect="plain">{{ row.education_stage }}</el-tag>
@@ -46,7 +50,11 @@
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑班级' : '新建班级'" width="460px">
       <el-form :model="form" label-position="top">
         <el-form-item label="学年">
-          <el-select v-model="form.school_year" placeholder="选择学年" style="width: 100%"><el-option v-for="year in schoolYears" :key="year" :label="`${year}学年`" :value="year" /></el-select>
+          <el-select v-model="form.school_year" placeholder="选择学年" style="width: 100%" @change="onSchoolYearChange"><el-option v-for="year in schoolYears" :key="year" :label="`${year}学年`" :value="year" /></el-select>
+        </el-form-item>
+        <el-form-item label="学年开始日期">
+          <el-date-picker v-model="form.school_year_starts_on" type="date" value-format="YYYY-MM-DD" placeholder="选择具体日期" style="width: 100%" />
+          <span class="form-help">学生总案的阶段任务时间轴将从该日期开始计算。</span>
         </el-form-item>
         <el-form-item label="班级名称">
           <el-input v-model="form.name" placeholder="如：高三1班" />
@@ -89,7 +97,14 @@ const classes = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
-const form = reactive({ name: '', education_stage: '高中', grade: '高三', class_type: '全年班', short_term_type: null, school_year: '2026-2027' })
+const currentSchoolYear = () => {
+  const today = new Date()
+  const start = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1
+  return `${start}-${start + 1}`
+}
+const defaultStartDate = (schoolYear) => `${Number.parseInt(schoolYear, 10)}-08-01`
+const initialSchoolYear = currentSchoolYear()
+const form = reactive({ name: '', education_stage: '高中', grade: '高三', class_type: '全年班', short_term_type: null, school_year: initialSchoolYear, school_year_starts_on: defaultStartDate(initialSchoolYear) })
 const gradesByStage = { 初中: ['初一', '初二', '初三'], 高中: ['高一', '高二', '高三', '复读'] }
 const availableGrades = computed(() => gradesByStage[form.education_stage])
 const availableClassTypes = computed(() => form.education_stage === '高中'
@@ -110,6 +125,10 @@ function onClassTypeChange() {
   form.short_term_type = form.class_type === '短期班' ? '暑假班' : null
 }
 
+function onSchoolYearChange(value) {
+  form.school_year_starts_on = defaultStartDate(value)
+}
+
 async function load() {
   loading.value = true
   try {
@@ -126,7 +145,8 @@ function openDialog() {
   form.grade = '高三'
   form.class_type = '全年班'
   form.short_term_type = null
-  form.school_year = '2026-2027'
+  form.school_year = currentSchoolYear()
+  form.school_year_starts_on = defaultStartDate(form.school_year)
   dialogVisible.value = true
 }
 
@@ -139,13 +159,14 @@ function openEdit(row) {
     class_type: row.class_type,
     short_term_type: row.short_term_type,
     school_year: row.school_year || '未设置',
+    school_year_starts_on: row.school_year_starts_on || defaultStartDate(row.school_year),
   })
   dialogVisible.value = true
 }
 
 async function onSave() {
-  if (!form.name || !form.education_stage || !form.grade || !form.class_type || !form.school_year) {
-    ElMessage.warning('请完整填写学年、班级名称、学段、年级和班型')
+  if (!form.name || !form.education_stage || !form.grade || !form.class_type || !form.school_year || !form.school_year_starts_on) {
+    ElMessage.warning('请完整填写学年、开始日期、班级名称、学段、年级和班型')
     return
   }
   if (form.class_type === '短期班' && !form.short_term_type) {
@@ -215,4 +236,9 @@ onMounted(load)
   color: #64748b;
   font-size: 12px;
 }
+
+.school-year-cell { display: grid; gap: 2px; }
+.school-year-cell strong { color: var(--ink); font-size: 13px; font-weight: 650; }
+.school-year-cell span, .form-help { color: var(--ink-muted); font-size: 11px; }
+.form-help { display: block; margin-top: 6px; line-height: 1.5; }
 </style>

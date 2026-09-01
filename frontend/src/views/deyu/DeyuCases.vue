@@ -12,43 +12,43 @@
     </header>
 
     <div class="kpi-grid">
-      <div class="kpi-card total">
+      <button class="kpi-card total" :class="{ 'is-active': activeKpi === 'total' }" type="button" @click="handleKpiClick('total')">
         <span class="kpi-label">档案总数</span>
         <div class="kpi-value">{{ progress.total || 0 }}</div>
         <span class="kpi-sub">德育覆盖范围</span>
-      </div>
-      <div class="kpi-card">
+      </button>
+      <button class="kpi-card" :class="{ 'is-active': activeKpi === 'pending' }" type="button" @click="handleKpiClick('pending')">
         <div class="kpi-head">
           <span class="kpi-dot is-warning"></span>
           <span class="kpi-label">待我审查</span>
         </div>
         <div class="kpi-value">{{ progress.pending_confirmation || 0 }}</div>
         <span class="kpi-sub">班主任已提交</span>
-      </div>
-      <div class="kpi-card">
+      </button>
+      <button class="kpi-card" :class="{ 'is-active': activeKpi === 'executing' }" type="button" @click="handleKpiClick('executing')">
         <div class="kpi-head">
           <span class="kpi-dot is-success"></span>
           <span class="kpi-label">正在执行</span>
         </div>
         <div class="kpi-value">{{ progress.executing || 0 }}</div>
         <span class="kpi-sub">平稳推进中</span>
-      </div>
-      <div class="kpi-card">
+      </button>
+      <button class="kpi-card" :class="{ 'is-active': activeKpi === 'adjusted' }" type="button" @click="handleKpiClick('adjusted')">
         <div class="kpi-head">
           <span class="kpi-dot is-brand"></span>
           <span class="kpi-label">已调整总案</span>
         </div>
         <div class="kpi-value">{{ progress.adjusted || 0 }}</div>
         <span class="kpi-sub">完成方案优化</span>
-      </div>
-      <div class="kpi-card">
+      </button>
+      <button class="kpi-card" :class="{ 'is-active': activeKpi === 'overdue' }" type="button" @click="handleKpiClick('overdue')">
         <div class="kpi-head">
           <span class="kpi-dot is-danger"></span>
           <span class="kpi-label">逾期微任务</span>
         </div>
         <div class="kpi-value">{{ progress.overdue_tasks || 0 }}</div>
         <span class="kpi-sub">待跟进提醒</span>
-      </div>
+      </button>
     </div>
 
     <section class="list-surface">
@@ -131,6 +131,7 @@ const statuses = [
 
 const statusLabel = (value) => statuses.find((item) => item.value === value)?.label || value
 
+const activeKpi = ref('total')
 const filteredRows = computed(() => {
   let result = rows.value
   if (workFilter.value === 'need_review') result = result.filter((row) => row.status === 'pending_confirmation')
@@ -139,6 +140,20 @@ const filteredRows = computed(() => {
   if (query) result = result.filter((row) => `${row.student_name || ''}${row.class_name || ''}`.toLowerCase().includes(query))
   return result
 })
+
+function handleKpiClick(type) {
+  activeKpi.value = type
+  if (type === 'total') { status.value = ''; workFilter.value = 'all' }
+  else if (type === 'pending') { status.value = 'pending_confirmation'; workFilter.value = 'need_review' }
+  else if (type === 'executing') { status.value = 'executing'; workFilter.value = 'all' }
+  else if (type === 'adjusted') { status.value = 'adjusted'; workFilter.value = 'all' }
+  else if (type === 'overdue') { status.value = ''; workFilter.value = 'all' }
+  if (type === 'overdue') {
+    // 逾期微任务暂以后端统计为准，筛出执行中/待复盘等可能逾期的档案
+    keyword.value = ''
+  }
+  load()
+}
 
 function openCase(row) {
   router.push(`/deyu/cases/${row.id}`)
@@ -221,7 +236,16 @@ onMounted(load)
   box-shadow: none;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  transition: border-color .18s, box-shadow .18s, transform .12s;
 }
+.kpi-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(15,23,42,.08); transform: translateY(-1px); }
+.kpi-card.is-active { border-color: var(--brand, #2f5bff); box-shadow: 0 0 0 2px color-mix(in oklch, var(--brand, #2f5bff) 18%, transparent), 0 4px 12px rgba(15,23,42,.08); }
+.kpi-card.total.is-active { border-color: #0f172a; box-shadow: 0 0 0 2px rgba(15,23,42,.2); }
+.kpi-card:focus-visible { outline: 2px solid var(--brand, #2f5bff); outline-offset: 2px; }
 
 .kpi-card.total {
   background: var(--ink);

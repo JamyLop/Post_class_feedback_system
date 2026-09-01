@@ -5,10 +5,10 @@
         <h1 class="page-title">月度学情诊断与总结</h1>
         <p class="header-desc">查阅班主任每月发布的综合学情报告、德育日常表现与后续攻坚方案。</p>
       </div>
-      <el-button :loading="loading" @click="load">刷新月报</el-button>
+      <el-button :loading="loading" @click="load">刷新月度评价</el-button>
     </div>
 
-    <el-empty v-if="!rows.length" description="班主任尚未发布本阶段月报" :image-size="80" />
+    <el-empty v-if="!rows.length" description="班主任尚未发布本阶段月度评价" :image-size="80" />
 
     <div v-else class="reports-list">
       <el-card v-for="r in rows" :key="r.id" shadow="never" class="monthly-card">
@@ -16,7 +16,7 @@
           <div class="card-head">
             <div class="head-title">
               <span class="month-chip">{{ r.month_label }}</span>
-              <strong class="report-title">学情综合诊断月报</strong>
+              <strong class="report-title">学情综合诊断月度评价</strong>
             </div>
             <span class="period-text">{{ r.period_start }} ~ {{ r.period_end }}</span>
           </div>

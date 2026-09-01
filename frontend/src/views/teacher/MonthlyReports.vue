@@ -2,11 +2,11 @@
   <section class="page monthly-page">
     <header class="page-head">
       <div>
-        <div class="scope-line"><span>高三试点</span><span>月报 · AI总结</span></div>
-        <h1>月报管理</h1>
-        <p>按自然月 AI 汇总学情与德育表现，生成“学情总结 / 德育表现 / 改进方案”三段式月报，班主任可编辑后发布给家长/学生。</p>
+        <div class="scope-line"><span>高三试点</span><span>月度评价 · AI总结</span></div>
+        <h1>月度评价管理</h1>
+        <p>按自然月 AI 汇总学情与德育表现，生成“学情总结 / 德育表现 / 改进方案”三段式月度评价，班主任可编辑后发布给家长/学生。</p>
       </div>
-      <el-button type="primary" @click="openGenerate"><el-icon><Plus /></el-icon>生成月报</el-button>
+      <el-button type="primary" @click="openGenerate"><el-icon><Plus /></el-icon>生成月度评价</el-button>
     </header>
 
     <section class="filter-surface">
@@ -26,7 +26,7 @@
     </section>
 
     <section class="list-surface">
-      <el-table v-loading="loading" :data="rows" empty-text="暂无月报">
+      <el-table v-loading="loading" :data="rows" empty-text="暂无月度评价">
         <el-table-column prop="month_label" label="月份" width="110" />
         <el-table-column label="学生" min-width="130"><template #default="{ row }">{{ row.student_name || `学生#${row.student_id}` }}</template></el-table-column>
         <el-table-column prop="class_name" label="班级" min-width="140" />
@@ -44,7 +44,7 @@
     </section>
 
     <!-- 生成 -->
-    <el-dialog v-model="genVisible" title="生成月报（AI总结）" width="560px" destroy-on-close>
+    <el-dialog v-model="genVisible" title="生成月度评价（AI总结）" width="560px" destroy-on-close>
       <div class="gen-tip">将汇总当月的周测成绩、作业得分、知识点薄弱点、德育行为记录与任务执行，AI 生成三段式初稿。</div>
       <el-form label-position="top">
         <el-form-item label="班级"><el-select v-model="genForm.class_id" style="width: 100%" @change="onGenClassChange"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
@@ -55,7 +55,7 @@
     </el-dialog>
 
     <!-- 详情/编辑 -->
-    <el-dialog v-model="detailVisible" title="月报详情" width="760px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="月度评价详情" width="760px" destroy-on-close>
       <template v-if="current">
         <div class="detail-meta">
           <span>{{ current.student_name }} · {{ current.class_name }} · {{ current.month_label }}</span>
@@ -124,7 +124,7 @@ async function submitGenerate() {
   generating.value = true
   try {
     await generateMonthlyReport(genForm.value)
-    ElMessage.success('月报生成任务已启动，稍后刷新查看')
+    ElMessage.success('月度评价生成任务已启动，稍后刷新查看')
     genVisible.value = false
     await load()
   } finally { generating.value = false }
@@ -152,7 +152,7 @@ async function regenerate(row) {
   await load()
 }
 async function removeRow(row) {
-  await ElMessageBox.confirm(`确认删除 ${row.month_label} 月报？`, '删除确认', { type:'warning' })
+  await ElMessageBox.confirm(`确认删除 ${row.month_label} 月度评价？`, '删除确认', { type:'warning' })
   await deleteMonthlyReport(row.id)
   ElMessage.success('已删除')
   await load()
