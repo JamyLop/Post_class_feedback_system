@@ -26,6 +26,6 @@
         "tabSize": 4
     },
     "projectArchitecture": "miniProgram",
-    "miniprogramRoot": "src/",
-    "srcMiniprogramRoot": "src/"
+    "miniprogramRoot": "dist/build/mp-weixin/",
+    "srcMiniprogramRoot": "dist/build/mp-weixin/"
 }

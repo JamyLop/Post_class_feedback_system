@@ -13,6 +13,7 @@
     "lint": "echo \"no lint configured\""
   },
   "dependencies": {
+    "@dcloudio/uni-mp-weixin": "^3.0.0-alpha-5020520260829001",
     "pinia": "2.3.1",
     "vue": "3.5.11",
     "vue-i18n": "^9.13.1"

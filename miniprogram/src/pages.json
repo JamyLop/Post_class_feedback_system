@@ -60,6 +60,22 @@
           "style": { "navigationBarTitleText": "待办督查" }
         },
         {
+          "path": "caseList/index",
+          "style": { "navigationBarTitleText": "学生档案" }
+        },
+        {
+          "path": "caseDetail/index",
+          "style": { "navigationBarTitleText": "档案详情" }
+        },
+        {
+          "path": "caseEdit/index",
+          "style": { "navigationBarTitleText": "编辑档案" }
+        },
+        {
+          "path": "taskManager/index",
+          "style": { "navigationBarTitleText": "任务管理" }
+        },
+        {
           "path": "checkin/index",
           "style": { "navigationBarTitleText": "快速打卡" }
         },
@@ -79,28 +95,4 @@
       "background": "#f8fafc"
     }
   },
-  "tabBar": {
-    "color": "#64748b",
-    "selectedColor": "#2563eb",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "black",
-    "list": [
-      {
-        "pagePath": "pages/index/index",
-        "text": "首页"
-      },
-      {
-        "pagePath": "subParent/children/index",
-        "text": "孩子"
-      },
-      {
-        "pagePath": "subStudent/assignments/index",
-        "text": "作业"
-      },
-      {
-        "pagePath": "subTeacher/todo/index",
-        "text": "待办"
-      }
-    ]
-  }
 }

@@ -40,15 +40,33 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { useAuthStore } from '../../stores/auth'
 import { getMyChildren } from '../../api/auth'
 import { getFamilyCases } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 import EmptyState from '../../components/EmptyState.vue'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const children = ref([])
 const familyCases = ref([])
+
+function guardRole() {
+  if (!auth.isLoggedIn) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    uni.reLaunch({ url: '/pages/login/index' })
+    return false
+  }
+  if (auth.role !== 'parent') {
+    uni.showToast({ title: '当前角色无法访问家长入口', icon: 'none' })
+    uni.reLaunch({ url: '/pages/index/index' })
+    return false
+  }
+  return true
+}
+onShow(() => { if (guardRole()) load() })
 
 async function load() {
   loading.value = true
@@ -71,8 +89,6 @@ function openCases(child) {
   uni.showToast({ title: '该孩子暂无已发布档案', icon: 'none' })
 }
 function openCase(id) { uni.navigateTo({ url: `/subParent/caseDetail/index?id=${id}` }) }
-
-onMounted(load)
 </script>
 
 <style scoped>

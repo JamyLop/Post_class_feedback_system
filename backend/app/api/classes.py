@@ -119,6 +119,11 @@ def update_class(
         cls.school_year = body.school_year
     if body.school_year_starts_on is not None:
         cls.school_year_starts_on = body.school_year_starts_on
+    if body.school_year_ends_on is not None:
+        cls.school_year_ends_on = body.school_year_ends_on
+    # 校验结束时间晚于开始时间
+    if cls.school_year_ends_on <= cls.school_year_starts_on:
+        raise HTTPException(status_code=422, detail="结束时间必须晚于开始时间")
     db.commit()
     db.refresh(cls)
     return cls

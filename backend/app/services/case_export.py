@@ -13,6 +13,9 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 from typing import Any
 
 from docx import Document
@@ -50,6 +53,43 @@ LIGHT_FILL = "F8FAFC"
 TEMPLATE_COVER = Path(__file__).resolve().parents[3] / "docx" / "一生一案" / "导出模板" / "封面.docx"
 # 用户确认的正式导出底稿。缺失时才退回旧版程序化版式，避免部署漏带模板时导出中断。
 CASE_EXPORT_TEMPLATE = Path(__file__).resolve().parents[3] / "docx" / "一生一案" / "导出模板" / "一生一案_导出模板.docx"
+COVER_IMAGE = Path(__file__).resolve().parents[3] / "docx" / "一生一案" / "导出模板" / "学生阶段发展规划封面.png"
+
+
+def _prepend_cover_image(doc: Document) -> None:
+    """把学校封面作为独立的 A4 零边距分节，正文继续沿用模板边距。"""
+    if not COVER_IMAGE.exists():
+        return
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.paragraph_format.left_indent = Cm(0)
+    paragraph.paragraph_format.right_indent = Cm(0)
+    # 强制按 A4 成品尺寸拉伸，确保图片覆盖整页，不留下上下或左右白边。
+    paragraph.add_run().add_picture(str(COVER_IMAGE), width=Cm(21.0), height=Cm(29.7))
+    body = doc._body._element
+    body.remove(paragraph._p)
+    body.insert(0, paragraph._p)
+
+    # 段落级 sectPr 结束封面分节，并从下一页开始恢复模板正文分节。
+    section_break = OxmlElement("w:p")
+    p_pr = OxmlElement("w:pPr")
+    sect_pr = OxmlElement("w:sectPr")
+    section_type = OxmlElement("w:type")
+    section_type.set(qn("w:val"), "nextPage")
+    sect_pr.append(section_type)
+    page_size = OxmlElement("w:pgSz")
+    page_size.set(qn("w:w"), "11906")
+    page_size.set(qn("w:h"), "16838")
+    sect_pr.append(page_size)
+    page_margins = OxmlElement("w:pgMar")
+    for margin in ("top", "right", "bottom", "left"):
+        page_margins.set(qn(f"w:{margin}"), "0")
+    sect_pr.append(page_margins)
+    p_pr.append(sect_pr)
+    section_break.append(p_pr)
+    body.insert(1, section_break)
 
 
 def _format_date(d) -> str:
@@ -965,6 +1005,7 @@ def _build_template_export_bytes(
 ) -> bytes:
     """基于用户确认的 DOCX 底稿填充实际一生一案数据。"""
     doc = Document(CASE_EXPORT_TEMPLATE)
+    _prepend_cover_image(doc)
     plan_map = {plan.subject: plan for plan in (subject_plans or [])}
     ordered_subjects = [subject for subject in SUBJECT_ORDER if subject in plan_map]
     ordered_subjects.extend(subject for subject in plan_map if subject not in ordered_subjects)
@@ -1052,6 +1093,7 @@ def build_case_export_bytes(
         )
 
     doc = Document()
+    _prepend_cover_image(doc)
     _ensure_a4_margins(doc)
     _add_header_footer(doc, cycle_name=cycle_name)
 
@@ -1126,3 +1168,198 @@ def build_case_export_bytes(
     bio = BytesIO()
     doc.save(bio)
     return bio.getvalue()
+
+
+def _convert_docx_to_pdf(docx_bytes: bytes) -> bytes:
+    """使用本机办公转换器把已排版 DOCX 转成 PDF；无转换器时明确失败。"""
+    with tempfile.TemporaryDirectory(prefix="case-export-") as temp_dir:
+        temp = Path(temp_dir)
+        source = temp / "case.docx"
+        source.write_bytes(docx_bytes)
+        output = temp / "case.pdf"
+        soffice = shutil.which("soffice") or shutil.which("libreoffice")
+        if soffice:
+            lo_profile = temp / "lo-profile"
+            result = subprocess.run(
+                [soffice, "--headless", f"-env:UserInstallation=file:///{lo_profile.as_posix()}", "--convert-to", "pdf", "--outdir", str(temp), str(source)],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+            if result.returncode == 0 and output.exists():
+                return output.read_bytes()
+        # Windows 部署常见为已安装 Microsoft Word 但未安装 LibreOffice。
+        if shutil.which("powershell.exe"):
+            script = (
+                "$inputPath=$args[0]; $outputPath=$args[1]; "
+                "$word=New-Object -ComObject Word.Application; $word.Visible=$false; "
+                "try { $doc=$word.Documents.Open($inputPath, $false, $true); "
+                "$doc.SaveAs2($outputPath, 17); $doc.Close($false) } "
+                "finally { $word.Quit() }"
+            )
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script, str(source), str(output)],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+            if result.returncode == 0 and output.exists():
+                return output.read_bytes()
+        raise RuntimeError("PDF 导出需要 LibreOffice 或 Microsoft Word 转换器，请在服务环境安装其一")
+
+
+def build_case_export_pdf_bytes(*args, **kwargs) -> bytes:
+    """生成学校格式 PDF；底层仍复用已验收的 DOCX 模板填充逻辑。"""
+    return _convert_docx_to_pdf(build_case_export_bytes(*args, **kwargs))
+
+
+def _register_pdf_font() -> str:
+    """选择部署环境已有的中文字体；找不到时退回 Helvetica，避免接口启动失败。"""
+    candidates = [
+        Path(r"C:\Windows\Fonts\msyh.ttc"),
+        Path(r"C:\Windows\Fonts\msyh.ttf"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf"),
+    ]
+    for font_path in candidates:
+        if font_path.exists():
+            name = "CaseExportCJK"
+            if name not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont(name, str(font_path), subfontIndex=0))
+            return name
+    return "Helvetica"
+
+
+def _pdf_text(value: Any, fallback: str = "—") -> str:
+    text = "" if value is None else str(value).strip()
+    return escape(text or fallback).replace("\n", "<br/>")
+
+
+def _pdf_value(obj: Any, name: str, fallback: str = "—") -> str:
+    return _pdf_text(getattr(obj, name, None), fallback)
+
+
+def _pdf_paragraph(value: Any, style: ParagraphStyle, fallback: str = "—") -> Paragraph:
+    return Paragraph(_pdf_text(value, fallback), style)
+
+
+def _pdf_table(rows: list[list[Any]], widths: list[float], styles: dict[str, ParagraphStyle], *, header: bool = True) -> Table:
+    converted: list[list[Any]] = []
+    for row_index, row in enumerate(rows):
+        converted.append([
+            cell if isinstance(cell, (Paragraph, Image)) else _pdf_paragraph(cell, styles["table_header" if header and row_index == 0 else "table"])
+            for cell in row
+        ])
+    table = Table(converted, colWidths=widths, repeatRows=1 if header else 0, hAlign="LEFT")
+    commands = [
+        ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#E2E8F0")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]
+    if header:
+        commands.extend([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A5F")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ])
+    table.setStyle(TableStyle(commands))
+    return table
+
+
+def _native_pdf_page(canvas, doc, font_name: str) -> None:
+    canvas.saveState()
+    canvas.setFont(font_name, 8)
+    canvas.setFillColor(colors.HexColor("#64748B"))
+    canvas.drawString(2 * cm, 1.15 * cm, "白粉高级英才中学 · 高三一生一案工作组")
+    canvas.drawRightString(A4[0] - 2 * cm, 1.15 * cm, f"第 {doc.page} 页")
+    canvas.restoreState()
+
+
+def _build_native_pdf_bytes(
+    case: StudentCase,
+    student_name: str,
+    class_name: str,
+    cycle_name: str,
+    subject_plans: list[SubjectPlan],
+    tasks: list[CaseTask],
+    checkins: list[TaskCheckin],
+    reviews: list[CaseReview],
+    cycle: CaseCycle | None = None,
+    *,
+    profile: Any | None = None,
+    goals: list | None = None,
+    guardians: list | None = None,
+    teacher_names: dict[int, str] | None = None,
+) -> bytes:
+    """按现有 DOCX 导出内容生成原生 PDF；所有内容在内存中完成。"""
+    font_name = _register_pdf_font()
+    styles = getSampleStyleSheet()
+    styles_map = {
+        "title": ParagraphStyle("case-title", parent=styles["Title"], fontName=font_name, fontSize=22, leading=30, textColor=colors.HexColor("#1B2F4A"), alignment=TA_CENTER, spaceAfter=18),
+        "subtitle": ParagraphStyle("case-subtitle", parent=styles["Normal"], fontName=font_name, fontSize=11, leading=18, textColor=colors.HexColor("#64748B"), alignment=TA_CENTER),
+        "section": ParagraphStyle("case-section", parent=styles["Heading1"], fontName=font_name, fontSize=15, leading=22, textColor=colors.HexColor("#1B2F4A"), spaceBefore=8, spaceAfter=8),
+        "subject": ParagraphStyle("case-subject", parent=styles["Heading2"], fontName=font_name, fontSize=13, leading=19, textColor=colors.HexColor("#2F6FED"), spaceBefore=7, spaceAfter=6),
+        "body": ParagraphStyle("case-body", parent=styles["BodyText"], fontName=font_name, fontSize=9, leading=14, textColor=colors.HexColor("#334155"), spaceAfter=4),
+        "table": ParagraphStyle("case-table", parent=styles["BodyText"], fontName=font_name, fontSize=8.5, leading=12, textColor=colors.HexColor("#334155")),
+        "table_header": ParagraphStyle("case-table-header", parent=styles["BodyText"], fontName=font_name, fontSize=8.5, leading=12, textColor=colors.white),
+        "small": ParagraphStyle("case-small", parent=styles["BodyText"], fontName=font_name, fontSize=7.5, leading=11, textColor=colors.HexColor("#64748B")),
+    }
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=2 * cm, leftMargin=2 * cm, topMargin=1.8 * cm, bottomMargin=1.8 * cm, title=f"{student_name} 一生一案")
+    story: list[Any] = [Spacer(1, 2.2 * cm)]
+    if COVER_IMAGE.exists():
+        story.extend([Image(str(COVER_IMAGE), width=15.8 * cm, height=8.8 * cm), Spacer(1, 1.2 * cm)])
+    story.extend([
+        Paragraph("个性化学习发展指导方案", styles_map["title"]),
+        Paragraph(_pdf_text(student_name), styles_map["subtitle"]),
+        Paragraph(f"{_pdf_text(class_name)} · {_pdf_text(cycle_name)} · V{getattr(case, 'version', 1)} · {_pdf_text(_status_label(getattr(case, 'status', '')))}", styles_map["subtitle"]),
+        PageBreak(),
+        Paragraph("01  学生基本信息", styles_map["section"]),
+    ])
+    profile_rows = [["项目", "内容", "项目", "内容"]]
+    profile = profile or object()
+    profile_rows.extend([
+        ["姓名", _pdf_value(profile, "student_name", student_name), "性别", _pdf_value(profile, "gender")],
+        ["年级", _pdf_value(profile, "grade"), "来源学校", _pdf_value(profile, "source_school")],
+        ["家长", _pdf_value(profile, "parent_name"), "联系电话", _pdf_value(profile, "parent_phone")],
+        ["主要需求", _pdf_value(profile, "primary_needs"), "家长评价", _pdf_value(profile, "parent_evaluation")],
+    ])
+    story.append(_pdf_table(profile_rows, [2.2 * cm, 6.3 * cm, 2.2 * cm, 6.3 * cm], styles_map))
+    score_fields = [("语文", "entrance_chinese"), ("数学", "entrance_math"), ("英语", "entrance_english"), ("物理", "entrance_physics"), ("化学", "entrance_chemistry"), ("生物", "entrance_biology"), ("政治", "entrance_politics"), ("历史", "entrance_history"), ("地理", "entrance_geography")]
+    story.extend([Spacer(1, 8), Paragraph("入学成绩", styles_map["subject"]), _pdf_table([["科目", "分数"]] + [[subject, _pdf_value(profile, field)] for subject, field in score_fields], [4 * cm, 4 * cm], styles_map)])
+    story.extend([Spacer(1, 8), Paragraph("02  总案概览", styles_map["section"]), _pdf_table([
+        ["总体问题", _pdf_value(case, "overall_problem")],
+        ["升学目标", _pdf_value(case, "admission_target")],
+        ["当前状态", _pdf_value(case, "current_summary")],
+    ], [3.2 * cm, 14 * cm], styles_map, header=False)])
+    if goals:
+        story.extend([Spacer(1, 8), Paragraph("阶段目标", styles_map["subject"]), _pdf_table([["目标", "基线", "目标值"]] + [[getattr(g, "title", ""), getattr(g, "baseline_value", "") or "—", getattr(g, "target_value", "") or "—"] for g in goals], [7 * cm, 5 * cm, 5.2 * cm], styles_map)])
+    story.extend([PageBreak(), Paragraph("03  学科方案", styles_map["section"])])
+    plan_map = {p.subject: p for p in (subject_plans or [])}
+    ordered = [s for s in SUBJECT_ORDER if s in plan_map] + [s for s in plan_map if s not in SUBJECT_ORDER]
+    for index, subject in enumerate(ordered):
+        plan = plan_map[subject]
+        if index:
+            story.append(PageBreak())
+        teacher = (teacher_names or {}).get(getattr(plan, "teacher_id", None), "")
+        story.extend([Paragraph(f"{subject}一生一案", styles_map["subject"]), _pdf_table([
+            ["负责教师", teacher or "—"], ["问题定位", getattr(plan, "problem_location", "")], ["原因分析", getattr(plan, "cause_analysis", "")],
+            ["攻坚目标", getattr(plan, "struggle_goal", "")], ["高考要求", getattr(plan, "gaokao_requirement", "")], ["强化安排", getattr(plan, "reinforcement", "")],
+        ], [3.2 * cm, 14 * cm], styles_map, header=False)])
+        subject_tasks = sorted([t for t in (tasks or []) if getattr(t, "subject", None) == subject], key=lambda t: getattr(t, "due_on", None) or "")
+        if subject_tasks:
+            task_rows = [["任务", "截止日期", "完成率", "打卡记录"]]
+            checkin_map = {getattr(c, "task_id", None): c for c in (checkins or [])}
+            for task in subject_tasks:
+                checkin = checkin_map.get(getattr(task, "id", None))
+                task_rows.append([getattr(task, "title", ""), _format_date(getattr(task, "due_on", None)), f"{getattr(checkin, 'completion_rate', '—')}%" if checkin else "—", getattr(checkin, "self_check", "") if checkin else "未打卡"])
+            story.extend([Spacer(1, 6), Paragraph("任务与执行", styles_map["body"]), _pdf_table(task_rows, [5.2 * cm, 3.2 * cm, 2.6 * cm, 6.2 * cm], styles_map)])
+    if not ordered:
+        story.append(Paragraph("尚未建立学科方案。", styles_map["body"]))
+    story.extend([PageBreak(), Paragraph("04  版本与说明", styles_map["section"]), Paragraph("家长仅可见已确认版本；健康与体检信息按当前权限控制，不在无权导出内容中展示。", styles_map["body"]), Paragraph(f"版本信息：V{getattr(case, 'version', 1)} · {_pdf_text(_status_label(getattr(case, 'status', '')))} · 创建 {_pdf_text(_format_date(getattr(case, 'created_at', None)))} · 更新 {_pdf_text(_format_date(getattr(case, 'updated_at', None)))}", styles_map["small"])])
+    doc.build(story, onFirstPage=lambda c, d: _native_pdf_page(c, d, font_name), onLaterPages=lambda c, d: _native_pdf_page(c, d, font_name))
+    return buffer.getvalue()

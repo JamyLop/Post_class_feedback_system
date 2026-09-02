@@ -25,7 +25,7 @@ from app.models.student_case import (
     StudentCase,
     SubjectPlan,
 )
-from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 
 ALLOWED_TRANSITIONS = {
     CASE_STATUS_DRAFT: {CASE_STATUS_PENDING_CONFIRMATION},
@@ -42,6 +42,14 @@ ALLOWED_TRANSITIONS = {
 }
 
 PARENT_VISIBLE_STATUSES = {
+    CASE_STATUS_EXECUTING,
+    CASE_STATUS_PENDING_REVIEW,
+    CASE_STATUS_ADJUSTED,
+    CASE_STATUS_ARCHIVED,
+}
+
+# 学生自查可见状态与家长一致（仅已发布），独立常量以便后续差异化
+STUDENT_VISIBLE_STATUSES = {
     CASE_STATUS_EXECUTING,
     CASE_STATUS_PENDING_REVIEW,
     CASE_STATUS_ADJUSTED,
@@ -97,6 +105,10 @@ def require_case_access(
             parent_id=user.id, student_id=case.student_id
         ).first()
         if write or linked is None or case.status not in PARENT_VISIBLE_STATUSES:
+            raise HTTPException(status_code=403, detail="无权访问该学生总案")
+        return case
+    if user.role == ROLE_STUDENT:
+        if write or case.student_id != user.id or case.status not in STUDENT_VISIBLE_STATUSES:
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
         return case
     if user.role != ROLE_TEACHER:

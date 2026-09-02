@@ -11,11 +11,11 @@
 
     <section class="filter-surface">
       <div class="filters">
-        <el-select v-model="filters.class_id" placeholder="选择班级" clearable style="width: 180px" @change="load">
+        <el-select v-model="filters.class_id" placeholder="选择班级" clearable style="width: 180px" @change="onFilterClassChange">
           <el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" />
         </el-select>
-        <el-select v-model="filters.student_id" placeholder="选择学生" clearable style="width: 180px" @change="load">
-          <el-option v-for="s in allStudents" :key="s.id" :label="s.name" :value="s.id" />
+        <el-select v-model="filters.student_id" placeholder="选择学生" clearable style="width: 180px" @change="load" :disabled="filters.class_id && !filterStudents.length">
+          <el-option v-for="s in filterStudents" :key="s.id" :label="s.name" :value="s.id" />
         </el-select>
         <el-date-picker v-model="filters.month_label" type="month" placeholder="月份" value-format="YYYY-MM" style="width: 160px" @change="load" />
         <el-select v-model="filters.status" placeholder="状态" clearable style="width: 130px" @change="load">
@@ -90,6 +90,7 @@ import { deleteMonthlyReport, generateMonthlyReport, listMonthlyReports, publish
 
 const classes = ref([])
 const allStudents = ref([])
+const filterStudents = ref([])
 const rows = ref([])
 const loading = ref(false)
 const generating = ref(false)
@@ -109,6 +110,16 @@ const statusType = (s) => ({ generated:'warning', published:'success', failed:'d
 async function load() {
   loading.value = true
   try { rows.value = await listMonthlyReports({ ...filters.value }) } finally { loading.value = false }
+}
+async function onFilterClassChange(cid) {
+  // 切换班级时清空已选学生，避免跨班数据泄漏；学生下拉按班级重新拉取
+  filters.value.student_id = null
+  if (cid) {
+    try { filterStudents.value = await listStudents(cid) } catch { filterStudents.value = [] }
+  } else {
+    filterStudents.value = [...allStudents.value]
+  }
+  await load()
 }
 async function onGenClassChange(cid) {
   genForm.value.student_id = null
@@ -161,6 +172,8 @@ async function removeRow(row) {
 onMounted(async () => {
   classes.value = await listClasses()
   try { allStudents.value = await listUsers('student') } catch { allStudents.value = [] }
+  filterStudents.value = [...allStudents.value]
+  // 若默认选中班级（例如只有一个班），可按需自动过滤；此处保持全量，需用户主动选班
   await load()
 })
 </script>

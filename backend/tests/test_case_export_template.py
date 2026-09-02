@@ -52,3 +52,7 @@ def test_export_uses_configured_template_and_repeats_subject_pages():
     assert "英语" in table_text
     assert "函数专题训练" in table_text
     assert "阅读精练" in table_text
+    assert len(doc.sections) >= 2
+    assert doc.sections[0].left_margin == 0
+    assert doc.inline_shapes[0].width >= 21 * 360000
+    assert doc.inline_shapes[0].height >= 29.7 * 360000

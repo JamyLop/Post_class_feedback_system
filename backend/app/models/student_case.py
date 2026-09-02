@@ -94,6 +94,10 @@ class CaseStudentProfile(TimestampMixin, Base):
     underlying_conditions: Mapped[str] = mapped_column(Text, default="")
     other_health_notes: Mapped[str] = mapped_column(Text, default="")
     health_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    # 新字段按健康单项控制可见性；health_visible 保留用于兼容历史数据与客户端。
+    allergy_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    underlying_conditions_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    other_health_notes_visible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
     parent_name: Mapped[str] = mapped_column(String(64), default="")
     parent_phone: Mapped[str] = mapped_column(String(32), default="", index=True)
     parent_relationship: Mapped[str] = mapped_column(String(24), default="")

@@ -13,6 +13,7 @@
       </view>
       <button type="primary" class="wx-btn" :loading="wxLoading" @click="handleWxLogin">微信一键登录</button>
       <text class="tip">未绑定账号将引导完成绑定，已绑定直接进入首页</text>
+      <text v-if="wxError" class="error">{{ wxError }}</text>
     </view>
 
     <view v-if="needBind" class="card">
@@ -50,6 +51,7 @@ const bindLoading = ref(false)
 const pwdLoading = ref(false)
 const needBind = ref(false)
 const bindTicket = ref('')
+const wxError = ref('')
 const form = reactive({ username: '', password: '' })
 
 function routeByRole(role) {
@@ -60,13 +62,14 @@ function routeByRole(role) {
 }
 
 async function handleWxLogin() {
+  wxError.value = ''
   wxLoading.value = true
   try {
     const loginRes = await new Promise((resolve, reject) => {
       uni.login({ provider: 'weixin', success: resolve, fail: reject })
     })
     const code = loginRes.code
-    if (!code) throw new Error('获取微信 code 失败（开发工具请用 mock）')
+    if (!code) throw new Error('获取微信 code 失败（开发工具请勾选“不校验合法域名”并检查 AppID）')
     const res = await auth.wxLogin(code)
     if (res.bound) {
       uni.showToast({ title: '登录成功', icon: 'success' })
@@ -77,9 +80,29 @@ async function handleWxLogin() {
       uni.showToast({ title: '请完成绑定', icon: 'none' })
     }
   } catch (e) {
-    // 开发期 mock：无真实微信时允许用测试账号直接绑定
-    needBind.value = true
-    uni.showToast({ title: e.message || '微信登录失败，请用绑定流程', icon: 'none' })
+    const msg = e?.message || e?.msg || e?.errMsg || ''
+    const status = e?.status
+    // 网络层失败：真机 localhost、域名未加白、服务未启动
+    if (status === 0 || msg.includes('request:fail') || msg.includes('网络')) {
+      wxError.value = msg.includes('localhost') ? '网络异常：真机无法访问 localhost，请将 VITE_API_BASE 改为局域网 IP 或 HTTPS' : '网络异常，请检查 VITE_API_BASE 与微信合法域名配置'
+      uni.showToast({ title: wxError.value.slice(0, 40), icon: 'none' })
+      return
+    }
+    // AppID / 微信服务配置错误：不展开绑定，避免误导
+    if (msg.includes('AppID') || msg.includes('appid') || msg.includes('微信') || msg.includes('secret') || msg.includes('jscode2session') || status === 400 && msg.includes('code')) {
+      wxError.value = msg.slice(0, 80) || '微信登录配置错误，请联系管理员检查 AppID/Secret'
+      uni.showToast({ title: wxError.value.slice(0, 40), icon: 'none' })
+      return
+    }
+    // 仅开发工具无真实 code 时，允许走账号密码绑定兜底
+    if (msg.includes('mock') || msg.includes('获取微信 code 失败')) {
+      wxError.value = '开发工具未获取到 code，可直接使用下方账号密码登录'
+      uni.showToast({ title: wxError.value.slice(0, 40), icon: 'none' })
+      return
+    }
+    // 其他未知错误：不自动展开绑定，仅提示
+    wxError.value = msg.slice(0, 80) || '微信登录失败，可使用账号密码登录'
+    uni.showToast({ title: wxError.value.slice(0, 40), icon: 'none' })
   } finally {
     wxLoading.value = false
   }
@@ -128,6 +151,7 @@ function goRegister() {
 .card-desc { font-size:22rpx; color:#64748b; margin-top:4rpx; display:block; }
 .wx-btn { background:#07c160; }
 .tip { font-size:22rpx; color:#64748b; margin-top:12rpx; display:block; }
+.error { font-size:22rpx; color:#dc2626; margin-top:12rpx; display:block; line-height:1.5; background:#fef2f2; border:1rpx solid #fecaca; padding:12rpx; border-radius:8rpx; }
 .form { display:flex; flex-direction:column; gap:16rpx; margin:16rpx 0; }
 .input { border:1rpx solid #e2e8f0; border-radius:10rpx; padding:18rpx 20rpx; font-size:26rpx; background:#fff; }
 .ticket { font-size:20rpx; color:#94a3b8; font-family:monospace; }

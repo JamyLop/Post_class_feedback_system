@@ -16,19 +16,36 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { useAuthStore } from '../../stores/auth'
 import { listAssignments } from '../../api/assignments'
 import EmptyState from '../../components/EmptyState.vue'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const rows = ref([])
+
+function guardRole() {
+  if (!auth.isLoggedIn) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    uni.reLaunch({ url: '/pages/login/index' })
+    return false
+  }
+  if (auth.role !== 'student') {
+    uni.showToast({ title: '当前角色无法访问学生入口', icon: 'none' })
+    uni.reLaunch({ url: '/pages/index/index' })
+    return false
+  }
+  return true
+}
+onShow(() => { if (guardRole()) load() })
 
 async function load() {
   loading.value = true
   try { rows.value = await listAssignments() } catch (_) { rows.value = [] } finally { loading.value = false }
 }
 function openDetail(id) { uni.navigateTo({ url: `/subStudent/assignmentDetail/index?id=${id}` }) }
-onMounted(load)
 </script>
 
 <style scoped>

@@ -240,7 +240,13 @@ const high3Classes = availableClasses
 const classStudentIds = computed(() => new Set(classStudents.value.map((item) => item.id)))
 const availableStudents = computed(() => {
   const existing = new Set(rows.value.filter((item) => item.cycle_id === createForm.cycle_id).map((item) => item.student_id))
-  return allStudents.value.filter((item) => !existing.has(item.id))
+  let pool = allStudents.value.filter((item) => !existing.has(item.id))
+  // 已选班级时仅展示该班学生，避免跨班可见（与月度评价联动保持一致）
+  if (createForm.class_id) {
+    const ids = new Set(classStudents.value.map((item) => item.id))
+    pool = pool.filter((item) => ids.has(item.id))
+  }
+  return pool
 })
 
 function openCase(row) {

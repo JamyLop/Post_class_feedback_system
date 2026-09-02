@@ -18,9 +18,9 @@
             <strong class="class-name-text">{{ row.name }}</strong>
           </template>
         </el-table-column>
-        <el-table-column label="学年" width="170">
+        <el-table-column label="学年" width="220">
           <template #default="{ row }">
-            <div class="school-year-cell"><strong>{{ row.school_year }}</strong><span>{{ row.school_year_starts_on }} 开始</span></div>
+            <div class="school-year-cell"><strong>{{ row.school_year }}</strong><span>{{ row.school_year_starts_on }} 至 {{ row.school_year_ends_on || '—' }}</span></div>
           </template>
         </el-table-column>
         <el-table-column prop="education_stage" label="学段" width="100">
@@ -53,8 +53,12 @@
           <el-select v-model="form.school_year" placeholder="选择学年" style="width: 100%" @change="onSchoolYearChange"><el-option v-for="year in schoolYears" :key="year" :label="`${year}学年`" :value="year" /></el-select>
         </el-form-item>
         <el-form-item label="学年开始日期">
-          <el-date-picker v-model="form.school_year_starts_on" type="date" value-format="YYYY-MM-DD" placeholder="选择具体日期" style="width: 100%" />
+          <el-date-picker v-model="form.school_year_starts_on" type="date" value-format="YYYY-MM-DD" placeholder="选择开始日期" style="width: 100%" />
           <span class="form-help">学生总案的阶段任务时间轴将从该日期开始计算。</span>
+        </el-form-item>
+        <el-form-item label="学年结束日期">
+          <el-date-picker v-model="form.school_year_ends_on" type="date" value-format="YYYY-MM-DD" placeholder="选择结束日期" style="width: 100%" />
+          <span class="form-help">结束时间需晚于开始时间，默认为次年07-31。</span>
         </el-form-item>
         <el-form-item label="班级名称">
           <el-input v-model="form.name" placeholder="如：高三1班" />
@@ -103,8 +107,13 @@ const currentSchoolYear = () => {
   return `${start}-${start + 1}`
 }
 const defaultStartDate = (schoolYear) => `${Number.parseInt(schoolYear, 10)}-08-01`
+const defaultEndDate = (schoolYear) => {
+  const parts = String(schoolYear).split('-')
+  const endYear = Number.parseInt(parts[1], 10) || Number.parseInt(parts[0], 10) + 1
+  return `${endYear}-07-31`
+}
 const initialSchoolYear = currentSchoolYear()
-const form = reactive({ name: '', education_stage: '高中', grade: '高三', class_type: '全年班', short_term_type: null, school_year: initialSchoolYear, school_year_starts_on: defaultStartDate(initialSchoolYear) })
+const form = reactive({ name: '', education_stage: '高中', grade: '高三', class_type: '全年班', short_term_type: null, school_year: initialSchoolYear, school_year_starts_on: defaultStartDate(initialSchoolYear), school_year_ends_on: defaultEndDate(initialSchoolYear) })
 const gradesByStage = { 初中: ['初一', '初二', '初三'], 高中: ['高一', '高二', '高三', '复读'] }
 const availableGrades = computed(() => gradesByStage[form.education_stage])
 const availableClassTypes = computed(() => form.education_stage === '高中'
@@ -127,6 +136,7 @@ function onClassTypeChange() {
 
 function onSchoolYearChange(value) {
   form.school_year_starts_on = defaultStartDate(value)
+  form.school_year_ends_on = defaultEndDate(value)
 }
 
 async function load() {
@@ -147,6 +157,7 @@ function openDialog() {
   form.short_term_type = null
   form.school_year = currentSchoolYear()
   form.school_year_starts_on = defaultStartDate(form.school_year)
+  form.school_year_ends_on = defaultEndDate(form.school_year)
   dialogVisible.value = true
 }
 
@@ -160,13 +171,18 @@ function openEdit(row) {
     short_term_type: row.short_term_type,
     school_year: row.school_year || '未设置',
     school_year_starts_on: row.school_year_starts_on || defaultStartDate(row.school_year),
+    school_year_ends_on: row.school_year_ends_on || defaultEndDate(row.school_year),
   })
   dialogVisible.value = true
 }
 
 async function onSave() {
-  if (!form.name || !form.education_stage || !form.grade || !form.class_type || !form.school_year || !form.school_year_starts_on) {
-    ElMessage.warning('请完整填写学年、开始日期、班级名称、学段、年级和班型')
+  if (!form.name || !form.education_stage || !form.grade || !form.class_type || !form.school_year || !form.school_year_starts_on || !form.school_year_ends_on) {
+    ElMessage.warning('请完整填写学年、起止日期、班级名称、学段、年级和班型')
+    return
+  }
+  if (form.school_year_ends_on <= form.school_year_starts_on) {
+    ElMessage.warning('结束时间必须晚于开始时间')
     return
   }
   if (form.class_type === '短期班' && !form.short_term_type) {

@@ -23,6 +23,9 @@ class Class(TimestampMixin, Base):
     school_year_starts_on: Mapped[date] = mapped_column(
         Date, default=lambda: date(date.today().year, 8, 1)
     )
+    school_year_ends_on: Mapped[date] = mapped_column(
+        Date, default=lambda: date(date.today().year + 1, 7, 31)
+    )
     teacher_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )

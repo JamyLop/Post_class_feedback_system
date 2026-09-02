@@ -21,7 +21,7 @@
           </div>
         </div>
         <div class="case-actions">
-          <el-button :loading="exporting" :disabled="editingProfile || editingOverview || editingPlan || !!editingTask" @click="handleExport"><el-icon><Document /></el-icon>导出 DOCX</el-button>
+          <el-button :loading="exporting" :disabled="editingProfile || editingOverview || editingPlan || !!editingTask" @click="handleExport"><el-icon><Document /></el-icon>导出 Word</el-button>
           <span v-if="detail" class="export-meta">V{{ detail.version }} · {{ labels[detail.status] || detail.status }}</span>
           <template v-if="detail.can_manage && !editingProfile && !editingOverview && !editingPlan && !editingTask">
             <el-button v-if="detail.status === 'draft'" type="primary" :loading="submitting" @click="submitForConfirmation">提交德育审查</el-button>
@@ -138,20 +138,20 @@
                 <div class="profile-section-title">
                   <span class="section-marker"></span>
                   <div><h3>健康与体检信息</h3><p>仅记录教育服务和在校安全确有必要的信息</p></div>
-                  <span class="health-visibility-badge" :class="healthVisible ? 'is-visible' : 'is-hidden'">
-                    <el-icon><View v-if="healthVisible" /><Hide v-else /></el-icon>
-                    {{ healthVisible ? '已公开' : '仅校长可见' }}
+                  <span class="health-visibility-badge" :class="allHealthVisible ? 'is-visible' : 'is-hidden'">
+                    <el-icon><View v-if="allHealthVisible" /><Hide v-else /></el-icon>
+                    {{ allHealthVisible ? '均已公开' : '按单项设置' }}
                   </span>
                 </div>
-                <div v-if="!healthVisible" class="health-hidden-tip">
+                <div v-if="!allHealthVisible" class="health-hidden-tip">
                   <el-icon><WarningFilled /></el-icon>
                   <span v-if="auth.role === 'admin'">该体检史已设为仅校长可见，当前以校长身份可查看完整内容。</span>
                   <span v-else>该体检史已设为仅校长可见，具体内容已隐藏。</span>
                 </div>
                 <dl class="profile-grid health-grid">
-                  <div><dt>过敏史</dt><dd>{{ healthFieldValue('allergy_history') }}</dd></div>
-                  <div><dt>隐性疾病</dt><dd>{{ healthFieldValue('underlying_conditions') }}</dd></div>
-                  <div class="profile-wide"><dt>其他</dt><dd>{{ healthFieldValue('other_health_notes') }}</dd></div>
+                  <div><dt>过敏史 <small class="visibility-inline">{{ visibilityLabel('allergy_visible') }}</small></dt><dd>{{ healthFieldValue('allergy_history', 'allergy_visible') }}</dd></div>
+                  <div><dt>隐性疾病 <small class="visibility-inline">{{ visibilityLabel('underlying_conditions_visible') }}</small></dt><dd>{{ healthFieldValue('underlying_conditions', 'underlying_conditions_visible') }}</dd></div>
+                  <div class="profile-wide"><dt>其他 <small class="visibility-inline">{{ visibilityLabel('other_health_notes_visible') }}</small></dt><dd>{{ healthFieldValue('other_health_notes', 'other_health_notes_visible') }}</dd></div>
                 </dl>
               </div>
             </template>
@@ -204,24 +204,11 @@
               </div>
               <div class="profile-form-block health-section">
                 <div class="health-notice"><el-icon><WarningFilled /></el-icon><span>健康信息属于敏感资料，请仅填写与学生安全和教学支持直接相关的必要内容。</span></div>
-                <div class="health-visibility-control">
-                  <div class="health-visibility-label">
-                    <strong>是否显示体检史</strong>
-                    <span>关闭后仅校长端可见，教师与家长端将隐藏具体内容</span>
-                  </div>
-                  <el-switch
-                    v-model="profileForm.health_visible"
-                    active-text="公开显示"
-                    inactive-text="仅校长可见"
-                    inline-prompt
-                    style="--el-switch-on-color: var(--brand);"
-                  />
-                </div>
                 <h3>健康与体检信息</h3>
                 <div class="profile-form-grid profile-form-health">
-                  <el-form-item label="过敏史"><el-input v-model="profileForm.allergy_history" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="无相关情况可填写“无”" /></el-form-item>
-                  <el-form-item label="隐性疾病"><el-input v-model="profileForm.underlying_conditions" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="填写需要学校关注的既往或潜在疾病" /></el-form-item>
-                  <el-form-item label="其他" class="profile-form-wide"><el-input v-model="profileForm.other_health_notes" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="填写其他体检或健康注意事项" /></el-form-item>
+                  <el-form-item><template #label><span class="health-field-label"><span>过敏史</span><el-switch class="health-visibility-switch" v-model="profileForm.allergy_visible" active-text="公开" inactive-text="隐藏" inline-prompt size="small" /></span></template><el-input v-model="profileForm.allergy_history" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="无相关情况可填写“无”" /></el-form-item>
+                  <el-form-item><template #label><span class="health-field-label"><span>隐性疾病</span><el-switch class="health-visibility-switch" v-model="profileForm.underlying_conditions_visible" active-text="公开" inactive-text="隐藏" inline-prompt size="small" /></span></template><el-input v-model="profileForm.underlying_conditions" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="填写需要学校关注的既往或潜在疾病" /></el-form-item>
+                  <el-form-item class="profile-form-wide"><template #label><span class="health-field-label"><span>其他</span><el-switch class="health-visibility-switch" v-model="profileForm.other_health_notes_visible" active-text="公开" inactive-text="隐藏" inline-prompt size="small" /></span></template><el-input v-model="profileForm.other_health_notes" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" placeholder="填写其他体检或健康注意事项" /></el-form-item>
                 </div>
               </div>
             </el-form>
@@ -773,17 +760,24 @@ function createEmptyProfileForm() {
     parent_evaluation: '', primary_needs: '', allergy_history: '',
     underlying_conditions: '', other_health_notes: '',
     health_visible: true,
+    allergy_visible: true,
+    underlying_conditions_visible: true,
+    other_health_notes_visible: true,
     parent_name: '', parent_phone: '', parent_relationship: '',
   }
 }
 
-const healthVisible = computed(() => {
-  const v = detail.value?.student_profile?.health_visible
-  return v !== false
+const allHealthVisible = computed(() => {
+  const p = detail.value?.student_profile || {}
+  return p.health_visible !== false && p.allergy_visible !== false && p.underlying_conditions_visible !== false && p.other_health_notes_visible !== false
 })
 
-function healthFieldValue(field) {
-  if (!healthVisible.value && auth.role !== 'admin') {
+function visibilityLabel(field) {
+  return detail.value?.student_profile?.[field] === false ? '仅校长可见' : '已公开'
+}
+
+function healthFieldValue(field, visibilityField) {
+  if (auth.role !== 'admin' && (detail.value?.student_profile?.health_visible === false || detail.value?.student_profile?.[visibilityField] === false)) {
     return '仅校长可见'
   }
   return detail.value?.student_profile?.[field] || '暂未填写'
@@ -1486,8 +1480,20 @@ onMounted(load)
 .parent-empty-tip { margin-top: 12px; padding: 10px 12px; background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; color: var(--ink-muted); font-size: 12.5px; text-align: center; }
 .parent-notice { display: flex; gap: 8px; padding: 10px 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; font-size: 12.5px; color: var(--ink-secondary); margin-bottom: 12px; }
 .health-visibility-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--line); }
+.health-field-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+.health-field-label > span { min-width: 0; }
+.profile-form-health :deep(.el-form-item) { min-width: 0; }
+.profile-form-health :deep(.el-form-item__label) { width: 100%; }
+.health-visibility-switch { flex: 0 0 auto; width: 68px; }
+.health-visibility-switch :deep(.el-switch__core) { width: 68px !important; min-width: 68px !important; height: 24px; }
+.health-visibility-switch :deep(.el-switch__action) { width: 18px; height: 18px; box-shadow: 0 1px 2px rgb(15 23 42 / 16%); }
+.health-visibility-switch :deep(.el-switch__inner) { font-size: 11px; }
+.health-visibility-switch:hover :deep(.el-switch__core) { border-color: var(--brand); }
+.health-visibility-switch:focus-visible { outline: 2px solid color-mix(in oklch, var(--brand) 70%, white); outline-offset: 3px; border-radius: 999px; }
+.profile-form-health { min-width: 0; }
 .health-visibility-badge.is-visible { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
 .health-visibility-badge.is-hidden { color: #7c2d12; background: #fff7ed; border-color: #fed7aa; }
+.visibility-inline { margin-left: 6px; color: var(--ink-muted); font-size: 10px; font-weight: 500; }
 .health-hidden-tip { display: flex; gap: 8px; padding: 10px 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; color: #9a3412; font-size: 12.5px; margin-bottom: 12px; }
 .health-visibility-control { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 16px; }
 .health-visibility-label { display: grid; gap: 2px; }
@@ -1607,6 +1613,7 @@ onMounted(load)
 .weekly-header span { color: var(--ink-muted); font-size: 12px; margin-left: 8px; }
 .weekly-actions { display: flex; gap: 8px; align-items: center; }
 @media (max-width: 1100px) { .overview-layout, .overview-edit-layout { grid-template-columns: 1fr; }.case-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.rail-section + .rail-section { border-top: 0; border-left: 1px solid var(--line); } }
+@media (max-width: 1100px) { .profile-form-health { grid-template-columns: 1fr; } }
 @media (max-width: 940px) { .subject-workspace { grid-template-columns: 1fr; }.subject-nav { display: flex; overflow-x: auto; }.subject-nav-heading { display: none; }.subject-nav-item { flex: 0 0 168px; border-bottom: 0; border-right: 1px solid var(--line); }.subject-nav-item:last-child { border-right: 0; } }
 @media (max-width: 760px) { .case-header, .title-line, .profile-card-header { align-items: flex-start; flex-direction: column; }.title-line { gap: 4px; }.title-line h1 { font-size: 27px; }.case-actions, .profile-actions { width: 100%; flex-wrap: wrap; }.case-actions :deep(.el-button), .profile-actions :deep(.el-button) { flex: 1; }.case-tabs :deep(.el-tabs__item) { padding: 0 14px; }.profile-card-header, .profile-section, .profile-form-block, .content-section { padding-left: 20px; padding-right: 20px; }.profile-grid, .profile-form-grid { grid-template-columns: 1fr; }.profile-grid .profile-wide, .profile-form-wide { grid-column: auto; }.insight-row, .target-row, .overview-edit-row, .overview-edit-row.is-target { grid-template-columns: 1fr; gap: 8px; }.case-rail { grid-template-columns: 1fr; }.rail-section + .rail-section { border-left: 0; border-top: 1px solid var(--line); }.subject-detail-header, .subject-section-heading, .task-row { align-items: flex-start; flex-direction: column; }.subject-detail-header, .subject-section { padding-left: 20px; padding-right: 20px; }.subject-header-actions { width: 100%; flex-wrap: wrap; }.subject-counts { width: 100%; flex-wrap: wrap; }.editing-note { padding-left: 20px; padding-right: 20px; }.subject-fields > div { grid-template-columns: 1fr; gap: 7px; }.task-form-grid, .review-form-grid { grid-template-columns: 1fr; }.task-side { justify-items: start; }.task-meta { flex-wrap: wrap; }.checkin-row { grid-template-columns: 62px minmax(0, 1fr); } }
 @media (max-width: 760px) { .target-list { margin-right: -20px; margin-left: -20px; }.target-row { grid-template-columns: 1fr 18px; gap: 6px 8px; padding-right: 20px; padding-left: 20px; }.target-row > span, .target-row > p { grid-column: 1; }.target-row > .el-icon { grid-column: 2; grid-row: 1 / span 2; }.target-progress-panel { padding-right: 8px; padding-left: 8px; }.goal-axis { padding: 12px 8px 10px; }.goal-axis-legend { gap: 12px; }.goal-axis-rows { gap: 26px; }.goal-axis-row, .goal-axis-scale { grid-template-columns: 30px minmax(0, 1fr) 70px; gap: 7px; }.goal-subject { font-size: 11px; }.goal-task-copy { max-width: 100%; font-size: 9.5px; }.goal-score-copy strong { font-size: 12px; }.goal-score-copy span { font-size: 9px; }.goal-score-copy em { padding: 1px 4px; font-size: 9px; }.goal-axis-scale i { font-size: 8.5px; }.gaokao-timeline { padding-right: 8px; padding-left: 8px; }.gaokao-timeline > header { align-items: flex-start; flex-direction: column; gap: 3px; } }

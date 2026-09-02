@@ -38,6 +38,7 @@ class ClassCreate(BaseModel):
     short_term_type: ShortTermType | None = None
     school_year: str = Field(default="2026-2027", min_length=4, max_length=16)
     school_year_starts_on: date | None = None
+    school_year_ends_on: date | None = None
 
     @model_validator(mode="after")
     def validate_category(self):
@@ -50,6 +51,18 @@ class ClassCreate(BaseModel):
             except (TypeError, ValueError):
                 start_year = date.today().year
             self.school_year_starts_on = date(start_year, 8, 1)
+        if self.school_year_ends_on is None:
+            try:
+                end_year = int(self.school_year.split("-", 1)[1])
+            except (TypeError, ValueError, IndexError):
+                try:
+                    start_year = int(self.school_year.split("-", 1)[0])
+                except (TypeError, ValueError):
+                    start_year = date.today().year
+                end_year = start_year + 1
+            self.school_year_ends_on = date(end_year, 7, 31)
+        if self.school_year_ends_on <= self.school_year_starts_on:
+            raise ValueError("结束时间必须晚于开始时间")
         return self
 
 
@@ -61,6 +74,7 @@ class ClassUpdate(BaseModel):
     short_term_type: ShortTermType | None = None
     school_year: str | None = Field(default=None, min_length=4, max_length=16)
     school_year_starts_on: date | None = None
+    school_year_ends_on: date | None = None
 
 
 class ClassOut(BaseModel):
@@ -74,6 +88,7 @@ class ClassOut(BaseModel):
     short_term_type: ShortTermType | None
     school_year: str
     school_year_starts_on: date
+    school_year_ends_on: date
     teacher_id: int
 
 

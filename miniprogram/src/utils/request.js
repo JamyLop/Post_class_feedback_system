@@ -6,6 +6,24 @@
  */
 const BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
 
+// 真机 localhost 检测：mp 平台上 localhost 指向手机自身，必然不可达
+const isMp = typeof uni !== 'undefined' && uni.getSystemInfoSync
+let _warnedLocalhost = false
+function warnIfLocalhostOnDevice() {
+  if (_warnedLocalhost) return
+  if (BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')) {
+    try {
+      const info = uni.getSystemInfoSync()
+      // 开发者工具也上报，但仅在真机时提示更醒目
+      const isDevtools = info.platform === 'devtools'
+      if (!isDevtools) {
+        console.warn('[request] VITE_API_BASE 仍为 localhost，真机无法访问本机服务，请改为局域网 IP 或 HTTPS 域名')
+      }
+    } catch (_) {}
+    _warnedLocalhost = true
+  }
+}
+
 function getToken() {
   try {
     return uni.getStorageSync('token') || ''
@@ -31,6 +49,7 @@ function handleLogout() {
 }
 
 function request({ url, method = 'GET', data, header = {}, showError = true }) {
+  warnIfLocalhostOnDevice()
   const token = getToken()
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
 
@@ -60,7 +79,11 @@ function request({ url, method = 'GET', data, header = {}, showError = true }) {
         }
       },
       fail(err) {
-        const msg = err.errMsg || '网络异常'
+        let msg = err.errMsg || '网络异常'
+        // localhost 在真机上常见 fail，需给出可操作提示
+        if ((BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')) && msg.includes('request:fail')) {
+          msg = '网络异常：真机无法访问 localhost，请配置 VITE_API_BASE 为局域网 IP 或线上 HTTPS'
+        }
         if (showError) uni.showToast({ title: msg.slice(0, 40), icon: 'none' })
         reject({ status: 0, message: msg, data: null })
       },

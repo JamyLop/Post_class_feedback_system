@@ -31,7 +31,7 @@ from app.models.student_case import (
     SubjectPlan,
     TaskCheckin,
 )
-from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 from app.schemas.student_case import (
     CaseCycleCreate,
     CaseCycleOut,
@@ -60,6 +60,7 @@ from app.schemas.student_case import (
 )
 from app.services.student_case_service import (
     PARENT_VISIBLE_STATUSES,
+    STUDENT_VISIBLE_STATUSES,
     audit,
     is_head_teacher,
     require_case_access,
@@ -68,7 +69,7 @@ from app.services.student_case_service import (
     transition_case,
     verify_case_membership,
 )
-from app.services.case_export import build_case_export_bytes
+from app.services.case_export import build_case_export_bytes  # 导出模板变更后触发服务热重载
 
 router = APIRouter(prefix="/student-cases", tags=["student-cases"])
 # 校长 + 德育主任 + 班主任均可查看督查进度；仅班主任可写
@@ -78,14 +79,20 @@ _deyu_director = require_roles([ROLE_DEYU_DIRECTOR])
 
 
 def _mask_health_for_viewer(profile_data: dict, viewer_role: str) -> dict:
-    """若体检史设为不展示且查看者非校长(admin)，则隐藏具体内容。德育主任同班主任一样不可见。"""
-    if profile_data.get("health_visible") is False and viewer_role != ROLE_ADMIN:
-        masked = dict(profile_data)
-        masked["allergy_history"] = ""
-        masked["underlying_conditions"] = ""
-        masked["other_health_notes"] = ""
-        return masked
-    return profile_data
+    """按健康单项脱敏；旧 health_visible=False 时继续整体隐藏，兼容历史档案。"""
+    if viewer_role == ROLE_ADMIN:
+        return profile_data
+    masked = dict(profile_data)
+    legacy_hidden = profile_data.get("health_visible") is False
+    fields = {
+        "allergy_history": "allergy_visible",
+        "underlying_conditions": "underlying_conditions_visible",
+        "other_health_notes": "other_health_notes_visible",
+    }
+    for value_field, visible_field in fields.items():
+        if legacy_hidden or profile_data.get(visible_field) is False:
+            masked[value_field] = ""
+    return masked
 
 
 def _detail(db: Session, case: StudentCase, user: User) -> dict:
@@ -116,6 +123,9 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
         "underlying_conditions": "",
         "other_health_notes": "",
         "health_visible": True,
+        "allergy_visible": True,
+        "underlying_conditions_visible": True,
+        "other_health_notes_visible": True,
         "parent_name": "",
         "parent_phone": "",
         "parent_relationship": "",
@@ -204,6 +214,18 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
                 "underlying_conditions": "",
                 "other_health_notes": "",
             }
+    if user.role == ROLE_STUDENT:
+        # 学生自查：不暴露其他监护人账号，不暴露健康明细（按矩阵）
+        review_query = review_query.filter(CaseReview.visibility == "shared")
+        guardian_accounts = []
+        if isinstance(profile_out, dict):
+            profile_out = {
+                **profile_out,
+                "parent_phone": "",
+                "allergy_history": "",
+                "underlying_conditions": "",
+                "other_health_notes": "",
+            }
     return {
         **_case_out(db, case),
         "viewer_role": user.role,
@@ -257,6 +279,26 @@ def list_cycles(
     user: User = Depends(get_current_user),
 ):
     return db.query(CaseCycle).order_by(CaseCycle.starts_on.desc()).all()
+
+
+@router.get("/my-case", response_model=StudentCaseDetail)
+def my_case(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_STUDENT])),
+):
+    """学生自查：返回本人最新一条可见状态的总案详情。"""
+    case = (
+        db.query(StudentCase)
+        .filter(
+            StudentCase.student_id == user.id,
+            StudentCase.status.in_(STUDENT_VISIBLE_STATUSES),
+        )
+        .order_by(StudentCase.updated_at.desc())
+        .first()
+    )
+    if case is None:
+        raise HTTPException(status_code=404, detail="暂无可查看档案")
+    return _detail(db, case, user)
 
 
 @router.get("/children", response_model=list[StudentCaseOut])
@@ -424,6 +466,11 @@ def list_student_cases(
             StudentCase.student_id.in_(student_ids),
             StudentCase.status.in_(PARENT_VISIBLE_STATUSES),
         )
+    elif user.role == ROLE_STUDENT:
+        query = query.filter(
+            StudentCase.student_id == user.id,
+            StudentCase.status.in_(STUDENT_VISIBLE_STATUSES),
+        )
     elif user.role == ROLE_TEACHER:
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
@@ -484,7 +531,7 @@ def export_student_case(
     )
     audit(db, user.id, "case.export", "student_case", case.id, case.id, {"version": case.version, "status": case.status})
     db.commit()
-    filename = f"{student.name if student else case.student_id}_一生一案_V{case.version}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.docx"
+    filename = f"{student.name if student else case.student_id}_一生一案_V{case.version}_全铺满封面_{datetime.now(timezone.utc).strftime('%Y%m%d')}.docx"
     return StreamingResponse(
         iter([data]),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -492,6 +539,7 @@ def export_student_case(
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}; filename=\"export.docx\"",
             "X-Case-Version": str(case.version),
             "X-Case-Status": case.status,
+            "X-Case-Export-Implementation": "docx-cover-full-bleed-v2",
         },
     )
 
