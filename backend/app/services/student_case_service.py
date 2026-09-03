@@ -116,7 +116,11 @@ def require_case_access(
     if is_head_teacher(db, case.class_id, user.id):
         return case
     subjects = teacher_subjects(db, case.class_id, user.id)
-    if not subjects or write:
+    assigned_plan = db.query(SubjectPlan.id).filter(
+        SubjectPlan.student_case_id == case.id,
+        SubjectPlan.teacher_id == user.id,
+    ).first()
+    if (not subjects and assigned_plan is None) or write:
         raise HTTPException(status_code=403, detail="学科教师可查看负责学科依据，正式内容由班主任维护")
     return case
 

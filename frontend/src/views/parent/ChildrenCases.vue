@@ -11,7 +11,6 @@
           <div class="intro-points" aria-label="档案特点">
             <span>目标清晰</span>
             <span>过程可查</span>
-            <span>阶段复盘</span>
           </div>
         </div>
 

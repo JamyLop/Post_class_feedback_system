@@ -121,6 +121,7 @@ class CaseVersionOut(BaseModel):
 class SubjectPlanUpsert(BaseModel):
     subject: str = Field(min_length=1, max_length=32)
     teacher_id: int
+    teacher_name: str = Field(default="", max_length=64)
     problem_location: str = ""
     cause_analysis: str = ""
     struggle_goal: str = ""
@@ -133,6 +134,20 @@ class SubjectPlanOut(SubjectPlanUpsert):
     id: int
     student_case_id: int
     status: str
+
+
+class SubjectSuggestionCreate(BaseModel):
+    subject: str = Field(min_length=1, max_length=32)
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class SubjectSuggestionOut(SubjectSuggestionCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    student_case_id: int
+    teacher_id: int
+    status: str
+    created_at: datetime
 
 
 class CaseGoalCreate(BaseModel):

@@ -58,3 +58,19 @@ class GuardianLinkOut(GuardianLinkCreate):
     parent_name: str = ""
     student_name: str = ""
     created_at: datetime
+
+
+class ConsultantLinkCreate(BaseModel):
+    consultant_id: int
+    student_id: int
+
+
+class ConsultantLinkOut(ConsultantLinkCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    consultant_name: str = ""
+    consultant_username: str = ""
+    student_name: str = ""
+    student_username: str = ""
+    created_at: datetime

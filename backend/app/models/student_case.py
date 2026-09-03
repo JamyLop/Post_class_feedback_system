@@ -147,12 +147,26 @@ class SubjectPlan(TimestampMixin, Base):
     )
     subject: Mapped[str] = mapped_column(String(32), index=True)
     teacher_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    teacher_name: Mapped[str] = mapped_column(String(64), default="")
     problem_location: Mapped[str] = mapped_column(Text, default="")
     cause_analysis: Mapped[str] = mapped_column(Text, default="")
     struggle_goal: Mapped[str] = mapped_column(Text, default="")
     gaokao_requirement: Mapped[str] = mapped_column(Text, default="")
     reinforcement: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(24), default="draft")
+
+
+class SubjectSuggestion(TimestampMixin, Base):
+    """学科老师对学生方案提出的建议，由班主任后续采纳或调整。"""
+
+    __tablename__ = "subject_suggestions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_case_id: Mapped[int] = mapped_column(ForeignKey("student_cases.id", ondelete="CASCADE"), index=True)
+    subject: Mapped[str] = mapped_column(String(32), index=True)
+    teacher_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(24), default="pending")
 
 
 class CaseDiagnosis(TimestampMixin, Base):

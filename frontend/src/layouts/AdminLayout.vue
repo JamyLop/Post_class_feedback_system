@@ -30,7 +30,7 @@
           </el-menu-item>
           <el-menu-item index="/admin/guardian-links">
             <el-icon><Link /></el-icon>
-            <span>家长关联</span>
+            <span>咨询老师关联</span>
           </el-menu-item>
         </el-menu>
       </el-scrollbar>

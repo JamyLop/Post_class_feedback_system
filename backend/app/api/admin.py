@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import require_roles
 from app.core.database import get_db
 from app.models.assignment import Assignment
-from app.models.class_ import Class, StudentGuardian
+from app.models.class_ import Class, StudentGuardian, StudentConsultant
 from app.models.invite import (
     INVITE_STATUS_ACTIVE,
     INVITE_STATUS_DISABLED,
@@ -31,6 +31,8 @@ from app.schemas.admin import (
     AdminStats,
     GuardianLinkCreate,
     GuardianLinkOut,
+    ConsultantLinkCreate,
+    ConsultantLinkOut,
     InviteCodeCreate,
     InviteCodeOut,
 )
@@ -204,6 +206,50 @@ def delete_guardian_link(
     link = db.get(StudentGuardian, link_id)
     if link is None:
         raise HTTPException(status_code=404, detail="家长学生关系不存在")
+    db.delete(link)
+    db.commit()
+    return {"ok": True}
+
+
+def _consultant_out(db: Session, link: StudentConsultant) -> dict:
+    consultant = db.get(User, link.consultant_id)
+    student = db.get(User, link.student_id)
+    return {
+        **ConsultantLinkOut.model_validate(link).model_dump(),
+        "consultant_name": consultant.name if consultant else "",
+        "consultant_username": consultant.username if consultant else "",
+        "student_name": student.name if student else "",
+        "student_username": student.username if student else "",
+    }
+
+
+@router.get("/consultant-links", response_model=list[ConsultantLinkOut])
+def list_consultant_links(db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
+    return [_consultant_out(db, link) for link in db.query(StudentConsultant).order_by(StudentConsultant.id.desc()).all()]
+
+
+@router.post("/consultant-links", response_model=ConsultantLinkOut)
+def create_consultant_link(body: ConsultantLinkCreate, db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
+    consultant = db.get(User, body.consultant_id)
+    student = db.get(User, body.student_id)
+    if consultant is None or consultant.role != ROLE_TEACHER:
+        raise HTTPException(status_code=400, detail="所选账号不是教师")
+    if student is None or student.role != ROLE_STUDENT:
+        raise HTTPException(status_code=400, detail="所选账号不是学生")
+    if db.query(StudentConsultant).filter_by(consultant_id=body.consultant_id, student_id=body.student_id).first():
+        raise HTTPException(status_code=409, detail="该咨询老师已关联此学生")
+    link = StudentConsultant(**body.model_dump())
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return _consultant_out(db, link)
+
+
+@router.delete("/consultant-links/{link_id}")
+def delete_consultant_link(link_id: int, db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
+    link = db.get(StudentConsultant, link_id)
+    if link is None:
+        raise HTTPException(status_code=404, detail="咨询老师与学生关系不存在")
     db.delete(link)
     db.commit()
     return {"ok": True}

@@ -16,7 +16,8 @@ const routes = [
       { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
       { path: 'users', component: () => import('../views/admin/Users.vue') },
       { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },
-      { path: 'guardian-links', component: () => import('../views/admin/GuardianLinks.vue') },
+      { path: 'guardian-links', redirect: '/admin/consultant-links' },
+      { path: 'consultant-links', component: () => import('../views/admin/ConsultantLinks.vue') },
     ],
   },
   {

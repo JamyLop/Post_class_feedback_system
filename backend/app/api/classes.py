@@ -1,14 +1,15 @@
 """班级管理 API：班级 CRUD 与学生名单维护。"""
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.class_ import Class, ClassStudent
-from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
 from app.core.security import hash_password
-from app.models.class_ import StudentGuardian
 
 from app.schemas.class_ import (
     ClassCreate,
@@ -95,6 +96,13 @@ def update_class(
 ):
     cls = _check_class_owner(db, class_id, user)
     changes = body.model_dump(exclude_unset=True)
+    if body.school_year is not None and body.school_year != cls.school_year and body.school_year_ends_on is None:
+        # 切换学年时，未显式传结束日期则跟随新学年重算默认结束日。
+        try:
+            end_year = int(body.school_year.split("-", 1)[1])
+            changes["school_year_ends_on"] = date(end_year, 7, 31)
+        except (TypeError, ValueError, IndexError):
+            pass
     education_stage = changes.get("education_stage", cls.education_stage)
     grade = changes.get("grade", cls.grade)
     class_type = changes.get("class_type", cls.class_type)
@@ -119,8 +127,8 @@ def update_class(
         cls.school_year = body.school_year
     if body.school_year_starts_on is not None:
         cls.school_year_starts_on = body.school_year_starts_on
-    if body.school_year_ends_on is not None:
-        cls.school_year_ends_on = body.school_year_ends_on
+    if "school_year_ends_on" in changes:
+        cls.school_year_ends_on = changes["school_year_ends_on"]
     # 校验结束时间晚于开始时间
     if cls.school_year_ends_on <= cls.school_year_starts_on:
         raise HTTPException(status_code=422, detail="结束时间必须晚于开始时间")
@@ -202,17 +210,23 @@ def _ensure_user_profile_columns(db: Session) -> None:
         db.rollback()
 
 
-def _generate_student_username(db: Session) -> str:
-    import uuid
+def _generate_student_username(db: Session, cls: Class, enrollment_month: int, seat_number: int) -> str:
+    """按学段、入学信息、年级、班级和位号生成可读且唯一的学号。"""
+    import re
 
-    for _ in range(20):
-        cand = f"stu_{uuid.uuid4().hex[:8]}"
-        if db.query(User).filter(User.username == cand).first() is None:
-            return cand
-    import random
-    import time
-
-    return f"stu_{int(time.time()) % 10000000:07d}{random.randint(10, 99)}"
+    prefix = "U" if cls.education_stage == "高中" else "Y"
+    grade_code = {"高一": "01", "高二": "02", "高三": "03", "初一": "01", "初二": "02", "初三": "03"}.get(cls.grade)
+    if grade_code is None:
+        raise HTTPException(status_code=422, detail="当前班级年级无法生成学号")
+    class_match = re.search(r"(\d+)", cls.name)
+    class_number = int(class_match.group(1)) if class_match else cls.id
+    if class_number > 99:
+        raise HTTPException(status_code=422, detail="班级编号不能超过99")
+    year = str(cls.school_year).split("-", 1)[0]
+    base = f"{prefix}{year}{enrollment_month:02d}{grade_code}{class_number:02d}{seat_number:02d}"
+    if db.query(User).filter(User.username == base).first() is None:
+        return base
+    raise HTTPException(status_code=409, detail=f"学号 {base} 已存在，请更换位号或入学月份")
 
 
 @router.post("/{class_id}/students/create", response_model=ClassStudentOut)
@@ -223,19 +237,12 @@ def create_and_add_student(
     user: User = Depends(_manager),
 ):
     """在班级内直接新建学生账号并加入班级（仅录入档案信息，账号自动生成）。"""
-    import re
-
     cls = _check_class_owner(db, class_id, user)
     _ensure_user_profile_columns(db)
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="姓名不能为空")
-    parent_phone = (body.parent_phone or "").strip()
-    if not parent_phone:
-        raise HTTPException(status_code=422, detail="家长手机号为必填")
-    if not re.fullmatch(r"1[3-9]\d{9}", parent_phone):
-        raise HTTPException(status_code=400, detail="家长手机号需为11位手机号")
-    username = _generate_student_username(db)
+    username = _generate_student_username(db, cls, body.enrollment_month, body.seat_number)
     # 默认初始密码 123456，班主任无需关心账号
     stu = User(
         username=username,
@@ -250,40 +257,6 @@ def create_and_add_student(
     db.add(stu)
     db.flush()
     db.add(ClassStudent(class_id=class_id, student_id=stu.id))
-    # 家长联系方式必填：手机号即家长登录账号，自动注册并绑定
-    parent_name = (body.parent_name or "").strip() or "家长"
-    relationship = (body.parent_relationship or "").strip() or "guardian"
-    existing_parent = db.query(User).filter(User.username == parent_phone).first()
-    if existing_parent is None:
-        parent_user = User(
-            username=parent_phone,
-            password_hash=hash_password("88888888"),
-            name=parent_name,
-            role=ROLE_PARENT,
-        )
-        db.add(parent_user)
-        db.flush()
-    else:
-        parent_user = existing_parent
-        if parent_user.role != ROLE_PARENT:
-            raise HTTPException(status_code=409, detail=f"手机号 {parent_phone} 已被其他角色账号占用")
-        if parent_name != "家长" and parent_user.name != parent_name:
-            parent_user.name = parent_name
-            db.flush()
-    link = (
-        db.query(StudentGuardian)
-        .filter_by(parent_id=parent_user.id, student_id=stu.id)
-        .first()
-    )
-    if link is None:
-        link = StudentGuardian(
-            parent_id=parent_user.id, student_id=stu.id, relationship=relationship
-        )
-        db.add(link)
-        db.flush()
-    elif relationship and link.relationship != relationship:
-        link.relationship = relationship
-        db.flush()
     db.commit()
     db.refresh(stu)
     return stu

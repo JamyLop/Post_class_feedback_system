@@ -37,7 +37,7 @@
     <el-dialog v-model="dialogVisible" title="添加学生到本班级" width="560px" @close="onDialogClose">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="新建学生" name="create">
-          <el-alert type="info" :closable="false" show-icon title="仅需录入学生档案信息及家长手机号，学生与家长账号由系统自动生成（家长账号为手机号，默认密码 88888888）" style="margin-bottom: 14px" />
+          <el-alert type="info" :closable="false" show-icon title="仅需录入学生信息，学生学号由后端按学段、入学信息、班级和位号自动生成" style="margin-bottom: 14px" />
           <el-form :model="newForm" label-width="92px" @submit.prevent>
             <el-form-item label="姓名" required>
               <el-input v-model="newForm.name" placeholder="请输入学生姓名" maxlength="64" />
@@ -57,21 +57,8 @@
             <el-form-item label="生源地学校">
               <el-input v-model="newForm.source_school" placeholder="填写学生原就读学校" maxlength="128" />
             </el-form-item>
-            <el-divider style="margin: 12px 0 14px"><span style="font-size:12px;color:#64748b;white-space:nowrap">家长联系方式（必填，手机号即家长账号）</span></el-divider>
-            <el-form-item label="家长姓名">
-              <el-input v-model="newForm.parent_name" placeholder="例如：张先生" maxlength="64" />
-            </el-form-item>
-            <el-form-item label="联系电话" required>
-              <el-input v-model="newForm.parent_phone" placeholder="11位手机号，必填，自动注册家长账号" maxlength="32" />
-            </el-form-item>
-            <el-form-item label="与学生关系">
-              <el-select v-model="newForm.parent_relationship" clearable placeholder="请选择" style="width:100%">
-                <el-option label="父亲" value="父亲" />
-                <el-option label="母亲" value="母亲" />
-                <el-option label="监护人" value="监护人" />
-                <el-option label="其他" value="其他" />
-              </el-select>
-            </el-form-item>
+            <el-form-item label="入学月份" required><el-input-number v-model="newForm.enrollment_month" :min="1" :max="12" /></el-form-item>
+            <el-form-item label="班级位号" required><el-input-number v-model="newForm.seat_number" :min="1" :max="99" /></el-form-item>
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="选择已有学生" name="existing">
@@ -120,7 +107,7 @@ const dialogVisible = ref(false)
 const activeTab = ref('create')
 const creating = ref(false)
 const classInfo = ref(null)
-const newForm = reactive({ name: '', gender: '', ethnicity: '', grade: '', source_school: '', parent_name: '', parent_phone: '', parent_relationship: '' })
+const newForm = reactive({ name: '', gender: '', ethnicity: '', grade: '', source_school: '', enrollment_month: 7, seat_number: 1 })
 
 async function load() {
   loading.value = true
@@ -141,7 +128,7 @@ async function openAddDialog() {
   keyword.value = ''
   selected.value = []
   candidates.value = await listUsers('student', '')
-  Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', parent_name: '', parent_phone: '', parent_relationship: '' })
+  Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', enrollment_month: 7, seat_number: 1 })
 }
 
 async function onSearch() {
@@ -164,14 +151,7 @@ async function onCreateAndAdd() {
     ElMessage.warning('请填写学生姓名')
     return
   }
-  if (!newForm.parent_phone.trim()) {
-    ElMessage.warning('请填写家长手机号')
-    return
-  }
-  if (!/^1[3-9]\d{9}$/.test(newForm.parent_phone.trim())) {
-    ElMessage.warning('家长手机号需为11位手机号')
-    return
-  }
+  if (!newForm.enrollment_month || !newForm.seat_number) return ElMessage.warning('请填写入学月份和班级位号')
   creating.value = true
   try {
     await createStudentAndAdd(classId, {
@@ -180,13 +160,12 @@ async function onCreateAndAdd() {
       ethnicity: newForm.ethnicity?.trim() || '',
       grade: newForm.grade?.trim() || '',
       source_school: newForm.source_school?.trim() || '',
-      parent_name: newForm.parent_name?.trim() || '',
-      parent_phone: newForm.parent_phone?.trim() || '',
-      parent_relationship: newForm.parent_relationship || '',
+      enrollment_month: newForm.enrollment_month,
+      seat_number: newForm.seat_number,
     })
     ElMessage.success('新建学生并加入班级成功，账号已自动生成')
     dialogVisible.value = false
-    Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', parent_name: '', parent_phone: '', parent_relationship: '' })
+    Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', enrollment_month: 7, seat_number: 1 })
     load()
   } catch (err) {
     ElMessage.error(err.response?.data?.detail || '创建失败')

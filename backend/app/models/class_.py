@@ -83,3 +83,16 @@ class StudentGuardian(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     relationship: Mapped[str] = mapped_column(String(24), default="guardian")
+
+
+class StudentConsultant(TimestampMixin, Base):
+    """学生与咨询老师关系：由管理员维护，咨询老师据此获得学生范围。"""
+
+    __tablename__ = "student_consultants"
+    __table_args__ = (
+        UniqueConstraint("consultant_id", "student_id", name="uq_student_consultant"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    consultant_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)

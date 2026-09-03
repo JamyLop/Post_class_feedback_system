@@ -312,7 +312,7 @@
                 <div><span>学科方案</span><strong>{{ detail.subject_plans.length }}</strong></div>
                 <div><span>阶段目标</span><strong>{{ detail.goals.length }}</strong></div>
                 <div><span>执行任务</span><strong>{{ detail.tasks.length }}</strong></div>
-                <div><span>督查记录</span><strong>{{ detail.reviews.length }}</strong></div>
+                <div v-if="auth.role !== 'parent'"><span>督查记录</span><strong>{{ detail.reviews.length }}</strong></div>
               </section>
               <section v-if="auth.role !== 'parent'" class="rail-section source-note"><span class="rail-label">数据来源</span><p>历史 DOCX 试导入</p><small>解析内容尚未成为正式方案，需由班主任核对后提交确认。</small></section>
               <section v-if="detail.status === 'draft'" class="rail-section next-steps">
@@ -400,11 +400,18 @@
                 </div>
               </header>
 
+              <section v-if="auth.role === 'teacher' && !detail.can_manage" class="teacher-suggestion-box">
+                <div><strong>学科建议</strong><span>提交后由班主任查看</span></div>
+                <el-input v-model="suggestionText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="填写对该生本学科方案的补充建议" />
+                <el-button type="primary" :loading="savingSuggestion" @click="saveSuggestion">提交学科建议</el-button>
+              </section>
+
               <div v-if="editingPlan" class="editing-note"><el-icon><EditPen /></el-icon><span>正在编辑 {{ selectedSubject }}方案，所有字段将按原文完整保存。</span></div>
 
               <section class="subject-section">
                 <div class="subject-section-heading"><div><el-icon><Search /></el-icon><h3>{{ selectedSubject === '德育' ? '行为表现' : '问题' }}</h3></div><span>{{ selectedSubject === '德育' ? '记录日常行为与关键表现' : '明确当前差距与主要原因' }}</span></div>
                 <el-form v-if="editingPlan" label-position="top" class="subject-edit-form">
+                  <el-form-item label="学科老师姓名"><el-input v-model="planForm.teacher_name" placeholder="填写负责该科方案的老师姓名" maxlength="64" /></el-form-item>
                   <el-form-item :label="selectedSubject === '德育' ? '行为表现' : '问题定位'"><el-input v-model="planForm.problem_location" type="textarea" :autosize="{ minRows: 3, maxRows: 14 }" :placeholder="selectedSubject === '德育' ? '记录课堂、作业、纪律、品行等日常行为表现' : '完整填写该学科的问题定位'" /></el-form-item>
                   <el-form-item :label="selectedSubject === '德育' ? '原因/背景' : '原因剖析'"><el-input v-model="planForm.cause_analysis" type="textarea" :autosize="{ minRows: 3, maxRows: 14 }" :placeholder="selectedSubject === '德育' ? '分析行为背后的原因及需要关注的点' : '完整填写问题产生的原因'" /></el-form-item>
                 </el-form>
@@ -471,7 +478,7 @@
           </div>
           <div v-else class="empty-panel subject-empty"><h3>尚未建立学科方案</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p><div class="subject-create-actions"><el-button v-for="subject in subjectOrder" :key="subject" type="primary" plain @click="addSubject(subject)">新建{{ subject }}方案</el-button></div></div>
         </el-tab-pane>
-        <el-tab-pane label="督查复盘" name="reviews">
+        <el-tab-pane v-if="auth.role !== 'parent'" label="督查复盘" name="reviews">
           <div v-if="canCreateReview" class="review-form-card">
             <div class="review-form-header"><strong>新增督查复盘</strong><span>{{ reviewRoleTip }}</span></div>
             <el-form label-position="top" class="review-form">
@@ -571,7 +578,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, View, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { checkinCaseTask, createCaseReview, createCaseTask, decideDeyuReview, exportStudentCase, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
+import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, exportStudentCase, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import { listMonthlyReports } from '../../api/monthlyReports'
 import { useAuthStore } from '../../stores/auth'
@@ -609,6 +616,8 @@ const monthlyRows = ref([])
 const selectedSubject = ref('')
 const manualSubjects = ref([])
 const planForm = ref(createEmptyPlanForm())
+const suggestionText = ref('')
+const savingSuggestion = ref(false)
 const taskForm = ref(createEmptyTaskForm())
 const overviewForm = ref(createEmptyOverviewForm())
 const profileForm = ref(createEmptyProfileForm())
@@ -731,7 +740,7 @@ const subjectProblemText = computed(() => detail.value?.overall_problem || '')
 const subjectTargetText = computed(() => detail.value?.admission_target || '')
 
 function createEmptyPlanForm() {
-  return { problem_location: '', cause_analysis: '', struggle_goal: '', gaokao_requirement: '', reinforcement: '' }
+  return { teacher_name: '', problem_location: '', cause_analysis: '', struggle_goal: '', gaokao_requirement: '', reinforcement: '' }
 }
 
 function createEmptyTaskForm() {
@@ -1354,6 +1363,16 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function saveSuggestion() {
+  if (!detail.value || !selectedSubject.value || !suggestionText.value.trim()) return ElMessage.warning('请填写学科建议')
+  savingSuggestion.value = true
+  try {
+    await createSubjectSuggestion(detail.value.id, { subject: selectedSubject.value, content: suggestionText.value.trim() })
+    suggestionText.value = ''
+    ElMessage.success('学科建议已提交')
+  } finally { savingSuggestion.value = false }
 }
 async function submitForConfirmation() {
   const isResubmit = detail.value?.status === 'revision_required'

@@ -7,7 +7,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -29,6 +29,7 @@ from app.models.student_case import (
     CaseVersion,
     StudentCase,
     SubjectPlan,
+    SubjectSuggestion,
     TaskCheckin,
 )
 from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
@@ -55,6 +56,8 @@ from app.schemas.student_case import (
     StudentCaseUpdate,
     SubjectPlanOut,
     SubjectPlanUpsert,
+    SubjectSuggestionCreate,
+    SubjectSuggestionOut,
     TaskCheckinCreate,
     TaskCheckinOut,
 )
@@ -201,8 +204,8 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
         profile_out = default_profile
     review_query = db.query(CaseReview).filter_by(student_case_id=case.id)
     if user.role == ROLE_PARENT:
-        # 德育退回意见属于校内协作信息，家长只查看明确共享的督查结论。
-        review_query = review_query.filter(CaseReview.visibility == "shared")
+        # 家长端不展示督查复盘；校内教师仍可按原权限查看完整记录。
+        review_query = review_query.filter(False)
         # 家长响应不得包含其他监护人账号/手机号，按矩阵脱敏
         guardian_accounts = []
         # 家长侧不暴露 parent_phone、健康明细等敏感信息
@@ -232,7 +235,13 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
         "can_manage": user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id),
         "student_profile": profile_out,
         "guardian_accounts": guardian_accounts,
-        "subject_plans": db.query(SubjectPlan).filter_by(student_case_id=case.id).order_by(SubjectPlan.id).all(),
+        "subject_plans": (
+            db.query(SubjectPlan).filter_by(student_case_id=case.id).filter(
+                or_(SubjectPlan.teacher_id == user.id, SubjectPlan.subject.in_(teacher_subjects(db, case.class_id, user.id)))
+            ).order_by(SubjectPlan.id).all()
+            if user.role == ROLE_TEACHER and not is_head_teacher(db, case.class_id, user.id)
+            else db.query(SubjectPlan).filter_by(student_case_id=case.id).order_by(SubjectPlan.id).all()
+        ),
         "goals": db.query(CaseGoal).filter_by(student_case_id=case.id).order_by(CaseGoal.id).all(),
         "tasks": tasks,
         "task_checkins": (
@@ -336,7 +345,8 @@ def supervision_progress(
     elif user.role == ROLE_TEACHER:
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
-        query = query.filter(StudentCase.class_id.in_(set(legacy_ids + relation_ids)))
+        plan_case_ids = [row.student_case_id for row in db.query(SubjectPlan).filter(SubjectPlan.teacher_id == user.id)]
+        query = query.filter(or_(StudentCase.class_id.in_(set(legacy_ids + relation_ids)), StudentCase.id.in_(plan_case_ids or [-1])))
     elif user.role not in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         # 学生不属于一生一案的内容管理或发布对象，保留其原作业系统权限即可。
         query = query.filter(StudentCase.id == -1)
@@ -712,6 +722,29 @@ def upsert_subject_plan(
     db.commit()
     db.refresh(plan)
     return plan
+
+
+@router.get("/{case_id}/subject-suggestions", response_model=list[SubjectSuggestionOut])
+def list_subject_suggestions(case_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_case_access(db, case_id, user)
+    query = db.query(SubjectSuggestion).filter_by(student_case_id=case_id)
+    if user.role == ROLE_TEACHER and not is_head_teacher(db, db.get(StudentCase, case_id).class_id, user.id):
+        query = query.filter(SubjectSuggestion.teacher_id == user.id)
+    return query.order_by(SubjectSuggestion.created_at.desc()).all()
+
+
+@router.post("/{case_id}/subject-suggestions", response_model=SubjectSuggestionOut)
+def create_subject_suggestion(case_id: int, body: SubjectSuggestionCreate, db: Session = Depends(get_db), user: User = Depends(_head_teacher)):
+    case = require_case_access(db, case_id, user)
+    if is_head_teacher(db, case.class_id, user.id):
+        raise HTTPException(status_code=403, detail="班主任请直接维护学科方案")
+    if body.subject not in teacher_subjects(db, case.class_id, user.id):
+        raise HTTPException(status_code=403, detail="无权对该学科提出建议")
+    suggestion = SubjectSuggestion(student_case_id=case_id, teacher_id=user.id, **body.model_dump())
+    db.add(suggestion)
+    db.commit()
+    db.refresh(suggestion)
+    return suggestion
 
 
 @router.post("/{case_id}/goals", response_model=CaseGoalOut)

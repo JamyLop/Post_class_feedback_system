@@ -1,6 +1,6 @@
 from app.core.database import Base  # noqa: F401
 from app.models.user import User  # noqa: F401
-from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian  # noqa: F401
+from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian, StudentConsultant  # noqa: F401
 from app.models.assignment import Assignment, AssignmentQuestion  # noqa: F401
 from app.models.question import Question, QuestionKnowledgePoint  # noqa: F401
 from app.models.knowledge import (  # noqa: F401
@@ -26,6 +26,7 @@ from app.models.student_case import (  # noqa: F401
     CaseVersion,
     StudentCase,
     SubjectPlan,
+    SubjectSuggestion,
     TaskCheckin,
 )
 from app.models.weekly_score import WeeklyTestScore  # noqa: F401
