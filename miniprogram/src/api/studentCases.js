@@ -24,3 +24,22 @@ export const createTask = (caseId, data) => http.post(`/student-cases/${caseId}/
 export const updateTask = (caseId, taskId, data) => http.put(`/student-cases/${caseId}/tasks/${taskId}`, data)
 export const checkinCaseTask = (taskId, data) => http.post(`/student-cases/tasks/${taskId}/checkins`, data)
 export const createCaseReview = (caseId, data) => http.post(`/student-cases/${caseId}/reviews`, data)
+
+// ---- 德育主任审查 ----
+export const deyuReview = (caseId, data) => http.post(`/student-cases/${caseId}/deyu-review`, data)
+
+// ---- 管理员 ----
+export const getAdminStats = () => http.get('/admin/stats')
+export const listInviteCodes = (params = {}) => http.get('/admin/invite-codes', params)
+export const createInviteCode = (data) => http.post('/admin/invite-codes', data)
+export const disableInviteCode = (id) => http.post(`/admin/invite-codes/${id}/disable`)
+export const listGuardianLinks = () => http.get('/admin/guardian-links')
+export const createGuardianLink = (data) => http.post('/admin/guardian-links', data)
+export const deleteGuardianLink = (id) => http.del(`/admin/guardian-links/${id}`)
+export const adminDeleteUser = (id) => http.del(`/admin/users/${id}`)
+
+// ---- 用户管理（admin+teacher） ----
+export const listUsers = (params = {}) => http.get('/users', params)
+export const getUser = (id) => http.get(`/users/${id}`)
+export const createUser = (data) => http.post('/users', data)
+export const updateUser = (id, data) => http.put(`/users/${id}`, data)

@@ -14,7 +14,11 @@ onShow(() => {
 
 <style>
 page {
-  background: #f8fafc;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #F4F6F5;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  color: #203235;
+  line-height: 1.55;
 }
+view, text { box-sizing: border-box; }
+::-webkit-scrollbar { display: none; }
 </style>

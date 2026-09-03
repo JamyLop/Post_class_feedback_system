@@ -1,6 +1,8 @@
 <template>
   <view class="page">
-    <view v-if="loading" class="tip">加载中…</view>
+    <view v-if="loading" class="loading-bar">
+      <text class="loading-text">加载中...</text>
+    </view>
     <template v-else>
       <view class="head">
         <text class="h1">任务管理</text>
@@ -19,42 +21,59 @@
           <text class="task-meta">{{ task.starts_on }} 至 {{ task.due_on }} · {{ cadenceLabel(task.cadence) }}</text>
           <text class="task-desc">{{ task.description || '暂无描述' }}</text>
           <view class="task-actions">
-            <text class="link" @click="goCheckin(task.id)">打卡</text>
+            <view class="task-action-btn" @click="goCheckin(task.id)">
+              <text>✅ 打卡</text>
+            </view>
           </view>
         </view>
       </view>
-      <view v-else class="empty">暂无任务</view>
+      <view v-else class="empty-text">暂无任务</view>
 
-      <button type="primary" @click="addTask">+ 新建任务</button>
+      <button class="btn-primary" @click="addTask">+ 新建任务</button>
 
       <view v-if="showForm" class="modal-mask" @click.self="showForm=false">
         <view class="modal">
-          <text class="modal-title">{{ editingTask ? '编辑任务' : '新建任务' }}</text>
+          <view class="modal-header">
+            <text class="modal-title">{{ editingTask ? '编辑任务' : '新建任务' }}</text>
+            <text class="modal-close" @click="showForm=false">✕</text>
+          </view>
           <view class="form">
-            <text class="label">学科</text>
-            <picker :range="allSubjects" @change="e => taskForm.subject = allSubjects[e.detail.value]">
-              <view class="picker">{{ taskForm.subject || '综合' }}</view>
-            </picker>
-            <text class="label">标题 *</text>
-            <input v-model="taskForm.title" class="input" placeholder="任务标题" />
-            <text class="label">描述</text>
-            <textarea v-model="taskForm.description" class="textarea" placeholder="任务详细说明" />
-            <text class="label">频率 *</text>
-            <picker :range="cadences" range-key="label" @change="e => taskForm.cadence = cadences[e.detail.value].value">
-              <view class="picker">{{ cadenceLabel(taskForm.cadence) }}</view>
-            </picker>
-            <text class="label">开始日期 *</text>
-            <picker mode="date" @change="e => taskForm.starts_on = e.detail.value">
-              <view class="picker">{{ taskForm.starts_on || '选择日期' }}</view>
-            </picker>
-            <text class="label">截止日期 *</text>
-            <picker mode="date" @change="e => taskForm.due_on = e.detail.value">
-              <view class="picker">{{ taskForm.due_on || '选择日期' }}</view>
-            </picker>
+            <view class="field">
+              <text class="label">学科</text>
+              <picker :range="allSubjects" @change="e => taskForm.subject = allSubjects[e.detail.value]">
+                <view class="picker">{{ taskForm.subject || '综合' }}</view>
+              </picker>
+            </view>
+            <view class="field">
+              <text class="label">标题 *</text>
+              <input v-model="taskForm.title" class="input" placeholder="任务标题" />
+            </view>
+            <view class="field">
+              <text class="label">描述</text>
+              <textarea v-model="taskForm.description" class="textarea" placeholder="任务详细说明" />
+            </view>
+            <view class="field">
+              <text class="label">频率 *</text>
+              <picker :range="cadences" range-key="label" @change="e => taskForm.cadence = cadences[e.detail.value].value">
+                <view class="picker">{{ cadenceLabel(taskForm.cadence) }}</view>
+              </picker>
+            </view>
+            <view class="field">
+              <text class="label">开始日期 *</text>
+              <picker mode="date" @change="e => taskForm.starts_on = e.detail.value">
+                <view class="picker">{{ taskForm.starts_on || '选择日期' }}</view>
+              </picker>
+            </view>
+            <view class="field">
+              <text class="label">截止日期 *</text>
+              <picker mode="date" @change="e => taskForm.due_on = e.detail.value">
+                <view class="picker">{{ taskForm.due_on || '选择日期' }}</view>
+              </picker>
+            </view>
           </view>
           <view class="modal-btns">
-            <button plain @click="showForm=false">取消</button>
-            <button type="primary" :loading="saving" @click="saveTask">保存</button>
+            <button class="btn-outline" @click="showForm=false">取消</button>
+            <button class="btn-primary" :loading="saving" @click="saveTask">保存</button>
           </view>
         </view>
       </view>
@@ -124,11 +143,8 @@ async function saveTask() {
   saving.value = true
   try {
     const data = { subject: taskForm.subject, title: taskForm.title, description: taskForm.description, cadence: taskForm.cadence, starts_on: taskForm.starts_on, due_on: taskForm.due_on }
-    if (editingTask.value) {
-      await updateTask(getCaseId(), editingTask.value.id, data)
-    } else {
-      await createTask(getCaseId(), data)
-    }
+    if (editingTask.value) await updateTask(getCaseId(), editingTask.value.id, data)
+    else await createTask(getCaseId(), data)
     showForm.value = false
     uni.showToast({ title: '已保存', icon: 'success' })
     detail.value = await getStudentCase(getCaseId())
@@ -144,33 +160,85 @@ onMounted(load)
 </script>
 
 <style scoped>
-.page { padding:28rpx; display:flex; flex-direction:column; gap:16rpx; }
-.tip { text-align:center; color:#64748b; padding:32rpx; }
-.head { margin-bottom:4rpx; }
-.h1 { font-size:32rpx; font-weight:700; color:#0f172a; display:block; }
-.p { font-size:24rpx; color:#64748b; display:block; margin-top:4rpx; }
-.list { display:flex; flex-direction:column; gap:12rpx; }
-.task-card { background:#fff; border:1rpx solid #e2e8f0; border-radius:12rpx; padding:18rpx; }
-.task-top { display:flex; justify-content:space-between; align-items:center; }
-.task-info { display:flex; gap:10rpx; align-items:center; flex:1; }
-.subject-tag { font-size:20rpx; color:#2563eb; background:#eff6ff; border:1rpx solid #bfdbfe; padding:4rpx 10rpx; border-radius:999rpx; flex-shrink:0; }
-.task-title { font-size:26rpx; font-weight:600; color:#0f172a; }
-.task-status { font-size:20rpx; padding:4rpx 10rpx; border-radius:999rpx; background:#f1f5f9; color:#64748b; flex-shrink:0; }
-.task-status.is-in_progress { background:#eff6ff; color:#2563eb; }
-.task-status.is-completed { background:#ecfdf5; color:#065f46; }
-.task-meta { font-size:22rpx; color:#94a3b8; display:block; margin-top:6rpx; }
-.task-desc { font-size:24rpx; color:#475569; display:block; margin-top:6rpx; line-height:1.5; }
-.task-actions { display:flex; gap:16rpx; margin-top:10rpx; }
-.link { font-size:22rpx; color:#2563eb; }
-.empty { text-align:center; color:#94a3b8; padding:32rpx; font-size:24rpx; }
-.modal-mask { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4); display:flex; align-items:flex-end; z-index:999; }
-.modal { background:#fff; border-radius:16rpx 16rpx 0 0; padding:28rpx; width:100%; max-height:80vh; overflow-y:auto; display:flex; flex-direction:column; gap:14rpx; }
-.modal-title { font-size:30rpx; font-weight:700; color:#0f172a; }
-.form { display:flex; flex-direction:column; gap:12rpx; }
-.label { font-size:24rpx; font-weight:600; color:#0f172a; }
-.input { border:1rpx solid #e2e8f0; border-radius:10rpx; padding:16rpx 18rpx; font-size:26rpx; background:#fff; }
-.textarea { border:1rpx solid #e2e8f0; border-radius:10rpx; padding:16rpx 18rpx; font-size:26rpx; min-height:100rpx; background:#fff; }
-.picker { border:1rpx solid #e2e8f0; border-radius:10rpx; padding:16rpx 18rpx; background:#fff; font-size:26rpx; color:#334155; }
-.modal-btns { display:flex; gap:12rpx; margin-top:8rpx; }
-.modal-btns button { flex:1; }
+.page { padding: 28rpx; display: flex; flex-direction: column; gap: 18rpx; }
+.loading-bar { text-align: center; padding: 48rpx; }
+.loading-text { color: #A09CB5; font-size: 26rpx; }
+.head { margin-bottom: 4rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
+.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 4rpx; }
+
+.list { display: flex; flex-direction: column; gap: 14rpx; }
+.task-card {
+  background: #fff;
+  border-radius: 18rpx;
+  padding: 22rpx;
+  box-shadow: 0 2rpx 12rpx rgba(107,92,231,0.05);
+}
+.task-top { display: flex; justify-content: space-between; align-items: center; }
+.task-info { display: flex; gap: 10rpx; align-items: center; flex: 1; }
+.subject-tag {
+  font-size: 20rpx; color: #6B5CE7;
+  background: #EEEDFD;
+  padding: 4rpx 12rpx; border-radius: 16rpx; flex-shrink: 0;
+}
+.task-title { font-size: 26rpx; font-weight: 600; color: #1A1636; }
+.task-status {
+  font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 16rpx;
+  background: #F5F3EF; color: #8E8B9E; flex-shrink: 0;
+}
+.task-status.is-in_progress { background: #DCFCE7; color: #16A34A; }
+.task-status.is-completed { background: #D1FAE5; color: #059669; }
+.task-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 8rpx; }
+.task-desc { font-size: 24rpx; color: #6E6B83; display: block; margin-top: 6rpx; line-height: 1.5; }
+.task-actions { display: flex; gap: 14rpx; margin-top: 12rpx; }
+.task-action-btn {
+  font-size: 22rpx; color: #6B5CE7;
+  background: #F0EFFC;
+  padding: 8rpx 18rpx; border-radius: 12rpx;
+}
+.empty-text { text-align: center; color: #A09CB5; padding: 36rpx; font-size: 24rpx; }
+
+.btn-primary {
+  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  color: #fff; border-radius: 14rpx; padding: 22rpx 0;
+  font-size: 28rpx; font-weight: 600; border: none;
+}
+.btn-primary::after { border: none; }
+.btn-outline {
+  background: #fff; color: #6B5CE7;
+  border: 2rpx solid #D5D0F7; border-radius: 14rpx;
+  padding: 22rpx 0; font-size: 28rpx;
+}
+.btn-outline::after { border: none; }
+
+.modal-mask {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(26,22,54,0.45);
+  display: flex; align-items: flex-end; z-index: 999;
+}
+.modal {
+  background: #fff; border-radius: 24rpx 24rpx 0 0;
+  padding: 28rpx; width: 100%; max-height: 80vh;
+  overflow-y: auto; display: flex; flex-direction: column; gap: 14rpx;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; }
+.modal-title { font-size: 32rpx; font-weight: 700; color: #1A1636; }
+.modal-close { font-size: 28rpx; color: #A09CB5; padding: 8rpx; }
+.form { display: flex; flex-direction: column; gap: 12rpx; }
+.field { display: flex; flex-direction: column; gap: 6rpx; }
+.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.input {
+  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  padding: 18rpx 20rpx; font-size: 26rpx; background: #fff;
+}
+.textarea {
+  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  padding: 18rpx 20rpx; font-size: 26rpx; min-height: 100rpx; background: #fff;
+}
+.picker {
+  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: #1A1636;
+}
+.modal-btns { display: flex; gap: 14rpx; margin-top: 8rpx; }
+.modal-btns button { flex: 1; }
 </style>

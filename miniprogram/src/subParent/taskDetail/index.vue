@@ -1,30 +1,32 @@
 <template>
   <view class="page">
-    <view v-if="loading" class="tip">加载中…</view>
+    <view v-if="loading" class="loading-bar">
+      <text class="loading-text">加载中...</text>
+    </view>
     <template v-else-if="task">
-      <view class="header">
+      <view class="header-card">
         <view class="head-row">
           <text class="subject-tag">{{ task.subject || '综合' }}</text>
           <text class="cadence">{{ cadenceLabel(task.cadence) }}</text>
-          <text class="status">{{ statusLabel(task.status) }}</text>
+          <text class="status-chip">{{ statusLabel(task.status) }}</text>
         </view>
         <text class="h1">{{ task.title }}</text>
         <text class="desc">{{ task.description || '暂无描述' }}</text>
         <view class="meta">
-          <text>{{ task.starts_on }} 至 {{ task.due_on }}</text>
-          <text v-if="caseId" class="link" @click="goCase">查看所属档案 →</text>
+          <text class="meta-text">{{ task.starts_on }} 至 {{ task.due_on }}</text>
+          <text v-if="caseId" class="link" @click="goCase">查看所属档案</text>
         </view>
       </view>
 
-      <view class="section">
-        <text class="section-title">执行记录 · {{ checkins.length }} 条</text>
+      <view class="card">
+        <text class="card-title">执行记录 · {{ checkins.length }} 条</text>
         <view v-if="checkins.length">
           <Timeline :items="timelineItems" />
         </view>
-        <EmptyState v-else title="暂无执行记录" desc="班主任尚未录入打卡" />
+        <EmptyState v-else title="暂无执行记录" desc="班主任尚未录入打卡" icon="📋" />
       </view>
     </template>
-    <EmptyState v-else title="任务不存在" desc="参数错误或无权查看" />
+    <EmptyState v-else title="任务不存在" desc="参数错误或无权查看" icon="📄" />
   </view>
 </template>
 
@@ -62,13 +64,10 @@ async function load() {
     const cId = opts.caseId || opts.case_id || ''
     caseId.value = cId
     if (!tId) throw new Error('缺少 taskId')
-    // 若带 caseId 直接用详情聚合，避免额外接口
     let detail = null
     if (cId) {
       detail = await getStudentCase(cId)
     } else {
-      // 无 caseId 时尝试通过任务列表反查（降级：需先拉可见档案列表再找）
-      // 为简化，提示需要 caseId
       throw new Error('请从档案任务列表进入')
     }
     const found = (detail.tasks || []).find(t => t.id === tId)
@@ -77,26 +76,43 @@ async function load() {
     checkins.value = (detail.task_checkins || []).filter(c => c.task_id === tId).sort((a,b)=> new Date(b.checked_in_at)-new Date(a.checked_in_at))
   } catch (e) {
     uni.showToast({ title: e.message || '加载失败', icon: 'none' })
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
 
 onMounted(load)
 </script>
 
 <style scoped>
-.page { padding:24rpx 20rpx 48rpx; display:flex; flex-direction:column; gap:20rpx; }
-.tip { text-align:center; color:#64748b; padding:48rpx; }
-.header { background:#fff; border:1rpx solid #e2e8f0; border-radius:16rpx; padding:28rpx; }
-.head-row { display:flex; gap:12rpx; align-items:center; flex-wrap:wrap; margin-bottom:12rpx; }
-.subject-tag { font-size:20rpx; color:#2563eb; background:#eff6ff; border:1rpx solid #bfdbfe; padding:4rpx 10rpx; border-radius:999rpx; }
-.cadence { font-size:20rpx; color:#64748b; background:#f1f5f9; padding:4rpx 10rpx; border-radius:999rpx; }
-.status { font-size:20rpx; color:#0f172a; background:#f8fafc; border:1rpx solid #e2e8f0; padding:4rpx 10rpx; border-radius:999rpx; }
-.h1 { font-size:30rpx; font-weight:700; color:#0f172a; display:block; }
-.desc { font-size:24rpx; color:#475569; display:block; margin-top:8rpx; line-height:1.6; white-space:pre-wrap; }
-.meta { display:flex; justify-content:space-between; align-items:center; margin-top:12rpx; font-size:22rpx; color:#94a3b8; }
-.link { color:#2563eb; }
-.section { background:#fff; border:1rpx solid #e2e8f0; border-radius:16rpx; padding:24rpx; }
-.section-title { font-size:26rpx; font-weight:600; color:#0f172a; display:block; margin-bottom:16rpx; }
+.page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 18rpx; }
+.loading-bar { text-align: center; padding: 48rpx; }
+.loading-text { color: #A09CB5; font-size: 26rpx; }
+
+.header-card {
+  background: #fff; border-radius: 20rpx; padding: 28rpx;
+  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+}
+.head-row { display: flex; gap: 10rpx; align-items: center; flex-wrap: wrap; margin-bottom: 14rpx; }
+.subject-tag {
+  font-size: 20rpx; color: #6B5CE7; background: #EEEDFD;
+  padding: 4rpx 12rpx; border-radius: 16rpx;
+}
+.cadence {
+  font-size: 20rpx; color: #8E8B9E; background: #FAF9F7;
+  padding: 4rpx 12rpx; border-radius: 16rpx;
+}
+.status-chip {
+  font-size: 20rpx; color: #1A1636; background: #F5F3EF;
+  padding: 4rpx 12rpx; border-radius: 16rpx;
+}
+.h1 { font-size: 30rpx; font-weight: 700; color: #1A1636; display: block; }
+.desc { font-size: 24rpx; color: #6E6B83; display: block; margin-top: 10rpx; line-height: 1.6; white-space: pre-wrap; }
+.meta { display: flex; justify-content: space-between; align-items: center; margin-top: 14rpx; }
+.meta-text { font-size: 22rpx; color: #A09CB5; }
+.link { font-size: 22rpx; color: #6B5CE7; }
+
+.card {
+  background: #fff; border-radius: 20rpx; padding: 24rpx;
+  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+}
+.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-bottom: 16rpx; }
 </style>

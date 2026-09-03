@@ -3,13 +3,55 @@
     {
       "path": "pages/login/index",
       "style": {
-        "navigationBarTitleText": "登录绑定"
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/register/index",
+      "style": {
+        "navigationBarTitleText": "注册"
       }
     },
     {
       "path": "pages/index/index",
       "style": {
         "navigationBarTitleText": "一生一案"
+      }
+    },
+    {
+      "path": "pages/student/myCase/index",
+      "style": {
+        "navigationBarTitleText": "我的档案"
+      }
+    },
+    {
+      "path": "pages/student/monthlyReports/index",
+      "style": {
+        "navigationBarTitleText": "月度评价"
+      }
+    },
+    {
+      "path": "pages/student/profile/index",
+      "style": {
+        "navigationBarTitleText": "个人信息"
+      }
+    },
+    {
+      "path": "pages/student/analytics/index",
+      "style": {
+        "navigationBarTitleText": "学情分析"
+      }
+    },
+    {
+      "path": "pages/student/assignments/index",
+      "style": {
+        "navigationBarTitleText": "我的作业"
+      }
+    },
+    {
+      "path": "pages/student/assignmentDetail/index",
+      "style": {
+        "navigationBarTitleText": "作业详情"
       }
     }
   ],
@@ -28,27 +70,6 @@
         {
           "path": "taskDetail/index",
           "style": { "navigationBarTitleText": "任务详情" }
-        }
-      ]
-    },
-    {
-      "root": "subStudent",
-      "pages": [
-        {
-          "path": "assignments/index",
-          "style": { "navigationBarTitleText": "我的作业" }
-        },
-        {
-          "path": "assignmentDetail/index",
-          "style": { "navigationBarTitleText": "作业详情" }
-        },
-        {
-          "path": "analytics/index",
-          "style": { "navigationBarTitleText": "学情分析" }
-        },
-        {
-          "path": "myCase/index",
-          "style": { "navigationBarTitleText": "我的档案" }
         }
       ]
     },
@@ -82,6 +103,58 @@
         {
           "path": "reviewCreate/index",
           "style": { "navigationBarTitleText": "提交督查" }
+        },
+        {
+          "path": "deyuReview/index",
+          "style": { "navigationBarTitleText": "德育审查" }
+        },
+        {
+          "path": "deyuReview/detail",
+          "style": { "navigationBarTitleText": "审查方案" }
+        },
+        {
+          "path": "adminStats/index",
+          "style": { "navigationBarTitleText": "系统管理" }
+        },
+        {
+          "path": "adminUsers/index",
+          "style": { "navigationBarTitleText": "用户与邀请码" }
+        },
+        {
+          "path": "weeklyScores/index",
+          "style": { "navigationBarTitleText": "周测成绩" }
+        },
+        {
+          "path": "weeklyScores/create",
+          "style": { "navigationBarTitleText": "录入成绩" }
+        },
+        {
+          "path": "monthlyReports/index",
+          "style": { "navigationBarTitleText": "月度评价" }
+        },
+        {
+          "path": "monthlyReports/generate",
+          "style": { "navigationBarTitleText": "生成评价" }
+        },
+        {
+          "path": "monthlyReports/detail",
+          "style": { "navigationBarTitleText": "评价详情" }
+        },
+        {
+          "path": "classManager/index",
+          "style": { "navigationBarTitleText": "班级管理" }
+        },
+        {
+          "path": "classManager/create",
+          "style": { "navigationBarTitleText": "新建班级" }
+        },
+        {
+          "path": "classManager/students",
+          "style": { "navigationBarTitleText": "学生管理" }
+        },
+        {
+          "path": "classManager/addStudent",
+          "style": { "navigationBarTitleText": "新建学生" }
         }
       ]
     }
@@ -89,10 +162,10 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "一生一案",
-    "navigationBarBackgroundColor": "#ffffff",
-    "backgroundColor": "#f8fafc",
+    "navigationBarBackgroundColor": "#F4F6F5",
+    "backgroundColor": "#F4F6F5",
     "app-plus": {
-      "background": "#f8fafc"
+      "background": "#F4F6F5"
     }
-  },
+  }
 }

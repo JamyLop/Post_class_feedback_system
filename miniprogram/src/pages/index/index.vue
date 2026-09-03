@@ -1,39 +1,54 @@
 <template>
   <view class="page">
     <view class="banner">
-      <text class="kicker">一生一案 · 高三试点</text>
-      <text class="title">学业发展工作台</text>
-      <text class="desc">先呈现状态与下一步行动，再展开完整材料</text>
-      <view class="role-row">
-        <text class="role-chip">{{ roleLabel }}</text>
-        <text class="user-name">{{ auth.user?.name || '未登录' }}</text>
-        <text v-if="!auth.isLoggedIn" class="login-tip" @click="goLogin">去登录 →</text>
-      </view>
-      <text v-if="roleHint" class="role-hint">{{ roleHint }}</text>
-    </view>
-
-    <view class="grid">
-      <view
-        v-for="entry in visibleEntries"
-        :key="entry.key"
-        class="entry"
-        :class="{ disabled: entry.disabled }"
-        @click="handleEntry(entry)"
-      >
-        <text class="entry-title">{{ entry.title }}</text>
-        <text class="entry-desc">{{ entry.desc }}</text>
-        <text class="entry-action">{{ entry.disabled ? entry.disabledText : '进入 →' }}</text>
+      <view class="banner-bg"></view>
+      <view class="banner-content">
+        <text class="banner-badge">一生一案 · 高三试点</text>
+        <text class="banner-title">学业发展工作台</text>
+        <view class="user-row">
+          <view class="avatar" :style="{ background: avatarColor }">
+            <text class="avatar-text">{{ (auth.user?.name || '?').slice(0, 1) }}</text>
+          </view>
+          <view class="user-info">
+            <text class="user-name">{{ auth.user?.name || '未登录' }}</text>
+            <text class="user-role">{{ roleLabel }}</text>
+          </view>
+          <text v-if="!auth.isLoggedIn" class="login-btn" @click="goLogin">登录</text>
+        </view>
+        <text v-if="roleHint" class="role-hint">{{ roleHint }}</text>
       </view>
     </view>
 
-    <view v-if="hiddenCount" class="hidden-tip">
-      <text>已按角色隐藏 {{ hiddenCount }} 个非本角色入口，后端仍会拦截越权请求</text>
+    <view class="section">
+      <text class="section-label">功能入口</text>
+      <view class="grid">
+        <view
+          v-for="entry in visibleEntries"
+          :key="entry.key"
+          class="entry-card"
+          :class="{ 'is-disabled': entry.disabled }"
+          @click="handleEntry(entry)"
+        >
+          <view class="entry-mark" :class="`mark-${entry.key}`"></view>
+          <view class="entry-body">
+            <text class="entry-title">{{ entry.title }}</text>
+            <text class="entry-desc">{{ entry.desc }}</text>
+          </view>
+          <text class="entry-arrow" :class="{ 'is-disabled': entry.disabled }">
+            {{ entry.disabled ? '·' : '›' }}
+          </text>
+        </view>
+      </view>
     </view>
 
-    <view class="foot">
-      <text class="foot-tip">DOCX 导出、批量导入、AI 草稿请在 Web 端完成</text>
-      <button v-if="auth.isLoggedIn" plain size="mini" @click="handleLogout">退出登录</button>
-      <button v-else type="primary" size="mini" @click="goLogin">账号密码登录</button>
+    <view v-if="hiddenCount" class="hidden-bar">
+      <text class="hidden-text">已按角色隐藏 {{ hiddenCount }} 个入口</text>
+    </view>
+
+    <view class="bottom-bar">
+      <text class="bottom-tip">DOCX 导出、批量导入请在 Web 端完成</text>
+      <button v-if="auth.isLoggedIn" class="btn-logout" plain @click="handleLogout">退出登录</button>
+      <button v-else class="btn-login" @click="goLogin">账号密码登录</button>
     </view>
   </view>
 </template>
@@ -45,31 +60,46 @@ import { useAuthStore } from '../../stores/auth'
 const auth = useAuthStore()
 const roleMap = { parent: '家长', student: '学生', teacher: '班主任', deyu_director: '德育主任', admin: '校长' }
 const roleLabel = computed(() => roleMap[auth.role] || auth.role || '访客')
+
+const avatarColors = ['#6B5CE7', '#F5881F', '#16A34A', '#E74C6F', '#3B82F6']
+const avatarColor = computed(() => {
+  const idx = (auth.user?.name || '').charCodeAt(0) % avatarColors.length
+  return avatarColors[idx]
+})
+
 const roleHint = computed(() => {
   if (!auth.isLoggedIn) return '请先登录，登录后仅展示本角色可用入口'
-  if (auth.role === 'parent') return '家长仅可查看已发布档案与任务，编辑请联系班主任'
-  if (auth.role === 'student') return '学生仅可查看作业与本人已发布档案'
-  if (['teacher', 'deyu_director', 'admin'].includes(auth.role)) return '支持档案查看/编辑、学科方案、任务管理、打卡与督查；DOCX 导出请在 Web 端'
+  if (auth.role === 'parent') return '可查看已发布档案与任务'
+  if (auth.role === 'student') return '查看本人已发布档案'
+  if (auth.role === 'teacher') return '档案编辑、任务管理、打卡与督查'
+  if (auth.role === 'deyu_director') return '审查方案、查看督查进度'
+  if (auth.role === 'admin') return '系统统计、用户管理、全局档案'
   return ''
 })
 
 const allEntries = [
-  { key: 'parent', roles: ['parent'], title: '家长 · 孩子档案', desc: '查看已发布总案、学科方案、任务与复盘', route: '/subParent/children/index' },
-  { key: 'student', roles: ['student'], title: '学生 · 我的档案', desc: '查看本人一生一案档案、学科方案与任务', route: '/subStudent/myCase/index' },
-  { key: 'teacher', roles: ['teacher', 'deyu_director', 'admin'], title: '教师 · 一生一案', desc: '待办概览、档案查看编辑、任务管理、打卡与督查', route: '/subTeacher/todo/index' },
+  { key: 'parent', roles: ['parent'], title: '孩子档案', desc: '查看已发布总案与学科方案', route: '/subParent/children/index' },
+  { key: 'student_case', roles: ['student'], title: '我的档案', desc: '查看本人一生一案', route: '/pages/student/myCase/index' },
+  { key: 'student_monthly', roles: ['student'], title: '月度评价', desc: '查看老师发布的月度评价', route: '/pages/student/monthlyReports/index' },
+  { key: 'student_profile', roles: ['student'], title: '个人信息', desc: '查看个人基本信息', route: '/pages/student/profile/index' },
+  { key: 'student_analytics', roles: ['student'], title: '学情分析', desc: '查看个人学情分析', route: '/pages/student/analytics/index' },
+  { key: 'teacher', roles: ['teacher'], title: '工作台', desc: '待办、档案编辑、打卡', route: '/subTeacher/todo/index' },
+  { key: 'teacher_weekly', roles: ['teacher'], title: '周测成绩', desc: '录入与查看班级周测成绩', route: '/subTeacher/weeklyScores/index' },
+  { key: 'teacher_monthly', roles: ['teacher'], title: '月度评价', desc: 'AI 生成学生月度评价', route: '/subTeacher/monthlyReports/index' },
+  { key: 'teacher_class', roles: ['teacher'], title: '班级管理', desc: '管理班级与学生信息', route: '/subTeacher/classManager/index' },
+  { key: 'deyu_director', roles: ['deyu_director'], title: '审查中心', desc: '方案审查与督查进度', route: '/subTeacher/todo/index' },
+  { key: 'admin', roles: ['admin'], title: '系统管理', desc: '统计、用户、邀请码', route: '/subTeacher/todo/index' },
 ]
 
 const visibleEntries = computed(() => {
-  // 未登录：全部展示，但点击会先去登录
   if (!auth.isLoggedIn || !auth.role) {
-    return allEntries.map(e => ({ ...e, disabled: false, disabledText: '' }))
+    return allEntries.map(e => ({ ...e, disabled: false }))
   }
   const allowed = allEntries.filter(e => e.roles.includes(auth.role))
   const disallowed = allEntries.filter(e => !e.roles.includes(auth.role))
-  // 已登录：仅可用入口可点击，其余置灰并提示无权限
   return [
-    ...allowed.map(e => ({ ...e, disabled: false, disabledText: '' })),
-    ...disallowed.map(e => ({ ...e, disabled: true, disabledText: '当前角色不可用' })),
+    ...allowed.map(e => ({ ...e, disabled: false })),
+    ...disallowed.map(e => ({ ...e, disabled: true })),
   ]
 })
 const hiddenCount = computed(() => {
@@ -84,7 +114,7 @@ function handleEntry(entry) {
     return goLogin()
   }
   if (entry.disabled) {
-    uni.showToast({ title: '当前角色无权限访问该入口', icon: 'none' })
+    uni.showToast({ title: '当前角色无权限', icon: 'none' })
     return
   }
   uni.navigateTo({ url: entry.route })
@@ -93,24 +123,132 @@ function handleLogout() { auth.logout() }
 </script>
 
 <style scoped>
-.page { padding:28rpx; display:flex; flex-direction:column; gap:24rpx; }
-.banner { background:#0f172a; color:#fff; border-radius:16rpx; padding:32rpx 28rpx; }
-.kicker { font-size:20rpx; color:#94a3b8; }
-.title { font-size:34rpx; font-weight:700; display:block; margin-top:8rpx; }
-.desc { font-size:24rpx; color:#94a3b8; display:block; margin-top:6rpx; }
-.role-row { margin-top:18rpx; display:flex; gap:12rpx; align-items:center; }
-.role-chip { font-size:20rpx; padding:6rpx 14rpx; border-radius:999rpx; background:#1e293b; color:#93c5fd; border:1rpx solid rgba(255,255,255,0.08); }
-.user-name { font-size:26rpx; font-weight:600; }
-.login-tip { font-size:22rpx; color:#93c5fd; margin-left:8rpx; text-decoration:underline; }
-.role-hint { font-size:22rpx; color:#94a3b8; display:block; margin-top:10rpx; line-height:1.5; }
-.grid { display:flex; flex-direction:column; gap:16rpx; }
-.entry { background:#fff; border:1rpx solid #e2e8f0; border-radius:16rpx; padding:28rpx; }
-.entry.disabled { background:#f8fafc; opacity:0.6; }
-.entry-title { font-size:28rpx; font-weight:600; color:#0f172a; display:block; }
-.entry-desc { font-size:24rpx; color:#64748b; display:block; margin-top:6rpx; line-height:1.5; }
-.entry-action { font-size:24rpx; color:#2563eb; display:block; margin-top:12rpx; font-weight:500; }
-.entry.disabled .entry-action { color:#94a3b8; }
-.hidden-tip { font-size:20rpx; color:#94a3b8; text-align:center; }
-.foot { text-align:center; display:flex; flex-direction:column; gap:16rpx; align-items:center; }
-.foot-tip { font-size:22rpx; color:#94a3b8; }
+.page { padding: 0 28rpx 48rpx; display: flex; flex-direction: column; gap: 24rpx; }
+
+.banner {
+  position: relative;
+  border-radius: 12rpx;
+  overflow: hidden;
+  margin-top: 16rpx;
+}
+.banner-bg {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: #1F4F55;
+}
+.banner-content { position: relative; padding: 36rpx 28rpx 28rpx; }
+.banner-badge {
+  font-size: 22rpx;
+  color: #DDEBE8;
+  padding: 0;
+  display: inline-block;
+  font-weight: 500;
+}
+.banner-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #fff;
+  display: block;
+  margin-top: 18rpx;
+}
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+.avatar {
+  width: 68rpx; height: 68rpx;
+  border-radius: 18rpx;
+  display: flex; align-items: center; justify-content: center;
+}
+.avatar-text { color: #fff; font-size: 28rpx; font-weight: 700; }
+.user-info { flex: 1; }
+.user-name { font-size: 28rpx; font-weight: 600; color: #fff; display: block; }
+.user-role { font-size: 22rpx; color: rgba(255,255,255,0.65); display: block; margin-top: 2rpx; }
+.login-btn {
+  font-size: 24rpx;
+  color: #1F4F55;
+  background: #F3C969;
+  padding: 12rpx 28rpx;
+  border-radius: 8rpx;
+  font-weight: 600;
+}
+.role-hint {
+  font-size: 22rpx;
+  color: #C5DBD7;
+  display: block;
+  margin-top: 14rpx;
+  line-height: 1.5;
+}
+
+.section { display: flex; flex-direction: column; gap: 14rpx; }
+.section-label { font-size: 25rpx; font-weight: 600; color: #53666A; padding-left: 2rpx; }
+
+.grid { display: flex; flex-direction: column; gap: 14rpx; }
+
+.entry-card {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  background: #fff;
+  border-radius: 10rpx;
+  padding: 26rpx 22rpx;
+  border: 1rpx solid #E0E7E5;
+}
+.entry-card.is-disabled {
+  opacity: 0.45;
+}
+.entry-mark {
+  width: 8rpx; height: 52rpx;
+  border-radius: 4rpx;
+  background: #1F4F55;
+  flex-shrink: 0;
+}
+.mark-student { background: #4C7A64; }
+.mark-teacher { background: #427B87; }
+.mark-deyu_director { background: #B47D37; }
+.mark-admin { background: #7E5C58; }
+.entry-body { flex: 1; }
+.entry-title { font-size: 29rpx; font-weight: 600; color: #203235; display: block; }
+.entry-desc { font-size: 23rpx; color: #6C7C7F; display: block; margin-top: 6rpx; }
+.entry-arrow {
+  font-size: 32rpx;
+  color: #739095;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.entry-arrow.is-disabled { color: #C4C0D4; }
+
+.hidden-bar {
+  text-align: center;
+  padding: 12rpx;
+}
+.hidden-text { font-size: 22rpx; color: #A09CB5; }
+
+.bottom-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16rpx;
+  padding-top: 8rpx;
+}
+.bottom-tip { font-size: 22rpx; color: #899799; }
+.btn-logout {
+  font-size: 24rpx;
+  color: #53666A;
+  border: 1rpx solid #CBD6D4;
+  border-radius: 8rpx;
+  padding: 10rpx 32rpx;
+  background: #fff;
+}
+.btn-login {
+  background: #1F4F55;
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 600;
+  border-radius: 8rpx;
+  padding: 18rpx 0;
+  border: none;
+}
+.btn-login::after { border: none; }
 </style>

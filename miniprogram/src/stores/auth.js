@@ -27,6 +27,9 @@ export const useAuthStore = defineStore('auth', {
       uni.setStorageSync('user', JSON.stringify(data.user))
       return data.user
     },
+    async register(payload) {
+      return await http.post('/auth/register', payload)
+    },
     async wxLogin(code) {
       // 后端 POST /api/auth/wx-login { code }
       const data = await http.post('/auth/wx-login', { code })

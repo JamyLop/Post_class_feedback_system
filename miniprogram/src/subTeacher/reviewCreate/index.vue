@@ -2,45 +2,61 @@
   <view class="page">
     <text class="h1">提交督查</text>
 
-    <view v-if="loadingCase" class="tip">加载档案…</view>
+    <view v-if="loadingCase" class="loading-bar">
+      <text class="loading-text">加载档案...</text>
+    </view>
     <template v-else>
-      <view class="form">
-        <text class="label">选择档案</text>
-        <picker v-if="!presetCaseId" :range="cases" range-key="label" @change="onCaseChange">
-          <view class="picker">{{ selectedCaseLabel || '请选择学生档案' }}</view>
-        </picker>
-        <view v-else class="picker disabled">{{ selectedCaseLabel || '已指定档案' }}</view>
+      <view class="card">
+        <view class="field">
+          <text class="label">选择档案</text>
+          <picker v-if="!presetCaseId" :range="cases" range-key="label" @change="onCaseChange">
+            <view class="picker">{{ selectedCaseLabel || '请选择学生档案' }}</view>
+          </picker>
+          <view v-else class="picker disabled">{{ selectedCaseLabel || '已指定档案' }}</view>
+        </view>
 
         <view v-if="selectedCase" class="case-preview">
           <text class="preview-name">{{ selectedCase.student_name }}</text>
           <text class="preview-meta">{{ selectedCase.class_name }} · 第{{ selectedCase.version }}版</text>
         </view>
 
-        <text class="label">督查层级</text>
-        <picker :range="levels" range-key="label" @change="e => form.review_level = levels[e.detail.value].value">
-          <view class="picker">{{ currentLevelLabel }}</view>
-        </picker>
+        <view class="field">
+          <text class="label">督查层级</text>
+          <picker :range="levels" range-key="label" @change="e => form.review_level = levels[e.detail.value].value">
+            <view class="picker">{{ currentLevelLabel }}</view>
+          </picker>
+        </view>
 
-        <text class="label">关联学科（可选）</text>
-        <picker :range="allSubjects" @change="e => form.subject = allSubjects[e.detail.value]">
-          <view class="picker">{{ form.subject || '不关联学科' }}</view>
-        </picker>
+        <view class="field">
+          <text class="label">关联学科（可选）</text>
+          <picker :range="allSubjects" @change="e => form.subject = allSubjects[e.detail.value]">
+            <view class="picker">{{ form.subject || '不关联学科' }}</view>
+          </picker>
+        </view>
 
-        <text class="label">整改截止日期（可选）</text>
-        <picker mode="date" @change="e => form.correction_due_on = e.detail.value">
-          <view class="picker">{{ form.correction_due_on || '不设截止' }}</view>
-        </picker>
+        <view class="field">
+          <text class="label">整改截止日期（可选）</text>
+          <picker mode="date" @change="e => form.correction_due_on = e.detail.value">
+            <view class="picker">{{ form.correction_due_on || '不设截止' }}</view>
+          </picker>
+        </view>
 
-        <text class="label">发现问题</text>
-        <textarea v-model="form.problem" placeholder="督查中发现的问题" class="textarea" />
+        <view class="field">
+          <text class="label">发现问题</text>
+          <textarea v-model="form.problem" placeholder="督查中发现的问题" class="textarea" />
+        </view>
 
-        <text class="label">整改要求</text>
-        <textarea v-model="form.corrective_action" placeholder="具体整改要求" class="textarea" />
+        <view class="field">
+          <text class="label">整改要求</text>
+          <textarea v-model="form.corrective_action" placeholder="具体整改要求" class="textarea" />
+        </view>
 
-        <text class="label">复查结果（可选）</text>
-        <textarea v-model="form.recheck_result" placeholder="复查情况" class="textarea" />
+        <view class="field">
+          <text class="label">复查结果（可选）</text>
+          <textarea v-model="form.recheck_result" placeholder="复查情况" class="textarea" />
+        </view>
       </view>
-      <button type="primary" :loading="submitting" @click="submit">提交</button>
+      <button class="btn-primary" :loading="submitting" @click="submit">提交</button>
     </template>
   </view>
 </template>
@@ -90,7 +106,6 @@ async function load() {
       ...c,
       label: `${c.student_name || '学生#'+c.student_id} · ${c.class_name || ''} (${c.status})`,
     }))
-    // 若预设了 caseId，从列表中补全信息
     if (presetCaseId.value && !selectedCase.value) {
       const found = cases.value.find(c => c.id === presetCaseId.value)
       if (found) selectedCaseId.value = found.id
@@ -125,15 +140,39 @@ onMounted(load)
 </script>
 
 <style scoped>
-.page { padding:28rpx; display:flex; flex-direction:column; gap:20rpx; }
-.h1 { font-size:32rpx; font-weight:700; color:#0f172a; }
-.tip { text-align:center; color:#64748b; padding:24rpx; font-size:24rpx; }
-.form { display:flex; flex-direction:column; gap:14rpx; }
-.label { font-size:24rpx; font-weight:600; color:#0f172a; }
-.picker { border:1rpx solid #e2e8f0; border-radius:10rpx; padding:18rpx 20rpx; background:#fff; font-size:26rpx; color:#334155; }
-.picker.disabled { background:#f8fafc; color:#94a3b8; }
-.case-preview { background:#f8fafc; border:1rpx solid #e2e8f0; border-radius:10rpx; padding:14rpx 18rpx; }
-.preview-name { font-size:26rpx; font-weight:600; color:#0f172a; }
-.preview-meta { font-size:22rpx; color:#94a3b8; display:block; margin-top:4rpx; }
-.textarea { border:1rpx solid #e2e8f0; border-radius:10rpx; padding:18rpx 20rpx; font-size:26rpx; min-height:140rpx; background:#fff; }
+.page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; }
+.loading-bar { text-align: center; padding: 48rpx; }
+.loading-text { color: #A09CB5; font-size: 26rpx; }
+
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  display: flex; flex-direction: column; gap: 18rpx;
+}
+.field { display: flex; flex-direction: column; gap: 8rpx; }
+.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.picker {
+  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: #1A1636;
+}
+.picker.disabled { background: #FAF9F7; color: #A09CB5; }
+.case-preview {
+  background: #FAF9F7; border-radius: 14rpx; padding: 16rpx 20rpx;
+}
+.preview-name { font-size: 26rpx; font-weight: 600; color: #1A1636; }
+.preview-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
+.textarea {
+  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  padding: 18rpx 20rpx; font-size: 26rpx; min-height: 140rpx; background: #fff;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  color: #fff; border-radius: 14rpx; padding: 24rpx 0;
+  font-size: 30rpx; font-weight: 600; border: none;
+}
+.btn-primary::after { border: none; }
 </style>

@@ -17,13 +17,14 @@ from app.models.grading import GRADING_STATUS_CONFIRMED, GradingResult
 from app.models.knowledge import KnowledgePoint
 from app.models.question import Question, QuestionKnowledgePoint
 from app.models.submission import Submission, SubmissionAnswer
-from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_STUDENT, ROLE_TEACHER, User
 
 TZ_UTC8 = timezone(timedelta(hours=8))
 NOW = datetime(2026, 8, 19, 10, 0, 0, tzinfo=TZ_UTC8)
 
 ACCOUNTS = [
     {"username": "admin", "password": "admin123", "name": "系统管理员", "role": ROLE_ADMIN},
+    {"username": "deyu1", "password": "deyu123", "name": "德育主任", "role": ROLE_DEYU_DIRECTOR},
     {"username": "teacher1", "password": "teacher123", "name": "王老师", "role": ROLE_TEACHER},
     {"username": "student1", "password": "student123", "name": "张三", "role": ROLE_STUDENT},
     {"username": "student2", "password": "student123", "name": "李四", "role": ROLE_STUDENT},
@@ -244,7 +245,7 @@ def seed() -> None:
 
         db.commit()
         print("Seed 完成（含 8月19日 测试数据）。")
-        print("账号：admin/admin123, teacher1/teacher123, student1..3/student123")
+        print("账号：admin/admin123, deyu1/deyu123, teacher1/teacher123, student1..3/student123")
     finally:
         db.close()
 

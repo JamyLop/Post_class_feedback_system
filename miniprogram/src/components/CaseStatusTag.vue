@@ -1,7 +1,7 @@
 <template>
-  <view class="status-tag" :class="`is-${status}`">
+  <view class="tag" :class="`is-${status}`">
     <text class="dot"></text>
-    <text>{{ label }}</text>
+    <text class="txt">{{ label }}</text>
   </view>
 </template>
 
@@ -10,7 +10,7 @@ import { computed } from 'vue'
 const props = defineProps({ status: String })
 const map = {
   draft: '草稿',
-  pending_confirmation: '待德育审查',
+  pending_confirmation: '待审查',
   revision_required: '待整改',
   executing: '执行中',
   pending_review: '待复盘',
@@ -21,11 +21,22 @@ const label = computed(() => map[props.status] || props.status)
 </script>
 
 <style scoped>
-.status-tag { display:inline-flex; align-items:center; gap:6rpx; padding:4rpx 14rpx; border-radius:999rpx; font-size:22rpx; border:1rpx solid #e2e8f0; background:#f8fafc; color:#475569; }
-.status-tag.is-executing { background:#eff6ff; border-color:#bfdbfe; color:#2563eb; }
-.status-tag.is-pending_confirmation, .status-tag.is-pending_review { background:#fef3c7; border-color:#fde68a; color:#92400e; }
-.status-tag.is-revision_required { background:#fff7ed; border-color:#fdba74; color:#9a3412; }
-.status-tag.is-adjusted { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
-.status-tag.is-archived { background:#f1f5f9; color:#64748b; }
-.dot { width:10rpx; height:10rpx; border-radius:50%; background: currentColor; }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 6rpx;
+  font-size: 22rpx;
+  font-weight: 500;
+  background: #E4EEEE;
+  color: #1F4F55;
+}
+.tag.is-executing { background: #E0F0E7; color: #2E7D5B; }
+.tag.is-pending_confirmation, .tag.is-pending_review { background: #F8E8B8; color: #8A641C; }
+.tag.is-revision_required { background: #F7E0D9; color: #9C4E3F; }
+.tag.is-adjusted { background: #DDEBE8; color: #2E7D5B; }
+.tag.is-archived { background: #E8ECEB; color: #6C7C7F; }
+.dot { width: 10rpx; height: 10rpx; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.txt { white-space: nowrap; }
 </style>

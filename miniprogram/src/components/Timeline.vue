@@ -1,11 +1,14 @@
 <template>
   <view class="timeline">
-    <view v-for="(item, idx) in items" :key="idx" class="timeline-item">
-      <view class="timeline-dot"></view>
-      <view class="timeline-content">
-        <text class="timeline-title">{{ item.title }}</text>
-        <text class="timeline-desc">{{ item.desc }}</text>
-        <text v-if="item.time" class="timeline-time">{{ item.time }}</text>
+    <view v-for="(item, idx) in items" :key="idx" class="tl-item">
+      <view class="tl-line">
+        <view class="tl-dot" :class="{ 'is-first': idx === 0 }"></view>
+        <view v-if="idx < items.length - 1" class="tl-connector"></view>
+      </view>
+      <view class="tl-body">
+        <text class="tl-title">{{ item.title }}</text>
+        <text v-if="item.desc" class="tl-desc">{{ item.desc }}</text>
+        <text v-if="item.time" class="tl-time">{{ item.time }}</text>
       </view>
     </view>
   </view>
@@ -16,11 +19,18 @@ defineProps({ items: { type: Array, default: () => [] } })
 </script>
 
 <style scoped>
-.timeline { position:relative; padding-left:28rpx; }
-.timeline-item { display:flex; gap:18rpx; padding:16rpx 0; border-left:2rpx solid #e2e8f0; padding-left:18rpx; position:relative; }
-.timeline-item:last-child { border-left-color: transparent; }
-.timeline-dot { position:absolute; left:-9rpx; top:22rpx; width:16rpx; height:16rpx; border-radius:50%; background:#2563eb; border:3rpx solid #dbeafe; }
-.timeline-title { font-size:26rpx; font-weight:600; color:#0f172a; }
-.timeline-desc { font-size:24rpx; color:#475569; margin-top:4rpx; display:block; line-height:1.5; }
-.timeline-time { font-size:22rpx; color:#94a3b8; margin-top:6rpx; display:block; }
+.timeline { padding-left: 8rpx; }
+.tl-item { display: flex; gap: 20rpx; position: relative; }
+.tl-line { display: flex; flex-direction: column; align-items: center; width: 20rpx; flex-shrink: 0; }
+.tl-dot {
+  width: 16rpx; height: 16rpx; border-radius: 50%;
+  background: #B8B0F6; border: 3rpx solid #EEEDFD;
+  flex-shrink: 0; margin-top: 6rpx; z-index: 1;
+}
+.tl-dot.is-first { background: #1F4F55; border-color: #DDEBE8; }
+.tl-connector { width: 2rpx; flex: 1; background: #E8E6F0; margin: 4rpx 0; }
+.tl-body { padding: 4rpx 0 24rpx; flex: 1; }
+.tl-title { font-size: 26rpx; font-weight: 600; color: #1A1636; }
+.tl-desc { font-size: 24rpx; color: #6E6B83; margin-top: 6rpx; display: block; line-height: 1.6; }
+.tl-time { font-size: 22rpx; color: #A09CB5; margin-top: 6rpx; display: block; }
 </style>
