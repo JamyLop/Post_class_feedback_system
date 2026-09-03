@@ -18,6 +18,7 @@ from app.models.invite import (
 from app.models.submission import Submission
 from app.models.user import (
     ROLE_ADMIN,
+    ROLE_CONSULTANT,
     ROLE_DEYU_DIRECTOR,
     ROLE_PARENT,
     ROLE_STUDENT,
@@ -91,6 +92,7 @@ def admin_stats(db: Session = Depends(get_db), admin: User = Depends(_admin_only
         student_count=counts[ROLE_STUDENT],
         parent_count=counts[ROLE_PARENT],
         deyu_director_count=counts.get(ROLE_DEYU_DIRECTOR, 0),
+        consultant_count=counts.get(ROLE_CONSULTANT, 0),
         class_count=_safe_count(db, Class),
         assignment_count=_safe_count(db, Assignment, fallback_model=StudentCase),
         submission_count=_safe_count(db, Submission, fallback_model=WeeklyTestScore),
@@ -104,9 +106,9 @@ def create_invite_code(
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
-    """创建邀请码：支持班主任、德育主任、学生和家长，校长账号不开放自助注册。"""
+    """创建邀请码：支持班主任、德育主任、咨询老师、学生和家长，校长账号不开放自助注册。"""
     if body.role not in ROLES or body.role == ROLE_ADMIN:
-        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、deyu_director、student 或 parent")
+        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、deyu_director、consultant、student 或 parent")
     code = _generate_code()
     # 保证生成的邀请码在库中唯一
     while db.query(InviteCode).filter(InviteCode.code == code).first():
@@ -232,8 +234,8 @@ def list_consultant_links(db: Session = Depends(get_db), admin: User = Depends(_
 def create_consultant_link(body: ConsultantLinkCreate, db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
     consultant = db.get(User, body.consultant_id)
     student = db.get(User, body.student_id)
-    if consultant is None or consultant.role != ROLE_TEACHER:
-        raise HTTPException(status_code=400, detail="所选账号不是教师")
+    if consultant is None or consultant.role not in (ROLE_TEACHER, ROLE_CONSULTANT):
+        raise HTTPException(status_code=400, detail="所选账号不是教师或咨询老师")
     if student is None or student.role != ROLE_STUDENT:
         raise HTTPException(status_code=400, detail="所选账号不是学生")
     if db.query(StudentConsultant).filter_by(consultant_id=body.consultant_id, student_id=body.student_id).first():

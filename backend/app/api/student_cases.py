@@ -32,7 +32,7 @@ from app.models.student_case import (
     SubjectSuggestion,
     TaskCheckin,
 )
-from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 from app.schemas.student_case import (
     CaseCycleCreate,
     CaseCycleOut,
@@ -75,8 +75,8 @@ from app.services.student_case_service import (
 from app.services.case_export import build_case_export_bytes  # 导出模板变更后触发服务热重载
 
 router = APIRouter(prefix="/student-cases", tags=["student-cases"])
-# 校长 + 德育主任 + 班主任均可查看督查进度；仅班主任可写
-_staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER])
+# 校长 + 德育主任 + 班主任 + 咨询老师均可查看督查进度；仅班主任可写
+_staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_CONSULTANT])
 _head_teacher = require_roles([ROLE_TEACHER])
 _deyu_director = require_roles([ROLE_DEYU_DIRECTOR])
 
@@ -204,8 +204,8 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
         profile_out = default_profile
     review_query = db.query(CaseReview).filter_by(student_case_id=case.id)
     if user.role == ROLE_PARENT:
-        # 家长端不展示督查复盘；校内教师仍可按原权限查看完整记录。
-        review_query = review_query.filter(False)
+        # 家长端不展示督查复盘
+        review_query = None
         # 家长响应不得包含其他监护人账号/手机号，按矩阵脱敏
         guardian_accounts = []
         # 家长侧不暴露 parent_phone、健康明细等敏感信息
@@ -229,7 +229,19 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
                 "underlying_conditions": "",
                 "other_health_notes": "",
             }
-    return {
+    if user.role == ROLE_CONSULTANT:
+        # 咨询老师：不暴露督查复盘，不暴露健康明细
+        review_query = review_query.filter(False)
+        guardian_accounts = []
+        if isinstance(profile_out, dict):
+            profile_out = {
+                **profile_out,
+                "parent_phone": "",
+                "allergy_history": "",
+                "underlying_conditions": "",
+                "other_health_notes": "",
+            }
+    result = {
         **_case_out(db, case),
         "viewer_role": user.role,
         "can_manage": user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id),
@@ -252,8 +264,10 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
             if task_ids
             else []
         ),
-        "reviews": review_query.order_by(CaseReview.reviewed_at.desc()).all(),
     }
+    if review_query is not None:
+        result["reviews"] = review_query.order_by(CaseReview.reviewed_at.desc()).all()
+    return result
 
 
 def _case_out(db: Session, case: StudentCase) -> dict:
@@ -342,6 +356,14 @@ def supervision_progress(
         ):
             raise HTTPException(status_code=403, detail="无权查看该班级进展")
         query = query.filter(StudentCase.class_id == class_id)
+    elif user.role == ROLE_CONSULTANT:
+        # 咨询老师只能查看关联学生的档案
+        from app.models.class_ import StudentConsultant
+        student_ids = [
+            row.student_id
+            for row in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()
+        ]
+        query = query.filter(StudentCase.student_id.in_(student_ids))
     elif user.role == ROLE_TEACHER:
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
@@ -481,6 +503,14 @@ def list_student_cases(
             StudentCase.student_id == user.id,
             StudentCase.status.in_(STUDENT_VISIBLE_STATUSES),
         )
+    elif user.role == ROLE_CONSULTANT:
+        # 咨询老师只能查看关联学生的档案
+        from app.models.class_ import StudentConsultant
+        student_ids = [
+            row.student_id
+            for row in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()
+        ]
+        query = query.filter(StudentCase.student_id.in_(student_ids))
     elif user.role == ROLE_TEACHER:
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]

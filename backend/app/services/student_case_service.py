@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
+from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentConsultant, StudentGuardian
 from app.models.student_case import (
     CASE_STATUS_ADJUSTED,
     CASE_STATUS_ARCHIVED,
@@ -25,7 +25,7 @@ from app.models.student_case import (
     StudentCase,
     SubjectPlan,
 )
-from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 
 ALLOWED_TRANSITIONS = {
     CASE_STATUS_DRAFT: {CASE_STATUS_PENDING_CONFIRMATION},
@@ -109,6 +109,16 @@ def require_case_access(
         return case
     if user.role == ROLE_STUDENT:
         if write or case.student_id != user.id or case.status not in STUDENT_VISIBLE_STATUSES:
+            raise HTTPException(status_code=403, detail="无权访问该学生总案")
+        return case
+    if user.role == ROLE_CONSULTANT:
+        # 咨询老师只能查看关联学生的档案，不能修改
+        if write:
+            raise HTTPException(status_code=403, detail="咨询老师只能查看学生档案，不能修改")
+        linked = db.query(StudentConsultant).filter_by(
+            consultant_id=user.id, student_id=case.student_id
+        ).first()
+        if linked is None:
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
         return case
     if user.role != ROLE_TEACHER:

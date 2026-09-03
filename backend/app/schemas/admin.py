@@ -37,6 +37,7 @@ class AdminStats(BaseModel):
     student_count: int
     parent_count: int
     deyu_director_count: int = 0
+    consultant_count: int = 0
     class_count: int
     # 兼容旧前端，仍保留但前端已不再展示；底层已回退到 StudentCase / WeeklyTestScore
     assignment_count: int = 0
