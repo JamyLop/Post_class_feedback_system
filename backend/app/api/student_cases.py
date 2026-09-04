@@ -32,7 +32,7 @@ from app.models.student_case import (
     SubjectSuggestion,
     TaskCheckin,
 )
-from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.schemas.student_case import (
     CaseCycleCreate,
     CaseCycleOut,
@@ -75,9 +75,11 @@ from app.services.student_case_service import (
 from app.services.case_export import build_case_export_bytes  # 导出模板变更后触发服务热重载
 
 router = APIRouter(prefix="/student-cases", tags=["student-cases"])
-# 校长 + 德育主任 + 班主任 + 咨询老师均可查看督查进度；仅班主任可写
-_staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_CONSULTANT])
+# 校长 + 德育主任 + 班主任 + 咨询老师 + 任课老师均可查看督查进度；仅班主任可写
+_staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER])
 _head_teacher = require_roles([ROLE_TEACHER])
+# 学科建议提出人：非班主任的教师（含任课老师）；班主任请直接维护学科方案
+_suggestion_author = require_roles([ROLE_TEACHER, ROLE_SUBJECT_TEACHER])
 _deyu_director = require_roles([ROLE_DEYU_DIRECTOR])
 
 
@@ -241,6 +243,8 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
                 "underlying_conditions": "",
                 "other_health_notes": "",
             }
+    # 任课老师：与班主任同等的档案可见性（健康按档案可见性开关脱敏），
+    # 仅学科方案列表按所带学科过滤（见下方 subject_plans），修改走学科建议链路。
     result = {
         **_case_out(db, case),
         "viewer_role": user.role,
@@ -251,7 +255,8 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
             db.query(SubjectPlan).filter_by(student_case_id=case.id).filter(
                 or_(SubjectPlan.teacher_id == user.id, SubjectPlan.subject.in_(teacher_subjects(db, case.class_id, user.id)))
             ).order_by(SubjectPlan.id).all()
-            if user.role == ROLE_TEACHER and not is_head_teacher(db, case.class_id, user.id)
+            if (user.role == ROLE_TEACHER and not is_head_teacher(db, case.class_id, user.id))
+            or user.role == ROLE_SUBJECT_TEACHER
             else db.query(SubjectPlan).filter_by(student_case_id=case.id).order_by(SubjectPlan.id).all()
         ),
         "goals": db.query(CaseGoal).filter_by(student_case_id=case.id).order_by(CaseGoal.id).all(),
@@ -355,6 +360,8 @@ def supervision_progress(
             is_head_teacher(db, class_id, user.id) or teacher_subjects(db, class_id, user.id)
         ):
             raise HTTPException(status_code=403, detail="无权查看该班级进展")
+        if user.role == ROLE_SUBJECT_TEACHER and not teacher_subjects(db, class_id, user.id):
+            raise HTTPException(status_code=403, detail="无权查看该班级进展")
         query = query.filter(StudentCase.class_id == class_id)
     elif user.role == ROLE_CONSULTANT:
         # 咨询老师只能查看关联学生的档案
@@ -364,6 +371,13 @@ def supervision_progress(
             for row in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()
         ]
         query = query.filter(StudentCase.student_id.in_(student_ids))
+    elif user.role == ROLE_SUBJECT_TEACHER:
+        # 任课老师只能查看所带学科班级的档案
+        class_ids = [
+            row.class_id
+            for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id).all()
+        ]
+        query = query.filter(StudentCase.class_id.in_(class_ids or [-1]))
     elif user.role == ROLE_TEACHER:
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
@@ -511,6 +525,13 @@ def list_student_cases(
             for row in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()
         ]
         query = query.filter(StudentCase.student_id.in_(student_ids))
+    elif user.role == ROLE_SUBJECT_TEACHER:
+        # 任课老师只能查看所带学科班级的档案
+        class_ids = [
+            row.class_id
+            for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id).all()
+        ]
+        query = query.filter(StudentCase.class_id.in_(class_ids or [-1]))
     elif user.role == ROLE_TEACHER:
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
@@ -760,13 +781,15 @@ def list_subject_suggestions(case_id: int, db: Session = Depends(get_db), user: 
     query = db.query(SubjectSuggestion).filter_by(student_case_id=case_id)
     if user.role == ROLE_TEACHER and not is_head_teacher(db, db.get(StudentCase, case_id).class_id, user.id):
         query = query.filter(SubjectSuggestion.teacher_id == user.id)
+    if user.role == ROLE_SUBJECT_TEACHER:
+        query = query.filter(SubjectSuggestion.teacher_id == user.id)
     return query.order_by(SubjectSuggestion.created_at.desc()).all()
 
 
 @router.post("/{case_id}/subject-suggestions", response_model=SubjectSuggestionOut)
-def create_subject_suggestion(case_id: int, body: SubjectSuggestionCreate, db: Session = Depends(get_db), user: User = Depends(_head_teacher)):
+def create_subject_suggestion(case_id: int, body: SubjectSuggestionCreate, db: Session = Depends(get_db), user: User = Depends(_suggestion_author)):
     case = require_case_access(db, case_id, user)
-    if is_head_teacher(db, case.class_id, user.id):
+    if user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id):
         raise HTTPException(status_code=403, detail="班主任请直接维护学科方案")
     if body.subject not in teacher_subjects(db, case.class_id, user.id):
         raise HTTPException(status_code=403, detail="无权对该学科提出建议")
@@ -808,10 +831,14 @@ def create_task(
         raise HTTPException(status_code=409, detail="德育审查期间不能修改任务，请先撤回或等待审查意见")
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能新增任务")
-    task = CaseTask(student_case_id=case_id, created_by=user.id, **body.model_dump())
+    # 阶段归属：任务创建时快照总案当前版本，阶段即版本
+    task = CaseTask(student_case_id=case_id, created_by=user.id, version=case.version, **body.model_dump())
     db.add(task)
     db.flush()
     audit(db, user.id, "task.create", "case_task", task.id, case.id)
+    from app.services.case_points_service import recompute_stage_completion as _recompute
+
+    _recompute(db, case, recorded_by=user.id)
     db.commit()
     db.refresh(task)
     return task
@@ -835,8 +862,14 @@ def update_task(
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能修改任务")
     for field, value in body.model_dump().items():
+        # points 有缺省值：未显式传入时保持原权重，避免编辑标题时重置积分
+        if field == "points" and "points" not in body.model_fields_set:
+            continue
         setattr(task, field, value)
     audit(db, user.id, "task.update", "case_task", task.id, case.id)
+    from app.services.case_points_service import recompute_stage_completion as _recompute_task
+
+    _recompute_task(db, case, recorded_by=user.id)
     db.commit()
     db.refresh(task)
     return task
@@ -854,8 +887,21 @@ def checkin_task(
         raise HTTPException(status_code=404, detail="任务不存在")
     case = require_case_access(db, task.student_case_id, user, write=True, subject=task.subject)
     require_case_manager(db, case, user)
-    # 执行记录由班主任代为确认录入，student_id 始终指向记录所属学生。
-    checkin = TaskCheckin(task_id=task.id, student_id=case.student_id, **body.model_dump())
+    # 执行记录由班主任代为确认录入，student_id 始终指向记录所属学生；
+    # earned_points 按任务满分积分 × 完成率折算，log_date 为每日记录日期。
+    from datetime import date as _date
+
+    from app.services.case_points_service import earned_of as _earned_of
+    from app.services.case_points_service import recompute_stage_completion as _recompute_checkin
+
+    checkin = TaskCheckin(
+        task_id=task.id,
+        student_id=case.student_id,
+        completion_rate=body.completion_rate,
+        self_check=body.self_check,
+        earned_points=_earned_of(task.points or 0, body.completion_rate),
+        log_date=body.log_date or _date.today(),
+    )
     db.add(checkin)
     if body.completion_rate == 100:
         task.status = "completed"
@@ -863,6 +909,7 @@ def checkin_task(
         task.status = "in_progress"
     db.flush()
     audit(db, user.id, "task.checkin", "task_checkin", checkin.id, case.id, {"rate": body.completion_rate})
+    _recompute_checkin(db, case, recorded_by=user.id)
     db.commit()
     db.refresh(checkin)
     return checkin

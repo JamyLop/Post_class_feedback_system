@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.class_ import Class, ClassStudent
-from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.core.security import hash_password
 
 from app.schemas.class_ import (
@@ -27,13 +27,19 @@ _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
 
 
 def _check_class_owner(db: Session, class_id: int, user: User) -> Class:
-    """校验班级存在且当前用户有权操作（教师仅限自己的班级）。"""
+    """校验班级存在且当前用户有权操作（教师仅限自己的班级，任课老师仅限所带学科班级）。"""
     cls = db.get(Class, class_id)
     if cls is None:
         raise HTTPException(status_code=404, detail="班级不存在")
-    if user.role != ROLE_ADMIN and cls.teacher_id != user.id:
-        raise HTTPException(status_code=403, detail="无权操作该班级")
-    return cls
+    if user.role == ROLE_ADMIN:
+        return cls
+    if cls.teacher_id == user.id:
+        return cls
+    from app.models.class_ import ClassTeacher
+
+    if db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=user.id).first():
+        return cls
+    raise HTTPException(status_code=403, detail="无权操作该班级")
 
 
 @router.post("", response_model=ClassOut)
@@ -55,10 +61,10 @@ def list_classes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """班级列表：admin 全部、教师自己的、学生所在班级。"""
+    """班级列表：admin 全部、教师自己的、任课老师所带学科班级、学生所在班级。"""
     if user.role == ROLE_ADMIN:
         return db.query(Class).order_by(Class.id.desc()).all()
-    if user.role == ROLE_TEACHER:
+    if user.role in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
         from app.models.class_ import ClassTeacher
 
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
@@ -205,6 +211,7 @@ def _ensure_user_profile_columns(db: Session) -> None:
         db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ethnicity VARCHAR(32) DEFAULT ''"))
         db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS source_school VARCHAR(128) DEFAULT ''"))
         db.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS grade VARCHAR(32) DEFAULT \'\''))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS channel VARCHAR(64) DEFAULT ''"))
         db.commit()
     except Exception:
         db.rollback()
@@ -253,6 +260,7 @@ def create_and_add_student(
         ethnicity=(body.ethnicity or "").strip(),
         source_school=(body.source_school or "").strip(),
         grade=(body.grade or cls.grade or "").strip(),
+        channel=(body.channel or "").strip(),
     )
     db.add(stu)
     db.flush()

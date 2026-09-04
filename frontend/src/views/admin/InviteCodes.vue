@@ -16,7 +16,9 @@
           <el-radio-button value="">全部角色</el-radio-button>
           <el-radio-button value="student">学生</el-radio-button>
           <el-radio-button value="teacher">班主任</el-radio-button>
+          <el-radio-button value="subject_teacher">任课老师</el-radio-button>
           <el-radio-button value="deyu_director">德育主任</el-radio-button>
+          <el-radio-button value="consultant">咨询老师</el-radio-button>
           <el-radio-button value="parent">家长</el-radio-button>
         </el-radio-group>
       </div>
@@ -68,7 +70,9 @@
           <el-radio-group v-model="form.role">
             <el-radio value="student">学生</el-radio>
             <el-radio value="teacher">班主任</el-radio>
+            <el-radio value="subject_teacher">任课老师</el-radio>
             <el-radio value="deyu_director">德育主任</el-radio>
+            <el-radio value="consultant">咨询老师</el-radio>
             <el-radio value="parent">家长</el-radio>
           </el-radio-group>
         </el-form-item>
@@ -102,7 +106,7 @@ const dialogVisible = ref(false)
 const form = reactive({ role: 'student', expires_at: null })
 
 function roleLabel(r) {
-  return { teacher: '班主任', deyu_director: '德育主任', student: '学生', parent: '家长' }[r] || r
+  return { teacher: '班主任', subject_teacher: '任课老师', deyu_director: '德育主任', consultant: '咨询老师', student: '学生', parent: '家长' }[r] || r
 }
 function statusLabel(s) {
   return { active: '可用', used: '已使用', disabled: '已停用' }[s] || s

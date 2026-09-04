@@ -215,6 +215,10 @@ class CaseTask(TimestampMixin, Base):
     due_on: Mapped[date] = mapped_column(Date, index=True)
     status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    # 阶段归属：创建时快照总案 version，阶段即版本
+    version: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    # 满分积分/权重：每日打卡按 completion_rate% 折算 earned_points
+    points: Mapped[int] = mapped_column(Integer, default=10)
 
 
 class TaskCheckin(Base):
@@ -227,6 +231,10 @@ class TaskCheckin(Base):
     student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     completion_rate: Mapped[int] = mapped_column(Integer)
     self_check: Mapped[str] = mapped_column(Text, default="")
+    # 本次得分快照：task.points * completion_rate / 100
+    earned_points: Mapped[float] = mapped_column(Float, default=0.0)
+    # 每日记录日期：班主任代记哪一天的执行，默认当天
+    log_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     checked_in_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

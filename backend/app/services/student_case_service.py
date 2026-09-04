@@ -25,7 +25,7 @@ from app.models.student_case import (
     StudentCase,
     SubjectPlan,
 )
-from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 
 ALLOWED_TRANSITIONS = {
     CASE_STATUS_DRAFT: {CASE_STATUS_PENDING_CONFIRMATION},
@@ -120,6 +120,18 @@ def require_case_access(
         ).first()
         if linked is None:
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
+        return case
+    if user.role == ROLE_SUBJECT_TEACHER:
+        # 任课老师只能查看所带学科班级的档案，不能直接修改；修改意见走学科建议链路
+        if write:
+            raise HTTPException(status_code=403, detail="任课老师只能查看所带学科方案，修改意见请提交学科建议")
+        subjects = teacher_subjects(db, case.class_id, user.id)
+        assigned_plan = db.query(SubjectPlan.id).filter(
+            SubjectPlan.student_case_id == case.id,
+            SubjectPlan.teacher_id == user.id,
+        ).first()
+        if not subjects and assigned_plan is None:
+            raise HTTPException(status_code=403, detail="无权访问该班级学生总案")
         return case
     if user.role != ROLE_TEACHER:
         raise HTTPException(status_code=403, detail="无权访问该学生总案")

@@ -18,6 +18,7 @@ const routes = [
       { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },
       { path: 'guardian-links', redirect: '/admin/consultant-links' },
       { path: 'consultant-links', component: () => import('../views/admin/ConsultantLinks.vue') },
+      { path: 'subject-links', component: () => import('../views/admin/ClassTeacherLinks.vue') },
     ],
   },
   {
@@ -63,6 +64,18 @@ const routes = [
       { path: 'teacher/feedback', component: () => import('../views/teacher/Feedback.vue') },
       { path: 'teacher/weekly-scores', component: () => import('../views/teacher/WeeklyScores.vue') },
       { path: 'teacher/monthly-reports', component: () => import('../views/teacher/MonthlyReports.vue') },
+      { path: 'teacher/task-reminders', component: () => import('../views/teacher/TaskReminders.vue') },
+      { path: 'teacher/points-reports', component: () => import('../views/teacher/PointsReports.vue') },
+    ],
+  },
+  {
+    path: '/',
+    component: () => import('../layouts/SubjectLayout.vue'),
+    meta: { roles: ['subject_teacher'] },
+    children: [
+      { path: '', redirect: '/subject/cases' },
+      { path: 'subject/cases', component: () => import('../views/subject/SubjectCases.vue') },
+      { path: 'subject/cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
     ],
   },
   {
@@ -100,7 +113,7 @@ router.beforeEach((to) => {
   const role = auth.role
   if (to.meta.roles) {
     // 有 token 但角色数据陈旧/无效：登出并回登录页，避免守卫死循环白屏
-    if (!['admin', 'deyu_director', 'teacher', 'student', 'parent'].includes(role)) {
+    if (!['admin', 'deyu_director', 'teacher', 'subject_teacher', 'student', 'parent', 'consultant'].includes(role)) {
       auth.logout()
       return '/login'
     }

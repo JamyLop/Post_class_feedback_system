@@ -48,6 +48,7 @@ def create_user(
         password_hash=hash_password(body.password),
         name=body.name,
         role=body.role,
+        channel=(body.channel or "").strip(),
     )
     db.add(db_user)
     db.commit()
@@ -102,6 +103,8 @@ def update_user(
     _require_teacher_student_scope(user, db_user.role)
     if body.name is not None:
         db_user.name = body.name
+    if body.channel is not None:
+        db_user.channel = body.channel.strip()
     if body.password is not None:
         db_user.password_hash = hash_password(body.password)
     if body.status is not None:

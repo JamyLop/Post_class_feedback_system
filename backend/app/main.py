@@ -11,11 +11,13 @@ from app.api import (
     admin,
     analytics,
     assignments,
+    case_tasks,
     classes,
     feedback,
     grading,
     knowledge,
     monthly_reports,
+    points_reports,
     questions,
     submissions,
     student_cases,
@@ -79,8 +81,10 @@ app.include_router(grading.router, prefix=settings.api_prefix)
 app.include_router(analytics.router, prefix=settings.api_prefix)
 app.include_router(feedback.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
+app.include_router(case_tasks.router, prefix=settings.api_prefix)
 app.include_router(student_cases.router, prefix=settings.api_prefix)
 app.include_router(weekly_scores.router, prefix=settings.api_prefix)
+app.include_router(points_reports.router, prefix=settings.api_prefix)
 app.include_router(monthly_reports.router, prefix=settings.api_prefix)
 
 

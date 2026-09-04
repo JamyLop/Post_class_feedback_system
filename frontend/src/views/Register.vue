@@ -16,7 +16,9 @@
           <el-radio-group v-model="form.role" class="role-group">
             <el-radio-button value="student">学生</el-radio-button>
             <el-radio-button value="teacher">班主任</el-radio-button>
+            <el-radio-button value="subject_teacher">任课老师</el-radio-button>
             <el-radio-button value="deyu_director">德育主任</el-radio-button>
+            <el-radio-button value="consultant">咨询老师</el-radio-button>
             <el-radio-button value="parent">家长</el-radio-button>
           </el-radio-group>
         </el-form-item>

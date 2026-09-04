@@ -20,6 +20,14 @@
             <el-icon><DataAnalysis /></el-icon>
             <span>周测成绩</span>
           </el-menu-item>
+          <el-menu-item index="/teacher/task-reminders">
+            <el-icon><Bell /></el-icon>
+            <span>任务提醒</span>
+          </el-menu-item>
+          <el-menu-item index="/teacher/points-reports">
+            <el-icon><TrendCharts /></el-icon>
+            <span>积分周月报</span>
+          </el-menu-item>
           <el-menu-item index="/teacher/monthly-reports">
             <el-icon><Notebook /></el-icon>
             <span>月度评价</span>
@@ -64,7 +72,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { DataAnalysis, Files, Notebook, School } from '@element-plus/icons-vue'
+import { Bell, DataAnalysis, Files, Notebook, School, TrendCharts } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -79,6 +87,8 @@ const pageContext = computed(() => {
   if (route.path.includes('/student-cases/')) return '档案详情'
   if (route.path === '/teacher/student-cases') return '档案库'
   if (route.path === '/teacher/weekly-scores') return '周测'
+  if (route.path === '/teacher/task-reminders') return '任务提醒'
+  if (route.path === '/teacher/points-reports') return '积分周月报'
   if (route.path === '/teacher/monthly-reports') return '月度评价'
   if (route.path === '/teacher/classes') return '班级'
   return '教学'

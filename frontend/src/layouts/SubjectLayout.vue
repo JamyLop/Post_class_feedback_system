@@ -2,63 +2,44 @@
   <el-container class="app-shell">
     <el-aside width="228px" class="aside">
       <div class="brand">
-        <div class="brand-mark">校</div>
+        <div class="brand-mark">任</div>
         <div class="brand-copy">
           <strong>一生一案</strong>
-          <span>校级管理</span>
+          <span>任课教学协同</span>
         </div>
       </div>
 
       <el-scrollbar class="nav-scroll">
-        <div class="nav-label">校级督导</div>
+        <div class="nav-label">所带学科</div>
         <el-menu :default-active="$route.path" router>
-          <el-menu-item index="/admin/case-supervision">
-            <el-icon><Compass /></el-icon>
-            <span>督查驾驶舱</span>
-          </el-menu-item>
-          <el-menu-item index="/admin/dashboard">
-            <el-icon><DataBoard /></el-icon>
-            <span>系统概览</span>
-          </el-menu-item>
-          <el-menu-item index="/admin/users">
-            <el-icon><User /></el-icon>
-            <span>用户管理</span>
-          </el-menu-item>
-          <el-menu-item index="/admin/invite-codes">
-            <el-icon><Key /></el-icon>
-            <span>邀请码</span>
-          </el-menu-item>
-          <el-menu-item index="/admin/guardian-links">
-            <el-icon><Link /></el-icon>
-            <span>咨询老师关联</span>
-          </el-menu-item>
-          <el-menu-item index="/admin/subject-links">
+          <el-menu-item index="/subject/cases">
             <el-icon><Files /></el-icon>
-            <span>任课老师关联</span>
+            <span>班级档案与科目方案</span>
           </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
-      <div class="switch-block">
-        <el-button class="switch-btn" @click="$router.push('/teacher/student-cases')">
-          <el-icon><School /></el-icon>
-          进入教师端
-        </el-button>
+      <div class="subject-note">
+        <span class="subject-dot"></span>
+        <div class="subject-text">
+          <strong>只读协同</strong>
+          <small>查看所带学科方案，意见走学科建议</small>
+        </div>
       </div>
     </el-aside>
 
     <el-container class="main-container">
       <el-header class="header">
         <div class="header-left">
-          <span class="role-title">校级工作台</span>
-          <span class="context-tag">全局督导</span>
+          <span class="role-title">任课老师工作台</span>
+          <span class="context-tag">所带学科 · 方案查阅与建议</span>
         </div>
         <div class="header-right">
           <div class="user-profile">
-            <span class="avatar-badge">校</span>
+            <span class="avatar-badge">任</span>
             <div class="user-meta">
-              <strong class="user-name">{{ auth.user?.name || '校长' }}</strong>
-              <small class="user-role-text">管理员</small>
+              <strong class="user-name">{{ auth.user?.name || '任课老师' }}</strong>
+              <small class="user-role-text">任课老师</small>
             </div>
           </div>
           <div class="divider"></div>
@@ -74,7 +55,7 @@
 </template>
 
 <script setup>
-import { Compass, DataBoard, Files, Key, Link, School, User } from '@element-plus/icons-vue'
+import { Files } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -111,7 +92,7 @@ function onLogout() {
   height: 30px;
   border-radius: 7px;
   color: #fff;
-  background: #2f5bff;
+  background: #0d9488;
   font-weight: 700;
   font-size: 14px;
 }
@@ -130,29 +111,22 @@ function onLogout() {
   font-size: 13.5px;
 }
 :deep(.el-menu-item:hover) { color: #d6deeb; background: rgba(255,255,255,0.05); }
-:deep(.el-menu-item.is-active) {
-  color: #fff;
-  background: rgba(255,255,255,0.08);
-  font-weight: 600;
-  position: relative;
-}
-:deep(.el-menu-item.is-active)::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 8px; bottom: 8px;
-  width: 2.5px; border-radius: 999px;
-  background: #5b7cff;
-}
+:deep(.el-menu-item.is-active) { color: #fff; background: rgba(255,255,255,0.08); font-weight: 600; }
 :deep(.el-menu-item .el-icon) { font-size: 15px; margin-right: 9px; }
-.switch-block { padding: 12px 10px; border-top: 1px solid var(--side-line); }
-.switch-btn {
-  width: 100%;
+.subject-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 10px 12px;
+  padding: 10px 12px;
+  border: 1px solid #2a3550;
+  border-radius: 10px;
   background: #1a2233;
-  border-color: #2a3550;
-  color: #c8d2e3;
-  font-size: 13px;
 }
-.switch-btn:hover { background: #212e4a; color: #fff; }
+.subject-dot { width: 8px; height: 8px; margin-top: 4px; border-radius: 999px; background: #14b8a6; flex-shrink: 0; }
+.subject-text { display: grid; gap: 2px; }
+.subject-text strong { color: #e8ecf3; font-size: 12.5px; }
+.subject-text small { color: #8a97ad; font-size: 11px; line-height: 1.5; }
 .main-container { min-width: 0; display: flex; flex-direction: column; }
 .header {
   position: sticky; top: 0; z-index: 10;
@@ -167,7 +141,7 @@ function onLogout() {
 .user-profile { display: flex; align-items: center; gap: 9px; }
 .avatar-badge {
   width: 30px; height: 30px; border-radius: 999px;
-  background: #eef2ff; color: #2f5bff; border: 1px solid #dfe6ff;
+  background: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4;
   display: grid; place-items: center; font-weight: 600; font-size: 12.5px;
 }
 .user-meta { display: flex; flex-direction: column; }
@@ -175,10 +149,10 @@ function onLogout() {
 .user-role-text { font-size: 11px; color: var(--ink-muted); }
 .divider { width: 1px; height: 16px; background: var(--line); }
 .logout-btn { color: #6b778d; font-size: 13px; }
-.workspace { flex: 1; min-width: 0; padding: 0; overflow-x: hidden; overflow-y: auto; background: var(--app-bg); }
+.workspace { flex: 1; min-width: 0; padding: 20px 22px; overflow-x: hidden; overflow-y: auto; background: var(--app-bg); }
 @media (max-width: 900px) {
   .aside { width: 60px !important; }
-  .brand-copy, .nav-label, .switch-block, .user-meta { display: none; }
+  .brand-copy, .nav-label, .subject-note, .user-meta { display: none; }
   .brand { justify-content: center; padding: 0; }
   :deep(.el-menu-item) { justify-content: center; padding: 0 !important; margin: 1px 6px; }
   :deep(.el-menu-item span) { display: none; }

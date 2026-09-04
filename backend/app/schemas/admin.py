@@ -38,6 +38,7 @@ class AdminStats(BaseModel):
     parent_count: int
     deyu_director_count: int = 0
     consultant_count: int = 0
+    subject_teacher_count: int = 0
     class_count: int
     # 兼容旧前端，仍保留但前端已不再展示；底层已回退到 StudentCase / WeeklyTestScore
     assignment_count: int = 0
@@ -74,4 +75,22 @@ class ConsultantLinkOut(ConsultantLinkCreate):
     consultant_username: str = ""
     student_name: str = ""
     student_username: str = ""
+    student_channel: str = ""
+    created_at: datetime
+
+
+class ClassTeacherLinkCreate(BaseModel):
+    class_id: int
+    teacher_id: int
+    subject: str = Field(min_length=1, max_length=32)
+
+
+class ClassTeacherLinkOut(ClassTeacherLinkCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    role: str = ""
+    teacher_name: str = ""
+    teacher_username: str = ""
+    class_name: str = ""
     created_at: datetime

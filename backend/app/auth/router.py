@@ -19,7 +19,7 @@ from app.models.invite import (
     InviteCode,
 )
 from app.models.student_case import StudentCase
-from app.models.user import ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.user import ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.models.user_external_identity import UserExternalIdentity
 from app.schemas.admin import RegisterRequest
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
@@ -162,8 +162,8 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
     if body.invite_code:
         if not body.username or not body.password or not body.role:
             raise HTTPException(status_code=400, detail="邀请码注册需提供 username/password/role")
-        if body.role not in (ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_STUDENT, ROLE_PARENT):
-            raise HTTPException(status_code=400, detail="仅支持注册班主任、德育主任、咨询老师、学生或家长账号")
+        if body.role not in (ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
+            raise HTTPException(status_code=400, detail="仅支持注册班主任、德育主任、咨询老师、任课老师、学生或家长账号")
         if db.query(User).filter(User.username == body.username).first():
             raise HTTPException(status_code=409, detail="用户名已存在")
         invite = (
@@ -327,9 +327,9 @@ def me_children(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    """公开注册：班主任、德育主任、咨询老师、学生或家长必须使用对应角色的邀请码。"""
-    if body.role not in (ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_STUDENT, ROLE_PARENT):
-        raise HTTPException(status_code=400, detail="仅支持注册班主任、德育主任、咨询老师、学生或家长账号")
+    """公开注册：班主任、德育主任、咨询老师、任课老师、学生或家长必须使用对应角色的邀请码。"""
+    if body.role not in (ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
+        raise HTTPException(status_code=400, detail="仅支持注册班主任、德育主任、咨询老师、任课老师、学生或家长账号")
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=409, detail="用户名已存在")
 

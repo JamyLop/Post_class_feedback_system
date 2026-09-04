@@ -173,6 +173,8 @@ class CaseTaskCreate(BaseModel):
     cadence: Literal["daily", "weekly", "monthly"]
     starts_on: date
     due_on: date
+    # 满分积分/权重：每日打卡按完成率折算
+    points: int = Field(default=10, ge=1, le=1000)
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -185,6 +187,7 @@ class CaseTaskOut(CaseTaskCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
     student_case_id: int
+    version: int = 1
     status: str
     created_by: int
 
@@ -192,6 +195,8 @@ class CaseTaskOut(CaseTaskCreate):
 class TaskCheckinCreate(BaseModel):
     completion_rate: int = Field(ge=0, le=100)
     self_check: str = Field(default="", max_length=2000)
+    # 每日记录日期：班主任代记哪一天的执行，缺省为当天
+    log_date: date | None = None
 
 
 class TaskCheckinOut(TaskCheckinCreate):
@@ -199,6 +204,7 @@ class TaskCheckinOut(TaskCheckinCreate):
     id: int
     task_id: int
     student_id: int
+    earned_points: float = 0.0
     checked_in_at: datetime
 
 

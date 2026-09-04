@@ -14,3 +14,6 @@ export const deleteGuardianLink = (id) => http.delete(`/admin/guardian-links/${i
 export const listConsultantLinks = () => http.get('/admin/consultant-links')
 export const createConsultantLink = (data) => http.post('/admin/consultant-links', data)
 export const deleteConsultantLink = (id) => http.delete(`/admin/consultant-links/${id}`)
+export const listClassTeacherLinks = () => http.get('/admin/class-teacher-links')
+export const createClassTeacherLink = (data) => http.post('/admin/class-teacher-links', data)
+export const deleteClassTeacherLink = (id) => http.delete(`/admin/class-teacher-links/${id}`)

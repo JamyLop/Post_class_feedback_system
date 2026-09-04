@@ -6,6 +6,7 @@
       <el-table-column prop="consultant_username" label="教师账号" min-width="150" />
       <el-table-column prop="student_name" label="学生" min-width="140" />
       <el-table-column prop="student_username" label="学号" min-width="170" />
+      <el-table-column prop="student_channel" label="渠道" min-width="140" />
       <el-table-column label="操作" width="100"><template #default="{ row }"><el-button link type="danger" @click="remove(row)">解除关联</el-button></template></el-table-column>
     </el-table></div>
     <el-dialog v-model="visible" title="新增咨询老师关联" width="460px"><el-form label-position="top">
@@ -22,7 +23,7 @@ import { listUsers } from '../../api/users'
 const links = ref([]); const teachers = ref([]); const students = ref([]); const loading = ref(false); const visible = ref(false)
 const form = reactive({ consultant_id: null, student_id: null })
 async function load() { loading.value = true; try { links.value = await listConsultantLinks() } finally { loading.value = false } }
-async function openCreate() { Object.assign(form, { consultant_id: null, student_id: null }); [teachers.value, students.value] = await Promise.all([listUsers('teacher'), listUsers('student')]); visible.value = true }
+async function openCreate() { Object.assign(form, { consultant_id: null, student_id: null }); const [teachersOnly, consultants, studentsList] = await Promise.all([listUsers('teacher'), listUsers('consultant').catch(() => []), listUsers('student')]); teachers.value = [...teachersOnly, ...consultants]; students.value = studentsList; visible.value = true }
 async function save() { if (!form.consultant_id || !form.student_id) return ElMessage.warning('请选择咨询老师和学生'); await createConsultantLink({ ...form }); ElMessage.success('咨询老师关联已建立'); visible.value = false; load() }
 async function remove(row) { try { await ElMessageBox.confirm(`确认解除「${row.consultant_name}」与「${row.student_name}」的关联？`, '解除关联', { type: 'warning' }) } catch { return }; await deleteConsultantLink(row.id); ElMessage.success('关联已解除'); load() }
 onMounted(load)

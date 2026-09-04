@@ -94,15 +94,17 @@ const cards = computed(() => [
 const rolePieOption = computed(() => {
   const d = stats.value
   const data = [
-    { value: d.teacher_count || 0, name: '教师' },
+    { value: d.teacher_count || 0, name: '班主任' },
+    { value: d.subject_teacher_count || 0, name: '任课老师' },
     { value: d.student_count || 0, name: '学生' },
     { value: d.parent_count || 0, name: '家长' },
     { value: d.admin_count || 0, name: '校级管理' },
     { value: d.deyu_director_count || 0, name: '德育主任' },
+    { value: d.consultant_count || 0, name: '咨询老师' },
   ].filter(i => i.value > 0)
   return {
     tooltip: { trigger: 'item' },
-    color: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'],
+    color: ['#3b82f6', '#14b8a6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'],
     series: [{
       type: 'pie',
       radius: ['52%', '78%'],

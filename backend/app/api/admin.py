@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import require_roles
 from app.core.database import get_db
 from app.models.assignment import Assignment
-from app.models.class_ import Class, StudentGuardian, StudentConsultant
+from app.models.class_ import Class, ClassTeacher, StudentGuardian, StudentConsultant
 from app.models.invite import (
     INVITE_STATUS_ACTIVE,
     INVITE_STATUS_DISABLED,
@@ -22,6 +22,7 @@ from app.models.user import (
     ROLE_DEYU_DIRECTOR,
     ROLE_PARENT,
     ROLE_STUDENT,
+    ROLE_SUBJECT_TEACHER,
     ROLE_TEACHER,
     ROLES,
     User,
@@ -30,6 +31,8 @@ from sqlalchemy.exc import ProgrammingError
 
 from app.schemas.admin import (
     AdminStats,
+    ClassTeacherLinkCreate,
+    ClassTeacherLinkOut,
     GuardianLinkCreate,
     GuardianLinkOut,
     ConsultantLinkCreate,
@@ -93,6 +96,7 @@ def admin_stats(db: Session = Depends(get_db), admin: User = Depends(_admin_only
         parent_count=counts[ROLE_PARENT],
         deyu_director_count=counts.get(ROLE_DEYU_DIRECTOR, 0),
         consultant_count=counts.get(ROLE_CONSULTANT, 0),
+        subject_teacher_count=counts.get(ROLE_SUBJECT_TEACHER, 0),
         class_count=_safe_count(db, Class),
         assignment_count=_safe_count(db, Assignment, fallback_model=StudentCase),
         submission_count=_safe_count(db, Submission, fallback_model=WeeklyTestScore),
@@ -106,9 +110,9 @@ def create_invite_code(
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
-    """创建邀请码：支持班主任、德育主任、咨询老师、学生和家长，校长账号不开放自助注册。"""
+    """创建邀请码：支持班主任、德育主任、咨询老师、任课老师、学生和家长，校长账号不开放自助注册。"""
     if body.role not in ROLES or body.role == ROLE_ADMIN:
-        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、deyu_director、consultant、student 或 parent")
+        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、deyu_director、consultant、subject_teacher、student 或 parent")
     code = _generate_code()
     # 保证生成的邀请码在库中唯一
     while db.query(InviteCode).filter(InviteCode.code == code).first():
@@ -222,6 +226,7 @@ def _consultant_out(db: Session, link: StudentConsultant) -> dict:
         "consultant_username": consultant.username if consultant else "",
         "student_name": student.name if student else "",
         "student_username": student.username if student else "",
+        "student_channel": getattr(student, "channel", "") or "" if student else "",
     }
 
 
@@ -252,6 +257,54 @@ def delete_consultant_link(link_id: int, db: Session = Depends(get_db), admin: U
     link = db.get(StudentConsultant, link_id)
     if link is None:
         raise HTTPException(status_code=404, detail="咨询老师与学生关系不存在")
+    db.delete(link)
+    db.commit()
+    return {"ok": True}
+
+
+def _class_teacher_out(db: Session, link: ClassTeacher) -> dict:
+    teacher = db.get(User, link.teacher_id)
+    cls = db.get(Class, link.class_id)
+    return {
+        **ClassTeacherLinkOut.model_validate(link).model_dump(),
+        "teacher_name": teacher.name if teacher else "",
+        "teacher_username": teacher.username if teacher else "",
+        "class_name": cls.name if cls else "",
+    }
+
+
+@router.get("/class-teacher-links", response_model=list[ClassTeacherLinkOut])
+def list_class_teacher_links(db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
+    """任课关系列表：班级—任课老师—学科，用于划定任课老师可见范围。"""
+    return [_class_teacher_out(db, link) for link in db.query(ClassTeacher).order_by(ClassTeacher.id.desc()).all()]
+
+
+@router.post("/class-teacher-links", response_model=ClassTeacherLinkOut)
+def create_class_teacher_link(body: ClassTeacherLinkCreate, db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
+    """为班级分配任课老师与所带学科；同一班级+老师+学科不可重复分配。"""
+    teacher = db.get(User, body.teacher_id)
+    cls = db.get(Class, body.class_id)
+    if teacher is None or teacher.role != ROLE_SUBJECT_TEACHER:
+        raise HTTPException(status_code=400, detail="所选账号不是任课老师")
+    if cls is None:
+        raise HTTPException(status_code=404, detail="班级不存在")
+    subject = body.subject.strip()
+    if not subject:
+        raise HTTPException(status_code=400, detail="请填写所带学科")
+    if db.query(ClassTeacher).filter_by(class_id=body.class_id, teacher_id=body.teacher_id, subject=subject).first():
+        raise HTTPException(status_code=409, detail="该任课老师已分配此班级此学科")
+    link = ClassTeacher(class_id=body.class_id, teacher_id=body.teacher_id, role="subject_teacher", subject=subject)
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return _class_teacher_out(db, link)
+
+
+@router.delete("/class-teacher-links/{link_id}")
+def delete_class_teacher_link(link_id: int, db: Session = Depends(get_db), admin: User = Depends(_admin_only)):
+    link = db.get(ClassTeacher, link_id)
+    if link is None:
+        raise HTTPException(status_code=404, detail="任课关系不存在")
     db.delete(link)
     db.commit()
     return {"ok": True}

@@ -15,7 +15,9 @@
         <el-radio-group v-model="role" @change="load">
           <el-radio-button value="student">学生 (在校)</el-radio-button>
           <el-radio-button value="teacher">任课与班主任</el-radio-button>
+          <el-radio-button value="subject_teacher">任课老师</el-radio-button>
           <el-radio-button value="deyu_director">德育主任</el-radio-button>
+          <el-radio-button value="consultant">咨询老师</el-radio-button>
           <el-radio-button value="parent">家长账户</el-radio-button>
           <el-radio-button value="admin">校级管理/校长</el-radio-button>
         </el-radio-group>
@@ -41,6 +43,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="username" label="登录用户名" min-width="140" />
+        <el-table-column prop="channel" label="渠道" min-width="120" />
         <el-table-column prop="role" label="系统角色" width="130">
           <template #default="{ row }">
             <span class="role-badge">{{ roleLabel(row.role) }}</span>
@@ -57,7 +60,7 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button
-              v-if="row.role === 'student' || row.role === 'teacher' || row.role === 'deyu_director' || row.role === 'parent'"
+              v-if="row.role === 'student' || row.role === 'teacher' || row.role === 'subject_teacher' || row.role === 'deyu_director' || row.role === 'consultant' || row.role === 'parent'"
               link
               :type="row.status === 'active' ? 'warning' : 'success'"
               @click="toggleStatus(row)"
@@ -83,7 +86,9 @@
           <el-radio-group v-model="form.role" :disabled="editing">
             <el-radio value="student">学生</el-radio>
             <el-radio value="teacher">班主任</el-radio>
+            <el-radio value="subject_teacher">任课老师</el-radio>
             <el-radio value="deyu_director">德育主任</el-radio>
+            <el-radio value="consultant">咨询老师</el-radio>
             <el-radio value="parent">家长</el-radio>
             <el-radio value="admin">校长</el-radio>
           </el-radio-group>
@@ -93,6 +98,9 @@
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="form.name" placeholder="姓名" />
+        </el-form-item>
+        <el-form-item v-if="form.role === 'student'" label="渠道">
+          <el-input v-model="form.channel" placeholder="生源渠道（选填）" />
         </el-form-item>
         <el-form-item :label="editing ? '新密码' : '密码'">
           <el-input v-model="form.password" type="password" show-password :placeholder="editing ? '留空则不修改' : '密码（至少6位）'" />
@@ -121,10 +129,10 @@ const keyword = ref('')
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editing = ref(false)
-const form = reactive({ role: 'student', username: '', name: '', password: '' })
+const form = reactive({ role: 'student', username: '', name: '', password: '', channel: '' })
 
 function roleLabel(r) {
-  return { admin: '校长', teacher: '班主任', deyu_director: '德育主任', student: '学生', parent: '家长' }[r] || r
+  return { admin: '校长', teacher: '班主任', subject_teacher: '任课老师', deyu_director: '德育主任', consultant: '咨询老师', student: '学生', parent: '家长' }[r] || r
 }
 
 async function load() {
@@ -138,13 +146,13 @@ async function load() {
 
 function openCreate() {
   editing.value = false
-  Object.assign(form, { role: role.value === 'admin' ? 'student' : role.value, username: '', name: '', password: '' })
+  Object.assign(form, { role: role.value === 'admin' ? 'student' : role.value, username: '', name: '', password: '', channel: '' })
   dialogVisible.value = true
 }
 
 function openEdit(row) {
   editing.value = true
-  Object.assign(form, { role: row.role, username: row.username, name: row.name, password: '' })
+  Object.assign(form, { role: row.role, username: row.username, name: row.name, password: '', channel: row.channel || '' })
   dialogVisible.value = true
 }
 
@@ -161,6 +169,7 @@ async function onSubmit() {
     await updateUser(users.value.find((u) => u.username === form.username)?.id, {
       name: form.name,
       ...(form.password ? { password: form.password } : {}),
+      ...(form.role === 'student' ? { channel: form.channel || '' } : {}),
     })
   } else {
     await createUser({
@@ -168,6 +177,7 @@ async function onSubmit() {
       username: form.username,
       name: form.name,
       password: form.password,
+      ...(form.role === 'student' ? { channel: form.channel || '' } : {}),
     })
   }
   ElMessage.success('保存成功')

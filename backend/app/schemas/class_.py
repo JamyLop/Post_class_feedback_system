@@ -104,6 +104,7 @@ class StudentCreateAndEnroll(BaseModel):
     ethnicity: str = Field(default="", max_length=32, description="民族")
     grade: str = Field(default="", max_length=32, description="年级")
     source_school: str = Field(default="", max_length=128, description="生源地学校")
+    channel: str = Field(default="", max_length=64, description="生源渠道")
     enrollment_month: int = Field(default=7, ge=1, le=12, description="入学月份")
     seat_number: int = Field(ge=1, le=99, description="班级位号")
 
@@ -114,3 +115,4 @@ class ClassStudentOut(BaseModel):
     id: int
     username: str
     name: str
+    channel: str = ""

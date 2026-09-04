@@ -381,7 +381,7 @@
                 <span class="subject-task-count">{{ tasksFor(subject).length }}</span>
                 <el-icon><ArrowRight /></el-icon>
               </button>
-              <el-dropdown v-if="availableSubjects.length" class="subject-add" trigger="click" :disabled="editingPlan || editingTask || editingOverview" @command="addSubject">
+              <el-dropdown v-if="detail.can_manage && availableSubjects.length" class="subject-add" trigger="click" :disabled="editingPlan || editingTask || editingOverview" @command="addSubject">
                 <el-button link type="primary"><el-icon><Plus /></el-icon>添加学科</el-button>
                 <template #dropdown><el-dropdown-menu><el-dropdown-item v-for="subject in availableSubjects" :key="subject" :command="subject">{{ subject }}</el-dropdown-item></el-dropdown-menu></template>
               </el-dropdown>
@@ -400,7 +400,7 @@
                 </div>
               </header>
 
-              <section v-if="auth.role === 'teacher' && !detail.can_manage" class="teacher-suggestion-box">
+              <section v-if="(auth.role === 'teacher' && !detail.can_manage) || auth.role === 'subject_teacher'" class="teacher-suggestion-box">
                 <div><strong>学科建议</strong><span>提交后由班主任查看</span></div>
                 <el-input v-model="suggestionText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="填写对该生本学科方案的补充建议" />
                 <el-button type="primary" :loading="savingSuggestion" @click="saveSuggestion">提交学科建议</el-button>
@@ -445,12 +445,15 @@
                     <el-form-item label="开始日期"><el-date-picker v-model="taskForm.starts_on" type="date" value-format="YYYY-MM-DD" placeholder="选择开始日期" /></el-form-item>
                     <el-form-item label="截止日期"><el-date-picker v-model="taskForm.due_on" type="date" value-format="YYYY-MM-DD" placeholder="选择截止日期" /></el-form-item>
                   </div>
+                  <div class="task-form-grid task-points-grid">
+                    <el-form-item label="满分积分（权重）"><el-input-number v-model="taskForm.points" :min="1" :max="1000" :step="5" /><span class="points-hint">每日打卡按完成度折算得分</span></el-form-item>
+                  </div>
                   <div class="task-form-actions"><el-button :disabled="savingTask" @click="cancelTaskEdit">取消</el-button><el-button type="primary" :loading="savingTask" @click="saveTask">保存任务</el-button></div>
                 </el-form>
                 <div v-if="tasksFor(selectedSubject).length" class="task-list">
                   <article v-for="task in tasksFor(selectedSubject)" :key="task.id" class="task-row">
                     <div><strong>{{ task.title }}</strong><p>{{ task.description || '暂无补充说明' }}</p></div>
-                    <div class="task-side"><div class="task-meta"><span>{{ cadenceLabel(task.cadence) }}</span><span>{{ formatShortDate(task.starts_on) }} 至 {{ formatShortDate(task.due_on) }}</span><span>{{ taskStatusLabel(task.status) }}</span></div><el-button v-if="canEditTasks && !editingTask" link @click="startTaskEdit(task)">编辑任务</el-button></div>
+                    <div class="task-side"><div class="task-meta"><span>{{ cadenceLabel(task.cadence) }}</span><span>{{ formatShortDate(task.starts_on) }} 至 {{ formatShortDate(task.due_on) }}</span><span>{{ taskStatusLabel(task.status) }}</span><span>V{{ task.version || 1 }}阶段</span><span>{{ task.points || 0 }}分</span></div><el-button v-if="canEditTasks && !editingTask" link @click="startTaskEdit(task)">编辑任务</el-button></div>
                   </article>
                 </div>
                 <div v-else class="inline-empty"><p>该学科尚未安排日、周或月任务。</p></div>
@@ -463,20 +466,44 @@
                     <el-form-item label="对应任务"><el-select v-model="checkinForm.task_id" placeholder="选择要记录的任务"><el-option v-for="task in tasksFor(selectedSubject)" :key="task.id" :label="task.title" :value="task.id" /></el-select></el-form-item>
                     <el-form-item label="完成度"><el-input-number v-model="checkinForm.completion_rate" :min="0" :max="100" :step="10" /><span class="percent-suffix">%</span></el-form-item>
                   </div>
+                  <div class="checkin-form-grid checkin-date-grid">
+                    <el-form-item label="记录日期"><el-date-picker v-model="checkinForm.log_date" type="date" value-format="YYYY-MM-DD" placeholder="缺省为当天" /></el-form-item>
+                    <div class="expected-points">预计得分：<strong>{{ expectedCheckinPoints }}</strong></div>
+                  </div>
                   <el-form-item label="班主任记录"><el-input v-model="checkinForm.self_check" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="完整记录学生实际执行情况、发现的问题和后续要求" /></el-form-item>
                   <div class="task-form-actions"><el-button type="primary" :loading="savingCheckin" @click="saveCheckin">保存执行记录</el-button></div>
                 </el-form>
                 <div v-if="checkinsFor(selectedSubject).length" class="checkin-list">
                   <article v-for="checkin in checkinsFor(selectedSubject)" :key="checkin.id" class="checkin-row">
                     <div class="completion-rate"><strong>{{ checkin.completion_rate }}%</strong><span>完成度</span></div>
-                    <div><strong>{{ taskTitle(checkin.task_id) }}</strong><p>{{ checkin.self_check || '班主任未填写补充说明' }}</p><time>{{ formatDateTime(checkin.checked_in_at) }}</time></div>
+                    <div><strong>{{ taskTitle(checkin.task_id) }}</strong><p>{{ checkin.self_check || '班主任未填写补充说明' }}</p><time>{{ formatDateTime(checkin.checked_in_at) }} · 记录{{ checkin.log_date || '-' }} · 得 {{ checkin.earned_points ?? '-' }} 分</time></div>
                   </article>
                 </div>
                 <div v-else class="inline-empty"><p>该学科尚无执行记录，班主任核实任务执行情况后在此登记。</p></div>
               </section>
+
+              <section class="subject-section">
+                <div class="subject-section-heading"><div><el-icon><TrendCharts /></el-icon><h3>阶段完成度</h3></div><span>按总案版本记录 · 打卡后自动更新</span><el-button v-if="detail.can_manage" link type="primary" @click="rebuildStages">重算</el-button></div>
+                <div v-if="stageCompletions.length" class="stage-list">
+                  <article v-for="stage in stageCompletions" :key="stage.id" class="stage-row">
+                    <div class="stage-head"><strong>V{{ stage.version }}阶段</strong><span>{{ stage.completed_tasks }}/{{ stage.total_tasks }} 任务完成</span><span>积分 {{ stage.earned_points }}/{{ stage.total_points }}</span></div>
+                    <el-progress :percentage="Number(stage.avg_completion_rate) || 0" :stroke-width="8" />
+                  </article>
+                </div>
+                <div v-else class="inline-empty"><p>暂无阶段完成度记录，完成一次执行记录后自动生成。</p></div>
+              </section>
             </main>
           </div>
-          <div v-else class="empty-panel subject-empty"><h3>尚未建立学科方案</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p><div class="subject-create-actions"><el-button v-for="subject in subjectOrder" :key="subject" type="primary" plain @click="addSubject(subject)">新建{{ subject }}方案</el-button></div></div>
+          <div v-else class="empty-panel subject-empty">
+            <template v-if="detail.can_manage">
+              <h3>尚未建立学科方案</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p>
+              <div class="subject-create-actions"><el-button v-for="subject in subjectOrder" :key="subject" type="primary" plain @click="addSubject(subject)">新建{{ subject }}方案</el-button></div>
+            </template>
+            <template v-else>
+              <h3>{{ auth.role === 'subject_teacher' ? '所带学科暂未建立方案' : '尚未建立学科方案' }}</h3>
+              <p>{{ auth.role === 'subject_teacher' ? '班主任建立所带学科方案后，可在此查看并提交学科建议。' : '暂无可查看的学科方案。' }}</p>
+            </template>
+          </div>
         </el-tab-pane>
         <el-tab-pane v-if="auth.role !== 'parent'" label="督查复盘" name="reviews">
           <div v-if="canCreateReview" class="review-form-card">
@@ -519,7 +546,7 @@
               <div class="weekly-actions">
                 <el-select v-model="weeklySubject" placeholder="全部学科" clearable style="width: 140px" @change="loadWeekly"><el-option v-for="s in subjectOrder.slice(0,9)" :key="s" :label="s" :value="s" /></el-select>
                 <el-button @click="loadWeekly">刷新</el-button>
-                <el-button type="primary" plain @click="$router.push('/teacher/weekly-scores')">去录入</el-button>
+                <el-button v-if="auth.role !== 'subject_teacher'" type="primary" plain @click="$router.push('/teacher/weekly-scores')">去录入</el-button>
               </div>
             </div>
             <div v-if="weeklyRows.length" ref="weeklyChartRef" style="height: 260px; margin: 12px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px"></div>
@@ -540,19 +567,55 @@
               <div><strong>月度评价</strong><span>{{ monthlyRows.length }} 份</span></div>
               <div class="weekly-actions">
                 <el-button @click="loadMonthly">刷新</el-button>
-                <el-button type="primary" plain @click="$router.push('/teacher/monthly-reports')">去管理</el-button>
+                <el-button v-if="auth.role !== 'subject_teacher'" type="primary" plain @click="$router.push('/teacher/monthly-reports')">去管理</el-button>
               </div>
             </div>
             <el-table v-if="monthlyRows.length" :data="monthlyRows" style="margin-top:12px">
               <el-table-column prop="month_label" label="月份" width="110" />
               <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="monthlyStatusType(row.status)">{{ monthlyStatusText(row.status) }}</el-tag></template></el-table-column>
               <el-table-column label="摘要" min-width="300" show-overflow-tooltip><template #default="{ row }">{{ (row.final_content || row.ai_content || '').slice(0,80) }}</template></el-table-column>
-              <el-table-column label="操作" width="120"><template #default="{ row }"><el-button link type="primary" @click="$router.push('/teacher/monthly-reports')">查看</el-button></template></el-table-column>
+              <el-table-column v-if="auth.role !== 'subject_teacher'" label="操作" width="120"><template #default="{ row }"><el-button link type="primary" @click="$router.push('/teacher/monthly-reports')">查看</el-button></template></el-table-column>
             </el-table>
             <div v-else class="empty-panel"><h3>暂无月度评价</h3><p>班主任可在“月度评价”页面按月生成 AI 初稿，汇总学情与德育并给出改进方案。</p></div>
           </div>
         </el-tab-pane>
-        <el-tab-pane label="历史版本" name="versions"><div class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>正式调整后，旧版本将在这里保留并支持对比。</p></div></el-tab-pane>
+        <el-tab-pane label="历史版本" name="versions">
+          <div class="weekly-section">
+            <div class="weekly-header">
+              <div><strong>历史版本</strong><span>当前 V{{ detail.version }} · 已存 {{ versions.length }} 个快照</span></div>
+              <div class="weekly-actions"><el-button @click="loadVersions">刷新</el-button></div>
+            </div>
+            <div v-if="versionsLoading" class="empty-panel"><h3>正在读取历史版本…</h3></div>
+            <div v-else-if="!versions.length" class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>暂无历史快照。阶段复盘确认调整后，旧版本将在这里自动保留（含总体问题、升学目标、学科方案、任务与督查）。</p></div>
+            <div v-else class="version-layout">
+              <el-timeline class="review-timeline version-timeline">
+                <el-timeline-item v-for="v in versions" :key="v.id" :timestamp="formatDateTime(v.created_at)" :type="v.id === selectedVersionId ? 'primary' : ''">
+                  <div class="review-item version-item" :class="{ 'is-selected': v.id === selectedVersionId }" @click="selectedVersionId = v.id" style="cursor:pointer">
+                    <div class="review-item-head"><span class="review-level">V{{ v.version }} 快照</span><span v-if="v.snapshot?.case?.status" class="review-subject">{{ labels[v.snapshot.case.status] || v.snapshot.case.status }}</span></div>
+                    <p class="review-problem">{{ v.change_reason || '阶段复盘调整' }}</p>
+                    <p class="review-action">学科 {{ (v.snapshot?.subject_plans || []).length }} · 任务 {{ (v.snapshot?.tasks || []).length }} · 督查 {{ (v.snapshot?.reviews || []).length }}</p>
+                  </div>
+                </el-timeline-item>
+              </el-timeline>
+              <section v-if="selectedVersion" class="version-detail">
+                <header><strong>V{{ selectedVersion.version }} 版本详情</strong><small>{{ formatDateTime(selectedVersion.created_at) }} · {{ selectedVersion.change_reason || '阶段复盘调整' }}</small></header>
+                <article><span class="rail-label">总体问题</span><p>{{ selectedVersion.snapshot?.case?.overall_problem || '未记录' }}</p></article>
+                <article><span class="rail-label">升学目标</span><p>{{ selectedVersion.snapshot?.case?.admission_target || '未记录' }}</p></article>
+                <article><span class="rail-label">当前状态说明</span><p>{{ selectedVersion.snapshot?.case?.current_summary || '未记录' }}</p></article>
+                <article>
+                  <span class="rail-label">学科方案（{{ (selectedVersion.snapshot?.subject_plans || []).length }}）</span>
+                  <div v-for="p in (selectedVersion.snapshot?.subject_plans || [])" :key="p.id || p.subject" class="version-plan"><strong>{{ p.subject }}</strong><p>问题：{{ p.problem_location || '—' }}</p><p>目标：{{ p.struggle_goal || '—' }}</p></div>
+                  <p v-if="!(selectedVersion.snapshot?.subject_plans || []).length" class="placeholder-copy">该版本暂无学科方案。</p>
+                </article>
+                <article>
+                  <span class="rail-label">任务（{{ (selectedVersion.snapshot?.tasks || []).length }}）</span>
+                  <div v-for="t in (selectedVersion.snapshot?.tasks || [])" :key="t.id" class="version-plan"><strong>[{{ t.subject }}] {{ t.title }}</strong><p>{{ t.description || '暂无补充说明' }}</p></div>
+                  <p v-if="!(selectedVersion.snapshot?.tasks || []).length" class="placeholder-copy">该版本暂无任务。</p>
+                </article>
+              </section>
+            </div>
+          </div>
+        </el-tab-pane>
       </el-tabs>
 
       <el-dialog v-model="deyuDialogVisible" :title="deyuDecision === 'approved' ? '德育审查通过' : '退回班主任整改'" width="560px" destroy-on-close>
@@ -574,10 +637,10 @@
 <script setup>
 import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, View, WarningFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, TrendCharts, View, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, exportStudentCase, getStudentCase, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
+import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, exportStudentCase, getStudentCase, listCaseVersions, listStageCompletions, rebuildStageCompletion, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import { listMonthlyReports } from '../../api/monthlyReports'
 import { useAuthStore } from '../../stores/auth'
@@ -612,6 +675,10 @@ const weeklySubject = ref('')
 const weeklyChartRef = ref(null)
 let weeklyChart = null
 const monthlyRows = ref([])
+const versions = ref([])
+const versionsLoading = ref(false)
+const selectedVersionId = ref(null)
+const selectedVersion = computed(() => versions.value.find((v) => v.id === selectedVersionId.value) || versions.value[0] || null)
 const selectedSubject = ref('')
 const manualSubjects = ref([])
 const planForm = ref(createEmptyPlanForm())
@@ -620,7 +687,13 @@ const savingSuggestion = ref(false)
 const taskForm = ref(createEmptyTaskForm())
 const overviewForm = ref(createEmptyOverviewForm())
 const profileForm = ref(createEmptyProfileForm())
-const checkinForm = ref({ task_id: null, completion_rate: 0, self_check: '' })
+const checkinForm = ref({ task_id: null, completion_rate: 0, self_check: '', log_date: '' })
+const stageCompletions = ref([])
+const expectedCheckinPoints = computed(() => {
+  const task = detail.value?.tasks?.find((item) => item.id === checkinForm.value.task_id)
+  if (!task) return '-'
+  return `${Math.round(((task.points || 0) * (checkinForm.value.completion_rate || 0) / 100) * 100) / 100} / ${task.points || 0} 分`
+})
 const reviewForm = ref(createEmptyReviewForm())
 const labels = { draft: '草稿', pending_confirmation: '待确认', executing: '执行中', pending_review: '待复盘', adjusted: '已调整', archived: '已归档' }
 const gradeOptions = ['初一', '初二', '初三', '高一', '高二', '高三', '复读']
@@ -744,7 +817,7 @@ function createEmptyPlanForm() {
 
 function createEmptyTaskForm() {
   const today = new Date().toISOString().slice(0, 10)
-  return { title: '', description: '', cadence: 'daily', starts_on: today, due_on: today }
+  return { title: '', description: '', cadence: 'daily', starts_on: today, due_on: today, points: 10 }
 }
 
 function createEmptyOverviewForm() {
@@ -973,6 +1046,10 @@ function selectSubject(subject) {
 }
 
 function addSubject(subject) {
+  if (!detail.value?.can_manage) {
+    ElMessage.error('仅班主任可新建学科方案')
+    return
+  }
   if (!manualSubjects.value.includes(subject)) manualSubjects.value.push(subject)
   selectedSubject.value = subject
   startPlanEdit()
@@ -1035,6 +1112,7 @@ function startTaskEdit(task = null) {
     cadence: task.cadence || 'daily',
     starts_on: task.starts_on || '',
     due_on: task.due_on || '',
+    points: task.points ?? 10,
   } : createEmptyTaskForm()
 }
 
@@ -1067,6 +1145,7 @@ async function saveTask() {
     else detail.value.tasks.push(saved)
     cancelTaskEdit()
     ElMessage.success('任务已保存')
+    await loadStages()
   } finally {
     savingTask.value = false
   }
@@ -1268,6 +1347,22 @@ function checkinsFor(subject) {
   return detail.value?.task_checkins?.filter((item) => taskIds.has(item.task_id)) || []
 }
 
+async function loadStages() {
+  if (!detail.value?.id) return
+  try {
+    stageCompletions.value = await listStageCompletions(detail.value.id)
+  } catch {
+    stageCompletions.value = []
+  }
+}
+
+async function rebuildStages() {
+  if (!detail.value?.can_manage) return
+  await rebuildStageCompletion(detail.value.id)
+  await loadStages()
+  ElMessage.success('阶段完成度已重算')
+}
+
 async function saveCheckin() {
   if (!checkinForm.value.task_id) {
     ElMessage.warning('请选择对应任务')
@@ -1278,12 +1373,14 @@ async function saveCheckin() {
     const saved = await checkinCaseTask(checkinForm.value.task_id, {
       completion_rate: checkinForm.value.completion_rate,
       self_check: checkinForm.value.self_check,
+      log_date: checkinForm.value.log_date || undefined,
     })
     detail.value.task_checkins.unshift(saved)
     const task = detail.value.tasks.find((item) => item.id === saved.task_id)
     if (task) task.status = saved.completion_rate === 100 ? 'completed' : saved.completion_rate > 0 ? 'in_progress' : 'pending'
-    checkinForm.value = { task_id: null, completion_rate: 0, self_check: '' }
-    ElMessage.success('执行记录已保存')
+    checkinForm.value = { task_id: null, completion_rate: 0, self_check: '', log_date: '' }
+    ElMessage.success(`执行记录已保存，得 ${saved.earned_points ?? 0} 分`)
+    await loadStages()
   } finally {
     savingCheckin.value = false
   }
@@ -1342,10 +1439,25 @@ async function loadMonthly() {
   if (!detail.value) return
   monthlyRows.value = await listMonthlyReports({ student_id: detail.value.student_id })
 }
+async function loadVersions() {
+  if (!detail.value?.id) return
+  versionsLoading.value = true
+  try {
+    versions.value = await listCaseVersions(detail.value.id)
+    if (!selectedVersionId.value || !versions.value.some((v) => v.id === selectedVersionId.value)) {
+      selectedVersionId.value = versions.value[0]?.id || null
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || '历史版本读取失败')
+    versions.value = []
+  } finally {
+    versionsLoading.value = false
+  }
+}
 function monthlyStatusText(s) { return { generating:'生成中', generated:'待发布', published:'已发布', failed:'生成失败'}[s] || s }
 function monthlyStatusType(s) { return { generated:'warning', published:'success', failed:'danger'}[s] || 'info' }
 
-watch(active, (v) => { if (v === 'weekly') loadWeekly(); if (v === 'monthly') loadMonthly() })
+watch(active, (v) => { if (v === 'weekly') loadWeekly(); if (v === 'monthly') loadMonthly(); if (v === 'versions') loadVersions() })
 watch(weeklySubject, loadWeekly)
 
 async function load() {
@@ -1355,10 +1467,12 @@ async function load() {
     if (!subjectOptions.value.includes(selectedSubject.value)) selectedSubject.value = subjectOptions.value[0] || ''
     const firstTask = tasksFor(selectedSubject.value)[0]
     checkinForm.value.task_id = firstTask?.id || null
+    await loadStages()
     if (auth.role === 'admin') reviewForm.value.review_level = 'school'
     else if (detail.value?.can_manage) reviewForm.value.review_level = 'head_teacher'
     if (active.value === 'weekly') await loadWeekly()
     if (active.value === 'monthly') await loadMonthly()
+    if (active.value === 'versions') await loadVersions()
   } finally {
     loading.value = false
   }
@@ -1621,7 +1735,16 @@ onMounted(load)
 .subject-fields { margin: 0; }.subject-fields > div { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }.subject-fields > div:last-child { border-bottom: 0; }.subject-fields dt { color: var(--ink); font-size: 12.5px; font-weight: 700; white-space: nowrap; }.subject-fields dd { margin: 0; color: var(--ink-secondary); font-size: 13.5px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; text-wrap: pretty; }.plan-fields { margin-bottom: 14px; }
 .subject-edit-form { display: grid; gap: 2px; }.subject-edit-form :deep(.el-form-item) { margin-bottom: 14px; }.subject-edit-form :deep(.el-form-item:last-child) { margin-bottom: 0; }.subject-edit-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12.5px; font-weight: 700; line-height: 1.4; }.subject-edit-form :deep(.el-textarea__inner) { padding: 11px 13px; color: var(--ink); background: var(--surface-soft); border-color: var(--line); font-family: inherit; font-size: 13.5px; line-height: 1.7; resize: vertical; }.plan-edit-form { margin-bottom: 14px; }
 .task-list-heading { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--line); }.task-list-heading > div { display: flex; align-items: baseline; gap: 8px; }.task-list-heading strong { font-size: 12.5px; font-weight: 700; }.task-list-heading span { color: var(--ink-muted); font-size: 11.5px; background: var(--surface-soft); border: 1px solid var(--line); padding: 3px 7px; border-radius: 999px; }.task-edit-form { margin-top: 12px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; }.task-edit-form :deep(.el-form-item) { margin-bottom: 12px; }.task-edit-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; line-height: 1.4; }.task-edit-form :deep(.el-input), .task-edit-form :deep(.el-select), .task-edit-form :deep(.el-date-editor) { width: 100%; }.task-edit-form :deep(.el-textarea__inner) { line-height: 1.65; }.task-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }.task-form-actions { display: flex; justify-content: flex-end; gap: 8px; }.task-list { margin-top: 8px; }.task-row { display: flex; justify-content: space-between; gap: 20px; padding: 12px 0; border-bottom: 1px solid var(--line); }.task-row:last-child { border-bottom: 0; }.task-row strong { font-size: 13.5px; }.task-row p { margin: 4px 0 0; color: var(--ink-muted); font-size: 12px; white-space: pre-wrap; line-height: 1.6; }.task-side { display: grid; justify-items: end; align-content: start; gap: 6px; flex-shrink: 0; }.task-meta { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }.task-meta span { padding: 4px 7px; color: var(--ink-secondary); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 11px; font-weight: 600; }
-.checkin-form { margin-bottom: 14px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; }.checkin-form-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(160px, .9fr); gap: 14px; }.checkin-form :deep(.el-form-item) { margin-bottom: 12px; }.checkin-form :deep(.el-select) { width: 100%; }.checkin-form :deep(.el-form-item__label) { color: var(--ink); font-size: 12px; font-weight: 700; }.percent-suffix { margin-left: 6px; color: var(--ink-muted); font-weight: 600; }.checkin-list { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }.checkin-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; padding: 14px 16px; background: var(--surface); }.checkin-row:first-child { border-radius: 12px 12px 0 0; }.checkin-row:last-child { border-bottom: 0; }.completion-rate { display: grid; align-content: center; justify-items: center; min-height: 54px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); border-radius: 10px; box-shadow: 0 2px 8px color-mix(in oklch, var(--brand) 22%, transparent); }.completion-rate strong { font-size: 16px; }.completion-rate span { margin-top: 1px; font-size: 10px; opacity: .9; }.checkin-row > div:last-child > strong { font-size: 13.5px; }.checkin-row p { margin: 4px 0; color: var(--ink-secondary); line-height: 1.6; font-size: 13px; white-space: pre-wrap; }.checkin-row time { color: var(--ink-muted); font-size: 11px; }.inline-empty { margin-top: 12px; padding: 16px; color: var(--ink-muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; text-align: center; }.inline-empty p { margin: 0; font-size: 12.5px; }
+.checkin-form { margin-bottom: 14px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; }
+.task-points-grid { grid-template-columns: minmax(0, 1fr); }
+.points-hint { color: var(--ink-muted); font-size: 12px; margin-left: 8px; }
+.checkin-date-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; }
+.expected-points { color: var(--ink-muted); font-size: 13px; padding-bottom: 10px; }
+.expected-points strong { color: var(--ink); }
+.stage-list { display: flex; flex-direction: column; gap: 12px; }
+.stage-row { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.stage-head { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; margin-bottom: 8px; font-size: 13px; color: var(--ink-muted); }
+.stage-head strong { color: var(--ink); font-size: 13.5px; }.checkin-form-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(160px, .9fr); gap: 14px; }.checkin-form :deep(.el-form-item) { margin-bottom: 12px; }.checkin-form :deep(.el-select) { width: 100%; }.checkin-form :deep(.el-form-item__label) { color: var(--ink); font-size: 12px; font-weight: 700; }.percent-suffix { margin-left: 6px; color: var(--ink-muted); font-weight: 600; }.checkin-list { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }.checkin-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; padding: 14px 16px; background: var(--surface); }.checkin-row:first-child { border-radius: 12px 12px 0 0; }.checkin-row:last-child { border-bottom: 0; }.completion-rate { display: grid; align-content: center; justify-items: center; min-height: 54px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); border-radius: 10px; box-shadow: 0 2px 8px color-mix(in oklch, var(--brand) 22%, transparent); }.completion-rate strong { font-size: 16px; }.completion-rate span { margin-top: 1px; font-size: 10px; opacity: .9; }.checkin-row > div:last-child > strong { font-size: 13.5px; }.checkin-row p { margin: 4px 0; color: var(--ink-secondary); line-height: 1.6; font-size: 13px; white-space: pre-wrap; }.checkin-row time { color: var(--ink-muted); font-size: 11px; }.inline-empty { margin-top: 12px; padding: 16px; color: var(--ink-muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; text-align: center; }.inline-empty p { margin: 0; font-size: 12.5px; }
 .review-form-card { margin-bottom: 16px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-form-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.review-form-header strong { font-size: 14px; font-weight: 750; letter-spacing: -.01em; }.review-form-header span { color: var(--ink-muted); font-size: 11.5px; }.review-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }.review-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; }.review-form :deep(.el-select), .review-form :deep(.el-date-editor) { width: 100%; }.review-form :deep(.el-input__wrapper), .review-form :deep(.el-textarea__inner) { border-radius: 10px; }.review-form-actions { display: flex; justify-content: flex-end; }
 .review-item-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }.review-level { padding: 4px 8px; color: #fff; background: var(--brand); border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }.review-level.is-school { background: #7c3aed; }.review-level.is-principal { background: #be123c; }.review-level.is-head_teacher { background: var(--brand); }.review-level.is-subject { background: #0ea5e9; }.review-subject, .review-due { padding: 4px 8px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; }.review-problem { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }.review-action, .review-recheck { margin: 6px 0 0; color: var(--ink-secondary); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; background: var(--surface-soft); border: 1px solid var(--line); padding: 8px 10px; border-radius: 10px; }
 .review-timeline { padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-timeline :deep(.el-timeline-item__node) { border-color: var(--brand); background: var(--brand-soft); }.review-timeline :deep(.el-timeline-item__timestamp) { font-size: 11.5px; }
@@ -1635,4 +1758,16 @@ onMounted(load)
 @media (max-width: 940px) { .subject-workspace { grid-template-columns: 1fr; }.subject-nav { display: flex; overflow-x: auto; }.subject-nav-heading { display: none; }.subject-nav-item { flex: 0 0 168px; border-bottom: 0; border-right: 1px solid var(--line); }.subject-nav-item:last-child { border-right: 0; } }
 @media (max-width: 760px) { .case-header, .title-line, .profile-card-header { align-items: flex-start; flex-direction: column; }.title-line { gap: 4px; }.title-line h1 { font-size: 27px; }.case-actions, .profile-actions { width: 100%; flex-wrap: wrap; }.case-actions :deep(.el-button), .profile-actions :deep(.el-button) { flex: 1; }.case-tabs :deep(.el-tabs__item) { padding: 0 14px; }.profile-card-header, .profile-section, .profile-form-block, .content-section { padding-left: 20px; padding-right: 20px; }.profile-grid, .profile-form-grid { grid-template-columns: 1fr; }.profile-grid .profile-wide, .profile-form-wide { grid-column: auto; }.insight-row, .target-row, .overview-edit-row, .overview-edit-row.is-target { grid-template-columns: 1fr; gap: 8px; }.case-rail { grid-template-columns: 1fr; }.rail-section + .rail-section { border-left: 0; border-top: 1px solid var(--line); }.subject-detail-header, .subject-section-heading, .task-row { align-items: flex-start; flex-direction: column; }.subject-detail-header, .subject-section { padding-left: 20px; padding-right: 20px; }.subject-header-actions { width: 100%; flex-wrap: wrap; }.subject-counts { width: 100%; flex-wrap: wrap; }.editing-note { padding-left: 20px; padding-right: 20px; }.subject-fields > div { grid-template-columns: 1fr; gap: 7px; }.task-form-grid, .review-form-grid { grid-template-columns: 1fr; }.task-side { justify-items: start; }.task-meta { flex-wrap: wrap; }.checkin-row { grid-template-columns: 62px minmax(0, 1fr); } }
 @media (max-width: 760px) { .target-list { margin-right: -20px; margin-left: -20px; }.target-row { grid-template-columns: 1fr 18px; gap: 6px 8px; padding-right: 20px; padding-left: 20px; }.target-row > span, .target-row > p { grid-column: 1; }.target-row > .el-icon { grid-column: 2; grid-row: 1 / span 2; }.target-progress-panel { padding-right: 8px; padding-left: 8px; }.goal-axis { padding: 12px 8px 10px; }.goal-axis-legend { gap: 12px; }.goal-axis-rows { gap: 26px; }.goal-axis-row, .goal-axis-scale { grid-template-columns: 30px minmax(0, 1fr) 70px; gap: 7px; }.goal-subject { font-size: 11px; }.goal-task-copy { max-width: 100%; font-size: 9.5px; }.goal-score-copy strong { font-size: 12px; }.goal-score-copy span { font-size: 9px; }.goal-score-copy em { padding: 1px 4px; font-size: 9px; }.goal-axis-scale i { font-size: 8.5px; }.gaokao-timeline { padding-right: 8px; padding-left: 8px; }.gaokao-timeline > header { align-items: flex-start; flex-direction: column; gap: 3px; } }
+.version-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; margin-top: 14px; align-items: start; }
+.version-timeline { margin: 0; }
+.version-item.is-selected { border-color: var(--brand); background: var(--brand-soft); }
+.version-detail { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 14px; }
+.version-detail header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.version-detail header strong { font-size: 14px; }
+.version-detail header small { color: var(--ink-muted); font-size: 11.5px; }
+.version-detail article p { margin: 6px 0 0; color: var(--ink-secondary); font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+.version-plan { margin-top: 8px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.version-plan strong { font-size: 12.5px; }
+.version-plan p { margin: 4px 0 0 !important; font-size: 12px !important; }
+@media (max-width: 940px) { .version-layout { grid-template-columns: 1fr; } }
 </style>
