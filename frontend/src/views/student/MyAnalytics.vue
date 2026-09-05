@@ -1,27 +1,43 @@
 <template>
-  <div class="page">
+  <div class="page student-analytics-page">
     <div class="page-header">
-      <span class="page-title">我的学情</span>
+      <div>
+        <h1 class="page-title">我的学情与知识掌握</h1>
+        <p class="header-desc">跟踪个人课后作业得分走势、知识点熟练度雷达与核心攻坚薄弱点。</p>
+      </div>
     </div>
 
     <el-row :gutter="16" style="margin-bottom: 16px">
-      <el-col :span="14">
-        <el-card shadow="never">
-          <template #header>我的成绩趋势</template>
+      <el-col :span="15">
+        <el-card shadow="never" class="analytics-card">
+          <template #header>
+            <div class="card-head-title">
+              <span class="dot"></span>
+              <span>作业成绩走势</span>
+            </div>
+          </template>
           <EChart v-if="trendOption" :option="trendOption" />
           <el-empty v-else description="暂无已确认的作业成绩" :image-size="60" />
         </el-card>
       </el-col>
-      <el-col :span="10">
-        <el-card shadow="never">
-          <template #header>薄弱知识点 TOP 5</template>
+      <el-col :span="9">
+        <el-card shadow="never" class="analytics-card">
+          <template #header>
+            <div class="card-head-title">
+              <span class="dot is-warning"></span>
+              <span>待攻坚薄弱点 TOP 5</span>
+            </div>
+          </template>
           <el-empty v-if="!weakPoints.length" description="暂无薄弱点" :image-size="60" />
           <el-table v-else :data="weakPoints" size="small">
             <el-table-column prop="name" label="知识点" show-overflow-tooltip />
             <el-table-column label="掌握度" width="120">
               <template #default="{ row }">
-                <el-progress :percentage="Math.round(row.mastery_score * 100)" :stroke-width="10"
-                  :status="row.mastery_score < 0.6 ? 'exception' : row.mastery_score < 0.85 ? 'warning' : 'success'" />
+                <el-progress
+                  :percentage="Math.round(row.mastery_score * 100)"
+                  :stroke-width="8"
+                  :status="row.mastery_score < 0.6 ? 'exception' : row.mastery_score < 0.85 ? 'warning' : 'success'"
+                />
               </template>
             </el-table-column>
           </el-table>
@@ -29,8 +45,13 @@
       </el-col>
     </el-row>
 
-    <el-card shadow="never">
-      <template #header>知识点掌握度</template>
+    <el-card shadow="never" class="analytics-card">
+      <template #header>
+        <div class="card-head-title">
+          <span class="dot"></span>
+          <span>学科知识点掌握度矩阵</span>
+        </div>
+      </template>
       <EChart v-if="masteryOption" :option="masteryOption" />
       <el-empty v-else description="暂无知识点掌握度数据，待教师确认批改后自动生成" :image-size="60" />
     </el-card>
@@ -109,3 +130,57 @@ onMounted(async () => {
   trend.value = t
 })
 </script>
+
+<style scoped>
+.student-analytics-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.page-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.header-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.analytics-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+.card-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2f5bff;
+}
+
+.dot.is-warning {
+  background: #d97706;
+}
+</style>

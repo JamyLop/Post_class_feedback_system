@@ -1,3 +1,5 @@
+"""反馈生成异步任务：基于快照调用 LLM 生成报告文本。"""
+
 import logging
 from datetime import datetime, timezone
 
@@ -22,6 +24,7 @@ def generate_feedback_report(self, report_id: int):
         report = db.scalar(
             select(FeedbackReport).where(FeedbackReport.id == report_id).with_for_update()
         )
+        # 已生成的报告直接跳过，避免重复生成
         if report is None or report.status == FEEDBACK_STATUS_GENERATED:
             return
         result = generate_feedback(report.input_snapshot)

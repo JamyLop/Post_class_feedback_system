@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
+# 反馈类型与状态
 FEEDBACK_TYPE_ASSIGNMENT = "assignment"
 FEEDBACK_TYPE_WEEKLY = "weekly"
 FEEDBACK_STATUS_GENERATING = "generating"
@@ -15,6 +16,8 @@ FEEDBACK_STATUS_FAILED = "failed"
 
 
 class FeedbackReport(Base):
+    """课后反馈报告表：输入快照 + AI 生成内容 + 教师审核发布状态。"""
+
     __tablename__ = "feedback_reports"
 
     id: Mapped[int] = mapped_column(primary_key=True)

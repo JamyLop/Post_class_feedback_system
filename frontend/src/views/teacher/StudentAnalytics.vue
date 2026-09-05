@@ -1,22 +1,31 @@
 <template>
-  <div class="page">
+  <div class="page student-analytics-page">
     <div class="page-header">
-      <span class="page-title">学生学情</span>
-      <el-button v-if="studentId" link type="primary" @click="onRecompute">重算掌握度</el-button>
+      <div>
+        <h1 class="page-title">个体学情精准诊断</h1>
+        <p class="header-desc">多维度分析学生课后作业得分趋势、知识点掌握度矩阵与典型重复错题。</p>
+      </div>
+      <el-button v-if="studentId" type="primary" plain @click="onRecompute">
+        <el-icon><RefreshRight /></el-icon>重算掌握度
+      </el-button>
     </div>
 
-    <el-form inline>
-      <el-form-item label="班级">
-        <el-select v-model="classId" placeholder="选择班级" @change="onClassChange" style="width: 200px">
-          <el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="学生">
-        <el-select v-model="studentId" placeholder="选择学生" filterable @change="load" style="width: 200px">
-          <el-option v-for="s in students" :key="s.id" :label="s.name" :value="s.id" />
-        </el-select>
-      </el-form-item>
-    </el-form>
+    <div class="filter-card">
+      <div class="filter-row">
+        <div class="filter-item">
+          <span class="filter-label">选择班级：</span>
+          <el-select v-model="classId" placeholder="选择班级" @change="onClassChange" style="width: 200px">
+            <el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </div>
+        <div class="filter-item">
+          <span class="filter-label">选择学生：</span>
+          <el-select v-model="studentId" placeholder="选择学生" filterable @change="load" style="width: 200px">
+            <el-option v-for="s in students" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </div>
+      </div>
+    </div>
 
     <template v-if="studentId">
       <el-row :gutter="16" style="margin-bottom: 16px">
@@ -174,3 +183,57 @@ onMounted(async () => {
   classes.value = await listClasses()
 })
 </script>
+
+<style scoped>
+.student-analytics-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.page-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.header-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.filter-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  box-shadow: none;
+  padding: 14px 18px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}
+</style>

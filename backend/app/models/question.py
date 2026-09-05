@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import TimestampMixin
 from app.core.database import Base
 
+# 支持的题型：客观题走规则，填空题走混合，主观题走 LLM
 QUESTION_TYPES = [
     "single_choice",
     "multiple_choice",
@@ -17,6 +18,8 @@ QUESTION_TYPES = [
 
 
 class Question(TimestampMixin, Base):
+    """题库表：题干、标准答案、题型与评分规则。"""
+
     __tablename__ = "questions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -35,6 +38,8 @@ class Question(TimestampMixin, Base):
 
 
 class QuestionKnowledgePoint(Base):
+    """题目-知识点关联表：每题的考点及权重。"""
+
     __tablename__ = "question_knowledge_points"
 
     question_id: Mapped[int] = mapped_column(

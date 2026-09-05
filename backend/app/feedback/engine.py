@@ -1,3 +1,8 @@
+"""课后反馈生成引擎：构建输入快照并调用 LLM 生成反馈文本。
+
+快照只包含脱敏的学情数据（student_alias 代替姓名），模型禁止编造数据。
+"""
+
 import json
 from datetime import date, datetime, time, timezone
 
@@ -19,10 +24,12 @@ SYSTEM_PROMPT = """你是一名严谨的教师助手。你只能依据提供的�
 
 
 def _json_safe(payload: dict) -> dict:
+    """确保快照可 JSON 序列化：datetime 等类型转字符串。"""
     return json.loads(json.dumps(payload, ensure_ascii=False, default=str))
 
 
 def _score(db: Session, submission: Submission) -> tuple[float, float, float]:
+    """统计某提交的总分/满分/得分百分比。"""
     answers = db.query(SubmissionAnswer).filter(
         SubmissionAnswer.submission_id == submission.id
     ).all()
@@ -35,6 +42,7 @@ def _score(db: Session, submission: Submission) -> tuple[float, float, float]:
 def build_assignment_snapshot(
     db: Session, student_id: int, class_id: int, assignment_id: int
 ) -> dict:
+    """构建单次作业反馈快照：分数、薄弱点、重复错误。"""
     assignment = db.get(Assignment, assignment_id)
     if assignment is None or assignment.class_id != class_id:
         raise ValueError("作业不属于指定班级")
@@ -78,6 +86,8 @@ def build_weekly_snapshot(
     period_start: date,
     period_end: date,
 ) -> dict:
+    """构建周反馈快照：周期内所有已确认作业得分与整体学情。"""
+    # 时间范围：起始日 00:00 ~ 结束日 23:59:59
     start_at = datetime.combine(period_start, time.min, tzinfo=timezone.utc)
     end_at = datetime.combine(period_end, time.max, tzinfo=timezone.utc)
     submissions = (
@@ -127,6 +137,7 @@ def build_weekly_snapshot(
 
 
 def generate_feedback(snapshot: dict) -> LLMResponse:
+    """调用 LLM 依据快照生成反馈文本，空结果报错、超长截断。"""
     user = """根据以下真实结构化学习数据生成反馈。
 要求：先说明本次或本周表现；指出1至3个薄弱知识点；说明重复错误（没有则明确暂无）；给出可执行的下一步建议。
 <feedback_data>

@@ -12,6 +12,7 @@ PARSE_MAX_RETRIES = 1
 
 
 def _extract_json_object(text: str) -> str:
+    """从 LLM 输出中截取 JSON 对象片段（容忍代码块包裹与前后文字）。"""
     text = text.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -35,6 +36,7 @@ def parse_and_validate(raw_text: str) -> AIGrading:
 
 
 def _clamp(grading: AIGrading) -> None:
+    """约束分数与置信度取值范围，避免模型越界输出。"""
     if grading.score is not None and grading.max_score is not None:
         grading.score = max(0.0, min(float(grading.max_score), float(grading.score)))
     grading.confidence = max(0.0, min(1.0, float(grading.confidence)))

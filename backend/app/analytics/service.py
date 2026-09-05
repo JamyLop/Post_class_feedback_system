@@ -9,8 +9,10 @@
 
 from datetime import datetime, timezone
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.models import Submission
 from app.models.assignment import (
     ASSIGNMENT_STATUS_CLOSED,
     ASSIGNMENT_STATUS_PUBLISHED,
@@ -47,11 +49,13 @@ DIST_LABELS = {
 
 def _compute_trend(records: list[StudentKnowledgeRecord]) -> str:
     """按作业聚合正确率，再比较前后两个时间阶段。"""
+    # 按作业分组，只统计有判定结果的记录
     assignments: dict[int, list[StudentKnowledgeRecord]] = {}
     for record in records:
         if record.is_correct is not None:
             assignments.setdefault(record.assignment_id, []).append(record)
     if len(assignments) < 2:
+        # 不足两个作业无法判断趋势
         return TREND_NEW
 
     rates = []
@@ -88,6 +92,7 @@ def recompute_student_stats(
 ) -> None:
     """按原始轨迹重算某学生的知识点聚合（默认全部；可指定知识点）。不提交事务。"""
     if kp_ids is None:
+        # 全量重算：合并轨迹中与聚合表中出现的所有知识点
         record_kp_ids = {
             r[0]
             for r in db.query(StudentKnowledgeRecord.knowledge_point_id)
@@ -116,30 +121,44 @@ def recompute_student_stats(
             )
             .all()
         )
+        if not records:
+            # 该知识点无轨迹但存在聚合行：删除残留聚合
+            stat = (
+                db.query(StudentKnowledgeStat)
+                .filter(
+                    StudentKnowledgeStat.student_id == student_id,
+                    StudentKnowledgeStat.knowledge_point_id == kp_id,
+                )
+                .first()
+            )
+            if stat is not None:
+                db.delete(stat)
+            continue
         correct = sum(1 for r in records if r.is_correct is True)
         wrong = sum(1 for r in records if r.is_correct is False)
         total = correct + wrong
         mastery = round(correct / total, 4) if total else 0.0
-        stat = (
-            db.query(StudentKnowledgeStat)
-            .filter(
-                StudentKnowledgeStat.student_id == student_id,
-                StudentKnowledgeStat.knowledge_point_id == kp_id,
-            )
-            .first()
+        # PostgreSQL upsert：并发重算同一 (student, kp) 时不会唯一键冲突
+        insert_stmt = pg_insert(StudentKnowledgeStat).values(
+            student_id=student_id,
+            knowledge_point_id=kp_id,
+            correct_count=correct,
+            wrong_count=wrong,
+            mastery_score=mastery,
+            trend=_compute_trend(records),
+            last_updated=datetime.now(timezone.utc),
         )
-        if not records:
-            if stat is not None:
-                db.delete(stat)
-            continue
-        if stat is None:
-            stat = StudentKnowledgeStat(student_id=student_id, knowledge_point_id=kp_id)
-            db.add(stat)
-        stat.correct_count = correct
-        stat.wrong_count = wrong
-        stat.mastery_score = mastery
-        stat.trend = _compute_trend(records)
-        stat.last_updated = datetime.now(timezone.utc)
+        stmt = insert_stmt.on_conflict_do_update(
+            constraint="student_knowledge_stats_student_id_knowledge_point_id_key",
+            set_={
+                "correct_count": insert_stmt.excluded.correct_count,
+                "wrong_count": insert_stmt.excluded.wrong_count,
+                "mastery_score": insert_stmt.excluded.mastery_score,
+                "trend": insert_stmt.excluded.trend,
+                "last_updated": insert_stmt.excluded.last_updated,
+            },
+        )
+        db.execute(stmt)
 
 
 def ensure_student_stats(db: Session, student_id: int) -> None:
@@ -163,6 +182,7 @@ def ensure_student_stats(db: Session, student_id: int) -> None:
 
 
 def _stat_rows(db: Session, student_id: int, kp_ids: list[int] | None = None):
+    """查询学生的聚合行并 join 知识点信息（可限定知识点）。"""
     q = (
         db.query(StudentKnowledgeStat, KnowledgePoint)
         .join(
@@ -177,6 +197,7 @@ def _stat_rows(db: Session, student_id: int, kp_ids: list[int] | None = None):
 
 
 def _scoped_student_stats(db: Session, student_id: int, class_id: int):
+    """按班级范围重算知识点掌握度（直接从轨迹聚合，不入聚合表）。"""
     records = (
         db.query(StudentKnowledgeRecord)
         .join(Assignment, Assignment.id == StudentKnowledgeRecord.assignment_id)
@@ -374,10 +395,12 @@ def get_student_repeated_errors(
 
 
 def _score_percent(total: float, max_total: float) -> float:
+    """得分百分比（满分 0 时返回 0）。"""
     return round(total / max_total * 100, 1) if max_total else 0.0
 
 
 def _bucket(percent: float) -> str:
+    """按百分比映射到成绩分布区间。"""
     if percent >= 90:
         return "ge90"
     if percent >= 80:
@@ -390,10 +413,12 @@ def _bucket(percent: float) -> str:
 
 
 def _empty_distribution() -> dict:
+    """全零成绩分布。"""
     return {k: 0 for k in DIST_BUCKETS}
 
 
-def _confirmed_submissions(db: Session, assignment_id: int) -> list[Submission]:
+def _confirmed_submissions(db: Session, assignment_id: int) -> list[type[Submission]]:
+    """某作业下所有已确认的提交。"""
     return (
         db.query(Submission)
         .filter(
@@ -479,11 +504,13 @@ def get_assignment_analysis(db: Session, assignment_id: int):
 
 
 def _sub_total(db: Session, sub: Submission) -> float:
+    """某提交各题得分之和。"""
     answers = db.query(SubmissionAnswer).filter(SubmissionAnswer.submission_id == sub.id).all()
     return sum(a.score or 0 for a in answers)
 
 
 def _sub_max(db: Session, sub: Submission) -> float:
+    """某提交各题满分之和。"""
     answers = db.query(SubmissionAnswer).filter(SubmissionAnswer.submission_id == sub.id).all()
     return sum(a.max_score or 0 for a in answers)
 

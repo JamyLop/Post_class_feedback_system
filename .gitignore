@@ -30,3 +30,6 @@ deploy/certs/
 
 # 本地文件存储（开发期替代 MinIO）
 backend/local_storage/
+
+# 误入的 AI 协作模板目录（非本项目内容）
+.spec-workflow/

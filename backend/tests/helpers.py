@@ -54,7 +54,12 @@ def setup_teacher_assignment(client, auth, kp_id, questions=None, student_ids=No
     teacher = auth("teacher1")
     r = client.post(
         "/api/classes",
-        json={"name": "测试班", "grade": "初二"},
+        json={
+            "name": "测试班",
+            "education_stage": "初中",
+            "grade": "初二",
+            "class_type": "全年班",
+        },
         headers=teacher,
     )
     assert r.status_code == 200, r.text

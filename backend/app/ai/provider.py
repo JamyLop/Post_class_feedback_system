@@ -1,3 +1,8 @@
+"""LLM 提供方抽象：mock 启发式实现 + OpenAI 兼容接口实现。
+
+统一封装 LLM 调用，附带 token/耗时元数据；支持 mock 模式离线打通全链路。
+"""
+
 from __future__ import annotations
 
 import json
@@ -15,12 +20,15 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# 用于从批改 prompt 中提取题目/答案标签与满分
 _TAG = re.compile(r"<(question|standard_answer|student_answer)>(.*?)</\1>", re.S)
 _SCORE = re.compile(r"满分[:：]\s*([0-9.]+)")
 
 
 @dataclass
 class LLMResponse:
+    """LLM 一次调用的输出：文本 + 模型 + 用量元数据。"""
+
     text: str
     model: str
     prompt_tokens: int = 0
@@ -40,10 +48,12 @@ class LLMProvider(ABC):
         ...
 
     def chat(self, system: str, user: str, response_format: str = "text") -> str:
+        """便捷方法：只返回文本。"""
         return self.chat_with_metadata(system, user, response_format).text
 
 
 def _normalize(s: str) -> str:
+    """去空白、小写，用于字符相似度比较。"""
     return re.sub(r"\s+", "", s or "").lower()
 
 
@@ -54,6 +64,15 @@ class MockLLMProvider(LLMProvider):
     def chat_with_metadata(
         self, system: str, user: str, response_format: str = "text"
     ) -> LLMResponse:
+        if "<monthly_data>" in user:
+            return LLMResponse(
+                text=(
+                    "## 学情总结\n本月学情整体平稳，周测与作业均分保持在中上区间，薄弱点集中在个别知识模块，作业与周测趋势一致，建议针对弱项进行专题归纳与限时训练。\n\n"
+                    "## 德育表现\n本月行为表现总体规范，课堂与日常管理较为稳定，个别时段存在注意力或执行细节波动，已通过谈话与家校协同跟进，日常优化措施持续落实中。\n\n"
+                    "## 改进方案\n1. 针对薄弱知识点每周安排2次专项练习，完成后由学科教师复核；2. 每周固定时间进行错题重做与方法总结；3. 德育方面落实日常记录与周度小结，强化自我管理与时间规划；4. 下月以周为节点检查目标达成并及时调整任务。"
+                ),
+                model="mock-monthly",
+            )
         if "<feedback_data>" in user:
             return LLMResponse(
                 text=(
@@ -62,6 +81,11 @@ class MockLLMProvider(LLMProvider):
                     "完成后及时核对过程与结论。"
                 ),
                 model="mock-feedback",
+            )
+        if "<question_parse>" in user:
+            return LLMResponse(
+                text=json.dumps(self._parse_questions(user), ensure_ascii=False),
+                model="mock-parser",
             )
         tags = {m.group(1): m.group(2).strip() for m in _TAG.finditer(user)}
         max_score = float(_SCORE.search(user).group(1)) if _SCORE.search(user) else 10.0
@@ -74,7 +98,27 @@ class MockLLMProvider(LLMProvider):
             model="mock-grader",
         )
 
+    @staticmethod
+    def _parse_questions(user: str) -> list[dict]:
+        """开发期替身：按空行切分为多道题，逐题生成结构化结果。"""
+        match = re.search(r"<question_parse>(.*?)</question_parse>", user, re.S)
+        raw = match.group(1) if match else user
+        blocks = [b.strip() for b in raw.split("\n\n") if b.strip()]
+        if not blocks:
+            return []
+        return [
+            {
+                "question_type": "calculation",
+                "content": block,
+                "standard_answer": "",
+                "score": 10.0,
+                "difficulty": 0.5,
+            }
+            for block in blocks
+        ]
+
     def _heuristic(self, student: str, standard: str, max_score: float) -> dict:
+        """按相似度打分：>=0.95 全对、>=0.7 不完整、其余视为答案错误。"""
         if not student:
             return {
                 "score": 0,
@@ -122,6 +166,8 @@ class MockLLMProvider(LLMProvider):
 
 
 class OpenAICompatProvider(LLMProvider):
+    """真实 LLM 提供方：OpenAI 兼容 Chat Completions 接口。"""
+
     def __init__(self):
         self.client = OpenAI(
             base_url=settings.llm_base_url,
@@ -140,6 +186,7 @@ class OpenAICompatProvider(LLMProvider):
                 {"role": "user", "content": user},
             ],
         }
+        # json 模式要求模型输出合法 JSON 对象
         if response_format == "json":
             kwargs["response_format"] = {"type": "json_object"}
         started = time.perf_counter()
@@ -175,6 +222,7 @@ _provider: LLMProvider | None = None
 
 
 def get_llm_provider() -> LLMProvider:
+    """按配置懒加载 LLM 提供方（单例）。"""
     global _provider
     if _provider is None:
         if settings.llm_provider == "mock":

@@ -1,3 +1,5 @@
+"""OCR 异步任务：提取图片/PDF 文本后触发批改。"""
+
 import logging
 import time
 

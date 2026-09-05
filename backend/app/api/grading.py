@@ -1,3 +1,11 @@
+"""批改与教师复核 API。
+
+- 触发/查看/重试批改
+- 教师复核队列、确认/标记异常/一键确认
+
+权限：学生仅能操作自己的提交；教师仅能操作自己作业的提交；admin 全量。
+"""
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -41,6 +49,7 @@ _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
 
 
 def _get_submission(db: Session, submission_id: int) -> Submission:
+    """按 id 取提交记录，不存在时抛 404。"""
     sub = db.get(Submission, submission_id)
     if sub is None:
         raise HTTPException(status_code=404, detail="提交记录不存在")
@@ -48,6 +57,7 @@ def _get_submission(db: Session, submission_id: int) -> Submission:
 
 
 def _can_manage(db: Session, sub: Submission, user: User) -> bool:
+    """判断用户是否有权管理该提交：admin 或该提交所属作业的教师。"""
     if user.role == ROLE_ADMIN:
         return True
     if user.role != ROLE_TEACHER:
@@ -57,7 +67,9 @@ def _can_manage(db: Session, sub: Submission, user: User) -> bool:
 
 
 def _build_grading_out(db: Session, submission_id: int) -> SubmissionGradingOut:
+    """组装某提交的批改详情：按题目顺序返回逐题答案、得分与批改记录。"""
     sub = db.get(Submission, submission_id)
+    # 按作业题目顺序 join，保证前端展示顺序与题目一致
     answer_rows = (
         db.query(SubmissionAnswer, AssignmentQuestion)
         .join(
@@ -75,6 +87,7 @@ def _build_grading_out(db: Session, submission_id: int) -> SubmissionGradingOut:
         question = db.get(Question, aq.question_id)
         if question is None:
             continue
+        # 每题对应的批改结果（无则说明尚未批改）
         grading = (
             db.query(GradingResult)
             .filter(GradingResult.submission_answer_id == answer.id)
@@ -109,12 +122,17 @@ def _build_grading_out(db: Session, submission_id: int) -> SubmissionGradingOut:
 
 
 def _grade_one(db: Session, grading: GradingResult) -> GradingResult:
+    """对单题重新批改：组装参数走 GradingRouter，回写答案与批改记录。
+
+    教师重试单题时使用；重批后按置信度重新判定是否需要人工复核。
+    """
     answer = db.get(SubmissionAnswer, grading.submission_answer_id)
     if answer is None:
         raise HTTPException(status_code=404, detail="答题记录不存在")
     question = db.get(Question, answer.question_id)
     if question is None:
         raise HTTPException(status_code=404, detail="题目不存在")
+    # 题目关联的知识点名，供 LLM 批改时参考
     kp_names = [
         r[0]
         for r in (
@@ -167,6 +185,7 @@ def trigger_grading(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """触发某提交的批改：投递 Celery 任务异步执行。"""
     sub = _get_submission(db, submission_id)
     if user.role == ROLE_STUDENT and sub.student_id != user.id:
         raise HTTPException(status_code=403, detail="无权操作该提交")
@@ -186,6 +205,7 @@ def get_grading_result(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """查看某提交的批改详情。"""
     sub = _get_submission(db, submission_id)
     if user.role == ROLE_STUDENT and sub.student_id != user.id:
         raise HTTPException(status_code=403, detail="无权查看该提交")
@@ -200,6 +220,7 @@ def retry_grading(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """教师手动重试单题批改（批改失败或结果异常时使用）。"""
     grading = db.get(GradingResult, grading_id)
     if grading is None:
         raise HTTPException(status_code=404, detail="批改记录不存在")
@@ -219,6 +240,7 @@ def retry_grading(
 # ---------------------------------------------------------------------------
 
 def _get_grading(db: Session, grading_id: int) -> GradingResult:
+    """按 id 取批改记录，不存在时抛 404。"""
     grading = db.get(GradingResult, grading_id)
     if grading is None:
         raise HTTPException(status_code=404, detail="批改记录不存在")
@@ -226,6 +248,7 @@ def _get_grading(db: Session, grading_id: int) -> GradingResult:
 
 
 def _get_grading_submission(db: Session, grading: GradingResult) -> Submission:
+    """从批改记录反查其所属提交。"""
     answer = db.get(SubmissionAnswer, grading.submission_answer_id)
     if answer is None:
         raise HTTPException(status_code=404, detail="答题记录不存在")
@@ -236,6 +259,7 @@ def _get_grading_submission(db: Session, grading: GradingResult) -> Submission:
 
 
 def _require_manage_grading(db: Session, grading: GradingResult, user: User) -> Submission:
+    """校验用户可管理该批改所在提交，通过则返回该提交。"""
     sub = _get_grading_submission(db, grading)
     if not _can_manage(db, sub, user):
         raise HTTPException(status_code=403, detail="无权操作该提交")

@@ -1,3 +1,9 @@
+"""课后反馈 API：生成/编辑/发布反馈报告。
+
+- 支持单次作业反馈与每周反馈两种类型
+- 教师生成后审核，确认无误再发布给学生
+"""
+
 from datetime import date, datetime, timedelta, timezone
 import logging
 
@@ -37,6 +43,7 @@ def _student(db: Session, student_id: int) -> User:
 def _authorize_class_student(
     db: Session, student_id: int, class_id: int, user: User
 ) -> Class:
+    """校验教师可操作该班级、且该学生属于该班级。"""
     cls = db.get(Class, class_id)
     if cls is None:
         raise HTTPException(status_code=404, detail="班级不存在")
@@ -52,6 +59,7 @@ def _authorize_class_student(
 
 
 def _report_access(db: Session, report_id: int, user: User) -> FeedbackReport:
+    """反馈报告访问控制：学生仅能看到自己已发布的报告。"""
     report = db.get(FeedbackReport, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="反馈不存在")
@@ -72,6 +80,7 @@ def generate_student_feedback(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """生成反馈：按类型构建输入快照，幂等更新报告并投递生成任务。"""
     _student(db, student_id)
     _authorize_class_student(db, student_id, body.class_id, user)
     assignment_id = body.assignment_id
@@ -83,6 +92,7 @@ def generate_student_feedback(
                 raise HTTPException(status_code=400, detail="单次作业反馈必须指定 assignment_id")
             snapshot = build_assignment_snapshot(db, student_id, body.class_id, assignment_id)
         else:
+            # 每周反馈：默认当前自然周，需确保周期内有已确认作业
             today = date.today()
             period_start = period_start or (today - timedelta(days=today.weekday()))
             period_end = period_end or (period_start + timedelta(days=6))
@@ -101,6 +111,7 @@ def generate_student_feedback(
         FeedbackReport.class_id == body.class_id,
         FeedbackReport.report_type == body.report_type,
     )
+    # 同类型报告唯一性：按作业或按周期定位已有报告，重复生成时更新而非新建
     if body.report_type == FEEDBACK_TYPE_ASSIGNMENT:
         query = query.filter(FeedbackReport.assignment_id == assignment_id)
     else:
@@ -121,6 +132,7 @@ def generate_student_feedback(
         )
         db.add(report)
     else:
+        # 重新生成：清空旧内容并回到 generating 状态
         report.input_snapshot = snapshot
         report.status = FEEDBACK_STATUS_GENERATING
         report.error_message = ""

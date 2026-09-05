@@ -1,8 +1,13 @@
 <template>
-  <div class="page">
+  <div class="page feedback-manage-page">
     <div class="page-header">
-      <span class="page-title">课后反馈</span>
-      <el-button :disabled="!studentId" @click="load">刷新</el-button>
+      <div>
+        <h1 class="page-title">课后学情反馈与周报</h1>
+        <p class="header-desc">AI 自动生成单次作业针对性评语或周期学情周报，支持教师编辑与定稿发布。</p>
+      </div>
+      <el-button :disabled="!studentId" @click="load">
+        <el-icon><Refresh /></el-icon>刷新列表
+      </el-button>
     </div>
 
     <el-card shadow="never" style="margin-bottom: 16px">
@@ -131,7 +136,47 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.report-header, .actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.actions { margin-top: 12px; justify-content: flex-end; }
-.meta { margin-right: auto; color: #909399; font-size: 12px; }
+.feedback-manage-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.page-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.header-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.report-header, .actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.actions {
+  margin-top: 14px;
+  justify-content: flex-end;
+}
+
+.meta {
+  margin-right: auto;
+  color: #94a3b8;
+  font-size: 12px;
+  font-family: monospace;
+}
 </style>

@@ -1,3 +1,8 @@
+"""作业管理 API：创建/查询/更新/发布作业，添加题目。
+
+权限：教师仅能操作自己班级的作业；学生只能查看已发布且自己所在班级的作业。
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -26,6 +31,7 @@ _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
 
 
 def _get_assignment(db: Session, assignment_id: int) -> Assignment:
+    """按 id 取作业，不存在时抛 404。"""
     a = db.get(Assignment, assignment_id)
     if a is None:
         raise HTTPException(status_code=404, detail="作业不存在")
@@ -33,6 +39,7 @@ def _get_assignment(db: Session, assignment_id: int) -> Assignment:
 
 
 def _check_teacher_owns(db: Session, assignment: Assignment, user: User) -> None:
+    """教师仅能操作自己布置的作业（admin 除外）。"""
     if user.role == ROLE_ADMIN:
         return
     if assignment.teacher_id != user.id:
@@ -45,6 +52,7 @@ def create_assignment(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """创建作业（草稿状态）。"""
     cls = db.get(Class, body.class_id)
     if cls is None:
         raise HTTPException(status_code=404, detail="班级不存在")
@@ -69,10 +77,12 @@ def list_assignments(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """作业列表：教师看自己的，学生看所在班级已发布的。"""
     q = db.query(Assignment)
     if user.role == ROLE_TEACHER:
         q = q.filter(Assignment.teacher_id == user.id)
     elif user.role == ROLE_STUDENT:
+        # 学生只能看到自己班级的已发布作业
         class_ids = [
             cs.class_id
             for cs in db.query(ClassStudent)
@@ -84,6 +94,7 @@ def list_assignments(
             Assignment.status.in_([ASSIGNMENT_STATUS_PUBLISHED]),
         )
     rows = q.order_by(Assignment.id.desc()).all()
+    # 标准答案对学生不可见
     include_standard_answer = user.role != ROLE_STUDENT
     return [_to_detail(db, a, include_standard_answer) for a in rows]
 
@@ -94,6 +105,7 @@ def get_assignment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """作业详情，含题目列表（学生无标准答案）。"""
     a = _get_assignment(db, assignment_id)
     if user.role == ROLE_STUDENT:
         if a.status != ASSIGNMENT_STATUS_PUBLISHED:
@@ -120,8 +132,10 @@ def update_assignment(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """更新作业字段（仅传入的字段生效）。"""
     a = _get_assignment(db, assignment_id)
     _check_teacher_owns(db, a, user)
+    # 仅更新请求中显式传入的字段
     data = body.model_dump(exclude_unset=True)
     for k, v in data.items():
         setattr(a, k, v)
@@ -136,6 +150,7 @@ def publish_assignment(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """发布作业：必须有题目，发布后学生可见可提交。"""
     a = _get_assignment(db, assignment_id)
     _check_teacher_owns(db, a, user)
     if not a.questions:
@@ -153,11 +168,13 @@ def add_questions(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """向作业批量追加题目，自动续排 question_order。"""
     a = _get_assignment(db, assignment_id)
     _check_teacher_owns(db, a, user)
     existing = {
         aq.question_id for aq in a.questions
     }
+    # 新题目序号从当前最大序号 +1 开始
     order = max((aq.question_order for aq in a.questions), default=-1) + 1
     for qid in body.question_ids:
         if qid in existing:
@@ -181,6 +198,7 @@ def list_assignment_questions(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """作业题目列表（学生视图隐藏标准答案）。"""
     a = _get_assignment(db, assignment_id)
     if user.role == ROLE_STUDENT:
         if a.status != ASSIGNMENT_STATUS_PUBLISHED:
@@ -217,6 +235,7 @@ def _to_detail(
     a: Assignment,
     include_standard_answer: bool = True,
 ) -> AssignmentDetail:
+    """将作业模型转换为带题目明细的响应结构。"""
     questions = []
     for aq in sorted(a.questions, key=lambda x: x.question_order):
         q = db.get(Question, aq.question_id)

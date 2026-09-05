@@ -1,178 +1,124 @@
-# 开发进度记录
+# 项目进度记录
 
-> 更新日期：2026-08-12
-> 依据：《课后反馈系统 —— 具体实施计划.md》
+更新时间：2026-08-27
 
-## 当前进度：阶段 0-6 已完成 ✅ + 安全基线 ✅
+## 当前阶段
 
-### 阶段 6：课后反馈 + 异常处理 + 部署 ✅（对应实施计划第 6 周）
-后端：
-- [x] `feedback_reports` 持久化：匿名结构化输入快照、AI 原文、教师终稿、状态、模型、耗时和 Token 用量
-- [x] Feedback Engine：仅消费 Analytics 结构化结果，生成 300 字以内的单次作业反馈与学生周报
-- [x] Celery `generate_feedback_report`：超时沿用 LLM 客户端配置，失败最多重试 2 次，耗尽后落库 `failed`
-- [x] 教师生成、编辑、发布；学生只可查看已发布反馈；教师数据严格按自己班级隔离
-- [x] 结构化 JSONL 日志：HTTP、LLM、OCR、批改任务、反馈任务的耗时/模型/Token/失败/重试元数据
-- [x] `/api/ready` 数据库就绪检查；OCR 空结果与任务异常进入重试/失败状态
+项目正在进行“高三一生一案试点第一阶段”。核心数据结构、首批历史材料导入、教师端学生档案工作台和学科方案录入已具备，当前重点是补齐班主任全过程管理、家长只读查看、督查复盘和正式 DOCX 导出闭环。
 
-前端：
-- [x] 教师课后反馈页：班级/学生/作业筛选，单次反馈与周报生成，编辑、发布、失败状态展示
-- [x] 学生课后反馈页：仅展示教师已发布终稿
+当前版本仅用于本地测试，尚未达到生产上线标准。
 
-部署：
-- [x] FastAPI、Celery Worker、PostgreSQL、Redis、Nginx 的生产 Docker Compose
-- [x] Nginx HTTPS、SPA 回退和 API 反向代理；证书和 `.env` 均排除出镜像/Git
-- [x] DeepSeek OpenAI 兼容配置，当前模型 `deepseek-v4-flash`
+## 已确认的产品与角色方向
 
-验收结果：阶段 6 专项测试 4 个通过；完整后端测试 49 个、前端生产构建、Alembic 实库迁移、`/api/ready` 和 DeepSeek 真实 Feedback Engine 调用均通过。生产 Compose 配置校验通过；本机 Docker Engine 未启动，因此容器镜像构建与 HTTPS 实机启动待部署环境验证。
+- 最终主要查看对象为家长，家长只能查看已确认的一生一案和后续过程记录。
+- 班主任负责学生总案、各学科方案、任务计划、执行记录、阶段复盘等全过程内容管理。
+- 学科教师当前以查看和提供专业意见为主，不直接覆盖班主任维护的正式内容。
+- 管理员负责校级督查，可以查看全部高三档案并提交督查记录，但不能无痕修改教师内容。
+- 学生继续使用原有作业、提交和学习反馈能力；一生一案中的正式方案不由学生直接录入。
+- 不新增独立校长角色，校级督查继续由管理员承担。
 
-### 阶段 5：学情分析 ✅（对应实施计划第 5 周）
-后端：
-- [x] 新表 `student_knowledge_stats`（掌握度聚合表，(学生,知识点) 唯一；Alembic 迁移 `8cede53c312e`）
-- [x] `app/analytics/` 聚合服务：`recompute_student_stats` 按原始轨迹重算；`mastery_score = correct/(correct+wrong)`；趋势按前后半段正确率切分（up/down/stable/new）
-- [x] 教师确认批改（单题确认 / confirm-all）后自动增量重算该学生受影响知识点的掌握度
-- [x] 读接口兜底：学生有轨迹无聚合行时自动全量重算；`POST /students/{id}/knowledge-stats/recompute` 教师可手动重算
-- [x] API：
-  - `GET /students/{id}/knowledge-stats` 学生知识点掌握度
-  - `GET /students/{id}/weak-points?top_n&min_records` 薄弱知识点 TOP N
-  - `GET /students/{id}/learning-trend` 成绩趋势（按已确认作业得分率）
-  - `GET /students/{id}/repeated-errors` 重复错误类型聚合
-  - `GET /assignments/{id}/analysis` 单次作业分析（平均分/分布/各题正确率/薄弱点/共性错误）
-  - `GET /classes/{id}/analytics` 班级学情（平均分/成绩分布/知识点正确率/薄弱排行/共性错误/未提交学生）
-- [x] 权限：学生仅能看自己；教师查询学生学情必须指定自己班级，所有统计按作业班级隔离；admin 全量
+## 已完成
 
-前端（ECharts）：
-- [x] 通用图表组件 `components/EChart.vue`
-- [x] 教师端学生学情页：班级+学生筛选、成绩趋势折线、知识点掌握度条形图、薄弱点 TOP5、重复错误
-- [x] 教师端班级学情页：平均分/提交数、成绩分布、知识点整体正确率、班级薄弱排行、共性错误、未提交学生
-- [x] 教师端单次作业分析页：作业列表"分析"入口、平均分/及格率/题目数卡片、成绩分布、各题正确率、本作业薄弱点、错误类型
-- [x] 学生端我的学情页：个人趋势 + 掌握度 + 薄弱点
+### 一、产品入口与页面结构
 
-验收结果：`pytest` 45 个用例全绿（`test_analytics.py` 10 个，覆盖跨班级隔离、未提交学生、趋势、正确率和重复错误），前端 `npm run build` 通过；本机端到端冒烟通过：学生提交 → AI 批改 → 教师 confirm-all → knowledge-stats/weak-points/learning-trend/repeated-errors/assignment-analysis/class-analytics 均返回正确数据。
+- 系统已改造为“一生一案学业发展管理系统”的高三试点入口。
+- 教师端“学生档案、待办督查、班级进展”已合并为一个“学生档案”工作台，通过内部筛选区分全部档案、待办督查和执行中学生，避免三个重复页面。
+- 学生详情页已删除独立的“诊断”和“目标”页签，当前保留“总览、学科方案、督查复盘、历史版本”。
+- 原“学科方案、任务计划、执行记录”已合并到“学科方案”页签：先展示全部科目，点击科目后查看该科目的问题、计划、任务和执行记录。
+- 学科列表和正文区域已调整为完整展示，不使用省略号截断方案正文。
+- 物理、化学等科目已拆分显示，不再合并为一个科目标签。
 
-### 阶段 0：项目初始化 ✅
-- [x] git 仓库初始化
-- [x] 根目录 `docker-compose.yml`（PostgreSQL 16 / Redis 7 / MinIO，供部署参考）
-- [x] `.env.example` / `.env` 配置
-- [x] `backend/`（FastAPI）+ `frontend/`（Vue3 + Vite）骨架
+### 二、一生一案后端基础能力
 
-> 本机开发环境未使用 Docker，改用本机服务：
-> - PostgreSQL 18（本地服务，已建库 `pfs`/用户 `pfs`）
-> - Redis 3.2（本地 `D:\Redis-x64-3.2.100`，端口 6379；本机未装为服务，开发时手动启动 `redis-server.exe --port 6379`）
-> - 文件存储：`STORAGE_BACKEND=local`（本地磁盘 `backend/local_storage/`，经 `/api/storage/files/` 访问），MinIO 后端接口已预留，配置 `STORAGE_BACKEND=minio` 即可切换
+- 已建立备考周期、学生总案、版本、学科方案、诊断、目标、任务、打卡、复盘、证据关联和家长关系等基础模型。
+- 已提供学生总案列表、详情、创建、学科方案维护、任务、打卡、复盘、版本和班级进度等接口。
+- 正式内容修改会保留版本信息，避免无痕覆盖历史方案。
+- 权限已按当前角色方向调整：班主任拥有总案管理权，家长只读，管理员执行校级督查。
+- 教师测试账号已验证可管理学生档案：`teacher1 / teacher123`，对应王老师。
 
-### 阶段 1：基础框架 + 数据模型 ✅（对应实施计划第 1 周）
-后端：
-- [x] FastAPI + SQLAlchemy 2.0 + Alembic + JWT + RBAC（admin/teacher/student）
-- [x] 13 张核心表全部建好：users、classes、class_students、assignments、assignment_questions、questions、knowledge_points、question_knowledge_points、submissions、submission_answers
-- [x] API：`/auth/login`、`/auth/me`、classes CRUD + 学生、assignments CRUD + publish + 加题、questions CRUD、knowledge-points（含 tree）
-- [x] seed 脚本：admin/admin123、teacher1/teacher123、student1-3/student123，初中数学知识点树
+### 三、历史 DOCX 导入与数据修复
 
-前端（教师端）：
-- [x] 登录页、教师布局
-- [x] 班级管理、学生管理（搜索 + 批量添加）
-- [x] 作业列表、新建作业、作业详情（添加题目/发布）、题库（建题 + 知识点树绑定）
+- 已完成首批 5 名高三学生历史 DOCX 材料试导入。
+- 原始文件路径、文件哈希、导入批次和原始文本已进入导入链路。
+- 已修复综合材料覆盖学科专属文档的问题：存在学科专属文档时，以专属文档完整内容为准。
+- 已修复历史编号残留、科目混合和部分字段错位问题。
+- 已重新解析并恢复首批 5 名学生的学科方案数据。
+- 当前仍需逐页人工核对，不能仅凭程序解析通过认定内容完全准确。
 
-### 阶段 2：学生提交模块 ✅（对应实施计划第 2 周）
-后端：
-- [x] `submissions` / `submission_answers` 表
-- [x] 文本提交（逐题答案）+ 图片/PDF 上传（本地存储）
-- [x] `POST /api/assignments/{id}/submit`、`GET /api/submissions/{id}`、`GET /api/assignments/{id}/submissions`
-- [x] Celery + Redis 异步任务（`ocr_submission`，当前接 Mock OCR，状态 processing → submitted）
+### 四、班主任手工录入能力
 
-前端：
-- [x] 学生端：我的作业、作业详情（文本逐题作答 / 图片 PDF 上传）、提交记录
-- [x] 教师端：作业提交记录列表（状态 + 文件查看）
+- 已取消“完成首批材料核对后才允许新建学生总案”的测试限制。
+- 已实现“新建学生总案”表单，可选择备考周期、班级和学生，创建后直接进入档案详情。
+- 未加入班级的学生可在创建总案时关联到所选班级。
+- 没有识别出学科时，班主任可以手工新增语文、数学、英语、物理、化学、生物、政治、历史、地理方案。
+- 已有学科方案的学生也可以继续新增缺失科目。
+- 学科方案可完整编辑问题定位、原因剖析、奋斗目标、高考要求和具体强化五类内容。
+- 已支持任务录入和学生执行记录的基础展示、补录能力。
 
-### 阶段 3：OCR Mock→AI 批改引擎 ✅（对应实施计划第 3 周）
-后端：
-- [x] 新表 `grading_results` + `grading_prompt_versions`（Alembic 迁移 `86e937410e61`）
-- [x] `app/grading/`：GradingRouter / RuleGrader / HybridGrader / LLMGrader / validator / prompts / schemas / base
-  - RuleGrader：单选/多选/判断题，规则比对，不调 LLM（成本控制）
-  - HybridGrader：填空题，规则优先 + LLM 部分分
-  - LLMGrader：计算/简答题，LLM 结构化输出
-- [x] 结构化输出 Pydantic 校验：JSON 解析失败重试 1 次，仍失败降级人工复核（error_type=parse_failed）
-- [x] 置信度策略：`confidence>=0.85` 正常展示；`0.70~0.85` 提示重点检查；`<0.70` 强制人工复核（status=manual_review）
-- [x] MockLLMProvider 升级为启发式批改（基于答案相似度），返回与真实 LLM 一致的结构化 JSON
-- [x] Celery `grade_submission` 异步批改任务；文本提交自动触发，image/pdf 提交 OCR 完成后触发
-- [x] Grading API：`POST /submissions/{id}/grade`、`GET /submissions/{id}/grading`、`POST /gradings/{id}/retry`
+### 五、班级管理
 
-前端：
-- [x] 学生端提交结果页展示 AI 批改（每题得分/对错/AI评语/置信度标签）
-- [x] 教师端提交记录：批改结果抽屉（题目/学生答案/标准答案/得分/错误类型/AI评语）+ 单题重新批改
+- 班级新增了“学年”字段，新建和编辑班级时可维护班级名称、年级和学年。
+- 班级列表已展示学年。
+- 已实现安全删除：只有未关联学生档案、作业和反馈数据的班级才能删除，避免误删业务数据。
+- 删除班级不会删除学生账号。
+- 当前数据库迁移版本为 `f0d4e5f6a7b8`。
 
-顺带修复：
-- [x] `create_question`/`get_question` 返回 `knowledge_points` 为 ORM 对象导致 500 的既有 bug
+### 六、家长端基础结构
 
-## 验收结果（已实测通过）
+- 已增加学生与家长关系模型、家长路由和只读查看入口。
+- 家长不能编辑学生总案或教师过程记录。
+- 家长端完整真实业务流程尚未完成验收。
 
-阶段 1-2 全链路 API 冒烟测试通过（见上一版记录）。
+## 已验证
 
-阶段 3 端到端冒烟测试通过（六种题型作业，文本提交）：
-```
-教师建班加学生 → 建题（单选/判断/填空/计算/简答，绑定知识点）→ 建作业 → 发布
-→ 学生文本提交 → Celery 自动批改（submitted → ai_graded）
-→ GET /grading 返回：
-  单选 对 10/10  rule  conf=1.0
-  判断 对 10/10  rule  conf=1.0
-  填空 部分 6/10  hybrid conf=0.6  → status=manual_review（<0.70 强制复核 ✓）
-  计算 部分 18.4/20 ai   conf=0.78 → ai_completed（0.70~0.85 提示重点检查 ✓）
-  简答 对 20/20  ai   conf=0.92  → ai_completed（≥0.85 正常 ✓）
-  总分 64.4/70
-→ 单题 retry 同步重新批改 ✓
-```
-前端 `npm run build` 通过。
+- 前端最近一次 `npm run build` 已通过，仅有打包体积提示，不影响构建成功。
+- 班级和学生档案定向后端测试：`tests/test_classes.py tests/test_student_cases.py -q`，结果为 `5 passed`。
+- DOCX 导入和学生档案相关测试曾执行通过，结果为 `6 passed`。
+- 本地后端 `/api/ready` 返回正常。
+- 本地数据库迁移已到最新版本 `f0d4e5f6a7b8`。
+- 最新班级改动完成后尚未重新串行运行完整 `pytest`，因此不能把全量回归写成已完成。
 
-## 本机启动方式
+## 尚未完成
 
-```bash
-# 0. 启动 Redis（本机未注册为服务）
-D:\Redis-x64-3.2.100\Redis-x64-3.2.100\redis-server.exe --port 6379
-# 1. 数据库需已启动（PostgreSQL 本地服务）
-# 2. 后端（backend 目录，开发端口 8002）
-.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8002 --reload
-# 3. Celery worker（backend 目录）
-.venv/Scripts/python -m celery -A app.tasks.celery_app worker --loglevel=info -P solo
-# 4. 前端（frontend 目录）
-npm run dev   # http://localhost:5174
-```
+- 学生总览中的总体问题、升学目标、当前状态等字段还缺少完整的班主任编辑体验。
+- 状态流转界面不完整，目前尚未把“草稿→待确认→执行中→待复盘→已调整→已归档”全部做成可操作、可校验的业务闭环。
+- 督查复盘目前以展示和基础接口为主，班主任督查、管理员校级督查、整改截止日期和复查结果的完整录入界面尚未补齐。
+- 家长账号绑定、登录和查看正式方案的完整端到端流程尚未验收。
+- 学校标准 DOCX 导出尚未实现；当前按钮仍属于未开放占位状态。
+- 按班级批量导出、绑定方案版本、中文字体和跨页表格渲染检查尚未实现。
+- AI 功能尚未实现。目前仅确定方向：AI只能产生诊断或计划草稿，必须由班主任确认后才能进入正式方案。
+- 首批 5 名学生还未完成逐人、逐学科、逐字段的原文准确性人工抽检。
+- 旧班级如果已经关联业务数据无法直接删除，目前还没有“归档/隐藏历史班级”能力。
+- 一个高三班试运行、全年级导入和生产部署均未开始。
 
-### 阶段 4：教师复核系统 ✅（对应实施计划第 4 周）
-后端：
-- [x] 新表 `student_knowledge_records`（原始学习轨迹，确认时写入；Alembic 迁移 `00e2fdc191e0`）
-- [x] `GET /api/reviews` 复核队列（`review_status=pending|confirmed`，可按作业过滤；教师仅见自己作业的提交，含进度 confirmed_count/answer_count）
-- [x] `PUT /api/gradings/{id}/confirm` 单题确认（可覆盖分数/评语，分数缺省沿用 AI；校验 0~满分；同步 answer 并写入知识点记录）
-- [x] `POST /api/gradings/{id}/flag` 标记异常（必填原因，前缀【标记异常】，保持待复核）
-- [x] `POST /api/submissions/{id}/confirm-all` 作业级一键确认（未确认题沿用 AI 分数）
-- [x] 确认后：该题 grading.status=confirmed、reviewed_at=now；整份全部确认 → submission.status=teacher_reviewed
-- [x] 知识点记录按 (学生,作业,题目) 先清后写，重复确认不产生重复数据
+## 下一步工作顺序
 
-前端：
-- [x] 教师复核中心页（待复核/已确认 Tab + 作业过滤 + 进度条）
-- [x] 逐题复核页：左侧题号导航（上一题/下一题）、题目/学生答案/标准答案/AI结果/错误点/置信度展示、教师改分/评语、确认本题、标记异常、重新AI批改、确认全部批改
+### P0：先完成可真实测试的业务闭环
 
-验收结果：`pytest` 27 个用例全绿（新增 `test_teacher_review.py` 7 个），前端 `npm run build` 通过。
+1. 补齐学生总览编辑：班主任可维护总体问题、升学目标、当前状态和负责人信息。
+2. 补齐完整状态流转：增加确认、进入执行、发起复盘、调整和归档操作，并校验每一步权限与必填条件。
+3. 完成督查复盘录入：支持班主任督查、管理员校级督查、问题、整改要求、截止日期和复查结果。
+4. 使用 `teacher1` 完成一次真实流程测试：新建总案→新增学科→录入任务→补录执行→提交确认→进入执行→督查复盘。
+5. 创建并绑定一个家长测试账号，验证家长只能看到已确认内容且所有编辑入口均不可用。
 
-### 安全基线 ✅（阶段 4 完成后加固，前后端全链路联调通过）
-后端：
-- [x] 学生看不到标准答案：`GET /assignments`、`GET /assignments/{id}`、`GET /assignments/{id}/questions` 学生视角 `standard_answer=null`，且学生不能查看未发布作业
-- [x] 匿名打不开题库：`GET /questions`、`GET /questions/{id}` 需 admin/teacher（401）；`get_question` 修复 ORM 序列化 500
-- [x] 作业文件鉴权：`/api/storage/files/...` 移入 submissions 路由，仅提交者/任课教师/admin 可读（学生 403 隔离、匿名 401）
-- [x] 教师越权封堵：教师查看他人作业详情/题目、管理教师/管理员账号均 403（users 接口教师仅可管理学生）
-- [x] 复核后不能覆盖提交：已 teacher_reviewed/completed 或有已确认批改 → 提交 409
-- [x] 截止后不能提交：`due_at` 过期 → 409
-- [x] 上传加固：10MB 大小限制（413）、PDF/图片魔数校验（400）、本地存储路径穿越修复
-- [x] Broker 故障降级：异步任务投递失败时提交保留并标记 failed，不再 500
+### P1：完成数据和文档交付能力
 
-前端：
-- [x] 文件下载改为带 Authorization 的 blob 下载（`openSubmissionFile`），学生/教师端同步改造
+6. 对首批 5 名学生逐人核对历史 DOCX 原文，建立字段差异清单并修正导入规则。
+7. 实现学校标准 DOCX 单人导出，导出内容绑定具体方案版本。
+8. 完成 DOCX 页面渲染检查，重点验证中文字体、四列表格、跨页、重复表头、分页和打印效果。
+9. 增加按班级批量导出，并保留每次导出的版本、时间和操作人记录。
+10. 为有历史业务数据的旧班级增加归档和隐藏能力，避免为了整理列表而破坏历史数据。
 
-联调验证：教师建作业 → 学生提交 → AI 批改 → 教师复核全链路通过；5 项安全检查实测全部符合预期（学生不见答案、匿名 401、教师 403、复核后 409、截止后 409）。
+### P2：扩大试点并增加辅助能力
 
-## 后续计划
+11. 串行运行完整后端 `pytest`，重新执行前端构建，并完成教师、家长、管理员三角色端到端验收。
+12. 选定一个高三班试运行，收集班主任录入和家长查看反馈后再调整页面。
+13. 在权限和版本闭环稳定后增加 AI 辅助草稿，包括历史材料字段提取、薄弱点建议和任务草案；任何 AI 结果必须由班主任确认。
+14. 通过一个班验收后再导入全部高三学生，开放批量导出并切换默认首页。
 
-- [ ] 使用 1 名教师、10~20 名学生、3~5 次真实作业开展 MVP 试用，收集教师修改率与学生可理解度
+## 当前风险与注意事项
 
-## 已知技术选型（与用户确认）
-- 异步任务：Celery + Redis
-- LLM：OpenAI 兼容接口（开发期 `LLM_PROVIDER=mock`）
-- OCR：先 Mock，后接真实第三方
+- 工作区存在较多未提交改动，继续开发前应按业务模块分批检查和提交，避免把无关文件混入同一提交。
+- 导入测试通过不等于原文完全准确，历史材料必须保留原文并完成人工抽检。
+- 班级删除必须继续保持安全约束；已有业务数据的班级应归档，不应强制物理删除。
+- DOCX 导出和 AI 功能都不能在尚未实现或未验收时对外标记为可用。

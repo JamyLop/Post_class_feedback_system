@@ -1,0 +1,200 @@
+<template>
+  <view class="page">
+    <WorkspaceLink />
+    <view v-if="loading" class="loading-bar">
+      <text class="loading-text">加载中...</text>
+    </view>
+    <template v-else-if="detail">
+      <view class="header-card">
+        <view class="title-row">
+          <text class="h1">{{ detail.student_name || `学生 #${detail.student_id}` }}</text>
+          <CaseStatusTag :status="detail.status" />
+        </view>
+        <text class="meta">{{ detail.class_name }} · 第{{ detail.version }}版</text>
+        <view class="state-banner" :class="`is-${detail.status}`">
+
+          <text class="state-desc">{{ stateDesc }}</text>
+        </view>
+      </view>
+
+      <view class="tabs">
+        <view class="tab-bar">
+          <text v-for="t in tabs" :key="t.key" class="tab" :class="{ active: active===t.key }" @click="active=t.key">{{ t.label }}</text>
+        </view>
+
+        <view v-if="active==='overview'" class="tab-panel">
+          <view class="section">
+            <text class="section-h">总体问题</text>
+            <text class="section-body">{{ detail.overall_problem || '尚未填写' }}</text>
+          </view>
+          <view class="section">
+            <text class="section-h">升学目标</text>
+            <text class="section-body">{{ detail.admission_target || '尚未填写' }}</text>
+          </view>
+          <view class="section section-muted">
+            <text class="section-h">当前状态说明</text>
+            <text class="section-body">{{ detail.current_summary || '—' }}</text>
+          </view>
+          <view v-if="detail.student_profile" class="section section-muted">
+            <text class="section-h">学生档案</text>
+            <view class="field"><text class="dt">姓名</text><text class="dd">{{ detail.student_profile.student_name || '—' }}</text></view>
+            <view class="field"><text class="dt">性别</text><text class="dd">{{ detail.student_profile.gender || '—' }}</text></view>
+            <view class="field"><text class="dt">来源学校</text><text class="dd">{{ detail.student_profile.source_school || '—' }}</text></view>
+          </view>
+        </view>
+
+        <view v-if="active==='subjects'" class="tab-panel">
+          <view v-if="!detail.subject_plans.length" class="empty-text">暂无学科方案</view>
+          <view v-for="plan in detail.subject_plans" :key="plan.id" class="plan-card">
+            <view class="plan-head">
+              <text class="subject-chip">{{ plan.subject }}</text>
+            </view>
+            <view class="field"><text class="dt">问题定位</text><text class="dd">{{ plan.problem_location || '—' }}</text></view>
+            <view class="field"><text class="dt">原因剖析</text><text class="dd">{{ plan.cause_analysis || '—' }}</text></view>
+            <view class="field"><text class="dt">奋斗目标</text><text class="dd">{{ plan.struggle_goal || '—' }}</text></view>
+            <view class="field"><text class="dt">高考要求</text><text class="dd">{{ plan.gaokao_requirement || '—' }}</text></view>
+            <view class="field"><text class="dt">具体强化</text><text class="dd">{{ plan.reinforcement || '—' }}</text></view>
+          </view>
+        </view>
+
+        <view v-if="active==='tasks'" class="tab-panel">
+          <view v-if="!detail.tasks.length" class="empty-text">暂无任务</view>
+          <view v-for="task in detail.tasks" :key="task.id" class="task-card">
+            <view class="task-head">
+              <text class="subject-tag">{{ task.subject || '综合' }}</text>
+              <text class="task-title">{{ task.title }}</text>
+            </view>
+            <text class="task-meta">{{ task.starts_on }} 至 {{ task.due_on }} · {{ taskStatus(task.status) }}</text>
+          </view>
+          <view v-if="detail.task_checkins.length" class="checkin-section">
+            <text class="section-h">执行记录（最近10条）</text>
+            <Timeline :items="checkinItems" />
+          </view>
+        </view>
+      </view>
+    </template>
+    <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" />
+  </view>
+</template>
+
+<script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
+import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { getStudentCase } from '../../api/studentCases'
+import CaseStatusTag from '../../components/CaseStatusTag.vue'
+import Timeline from '../../components/Timeline.vue'
+import EmptyState from '../../components/EmptyState.vue'
+
+const loading = ref(false)
+const detail = ref(null)
+const active = ref('overview')
+const tabs = [
+  { key: 'overview', label: '总览' },
+  { key: 'subjects', label: '学科' },
+  { key: 'tasks', label: '任务' },
+]
+
+const statusCopy = {
+  draft: ['草稿', '等待教师完善'],
+  pending_confirmation: ['待审查', '班主任已提交，审查中'],
+  revision_required: ['待整改', '已退回，等待整改'],
+  executing: ['执行中', '家长可见当前版本'],
+  pending_review: ['待复盘', '已进入阶段复盘'],
+  adjusted: ['已调整', '已生成新版本'],
+  archived: ['已归档', '只读归档'],
+}
+const stateTitle = computed(() => statusCopy[detail.value?.status]?.[0] || detail.value?.status)
+const stateDesc = computed(() => statusCopy[detail.value?.status]?.[1] || '')
+
+function taskStatus(v) { return { pending:'待执行', in_progress:'执行中', completed:'已完成', cancelled:'已取消' }[v] || v }
+function taskTitle(id) { return detail.value?.tasks.find(t => t.id === id)?.title || '任务' }
+
+const checkinItems = computed(() => (detail.value?.task_checkins || []).slice(0, 10).map(c => ({
+  title: `${c.completion_rate}% · ${taskTitle(c.task_id)}`,
+  desc: c.self_check || '—',
+  time: c.checked_in_at?.slice(0, 16).replace('T', ' '),
+})))
+
+function caseId() {
+  const pages = getCurrentPages()
+  const cur = pages[pages.length - 1]
+  return cur.options?.id || cur.$page?.options?.id
+}
+
+async function load() {
+  loading.value = true
+  try {
+    const id = caseId()
+    if (!id) throw new Error('缺少 case id')
+    detail.value = await getStudentCase(id)
+  } catch (e) {
+    uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+  } finally { loading.value = false }
+}
+
+onShow(() => load())
+</script>
+
+<style scoped>
+.page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 18rpx; }
+.loading-bar { text-align: center; padding: 48rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
+
+.header-card {
+  background: #fff; border-radius: 20rpx; padding: 28rpx;
+  box-shadow: none;
+}
+.title-row { display: flex; gap: 12rpx; align-items: center; }
+.h1 { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 8rpx; }
+.state-banner { margin-top: 14rpx; padding: 16rpx 18rpx; border-radius: 14rpx; background: #F3F5F8; }
+.state-banner.is-executing { background: #EEF8EE; }
+.state-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; }
+.state-desc { font-size: 24rpx; color: #526177; display: block; margin-top: 4rpx; }
+
+.tabs {
+  background: #fff; border-radius: 20rpx; overflow: hidden;
+  box-shadow: none;
+}
+.tab-bar { display: flex; border-bottom: 2rpx solid var(--mp-soft); }
+.tab {
+  flex: 1; text-align: center; padding: 22rpx 0;
+  font-size: 26rpx; color: var(--mp-muted);
+  border-bottom: 4rpx solid transparent;
+}
+.tab.active { color: var(--mp-primary); border-bottom-color: var(--mp-primary); font-weight: 600; }
+.tab-panel { padding: 24rpx; display: flex; flex-direction: column; gap: 18rpx; }
+
+.section { display: flex; flex-direction: column; gap: 8rpx; }
+.section-muted { background: #F7F8FA; border-radius: 14rpx; padding: 18rpx; }
+.section-h { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
+.section-body { font-size: 26rpx; color: var(--mp-body); line-height: 1.7; white-space: pre-wrap; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 28rpx; font-size: 24rpx; }
+
+.field { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; }
+.dt { font-size: 24rpx; color: var(--mp-muted); }
+.dd { font-size: 24rpx; color: var(--mp-body); line-height: 1.6; white-space: pre-wrap; }
+
+.plan-card {
+  background: #F7F8FA; border-radius: 14rpx; padding: 20rpx;
+  display: flex; flex-direction: column; gap: 10rpx;
+}
+.plan-head { display: flex; justify-content: space-between; align-items: center; }
+.subject-chip {
+  font-size: 24rpx; font-weight: 600; color: var(--mp-primary);
+  background: var(--mp-soft); padding: 6rpx 16rpx; border-radius: 16rpx;
+}
+
+.task-card { background: #F7F8FA; border-radius: 14rpx; padding: 18rpx; }
+.task-head { display: flex; gap: 10rpx; align-items: center; flex-wrap: wrap; }
+.subject-tag {
+  font-size: 24rpx; color: var(--mp-primary);
+  background: var(--mp-soft); padding: 4rpx 12rpx; border-radius: 16rpx;
+}
+.task-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.task-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
+.checkin-section { margin-top: 12rpx; }
+</style>
+
+<style scoped src="../../styles/details.css"></style>

@@ -41,6 +41,7 @@ _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
 
 
 def _student_exists(db: Session, student_id: int) -> User:
+    """校验学生存在且角色正确，否则 404。"""
     student = db.get(User, student_id)
     if student is None or student.role != ROLE_STUDENT:
         raise HTTPException(status_code=404, detail="学生不存在")
@@ -67,6 +68,7 @@ def _student_class_scope(
         raise HTTPException(status_code=404, detail="班级不存在")
     if user.role != ROLE_ADMIN and cls.teacher_id != user.id:
         raise HTTPException(status_code=403, detail="无权查看该班级学情")
+    # 目标学生必须属于该班级
     membership = (
         db.query(ClassStudent)
         .filter(
@@ -88,6 +90,7 @@ def _get_class(db: Session, class_id: int) -> Class:
 
 
 def _can_view_class(db: Session, cls: Class, user: User) -> None:
+    """班级学情查看权限：admin 全量，教师仅限自己负责的班级。"""
     if user.role == ROLE_ADMIN:
         return
     if cls.teacher_id != user.id:
@@ -95,6 +98,7 @@ def _can_view_class(db: Session, cls: Class, user: User) -> None:
 
 
 def _get_class_student_ids(db: Session, cls: Class) -> list[int]:
+    """返回班级内全部学生 id 列表。"""
     return [
         r[0]
         for r in db.query(ClassStudent.student_id)
@@ -111,6 +115,7 @@ def _get_assignment(db: Session, assignment_id: int) -> Assignment:
 
 
 def _can_view_assignment(db: Session, assignment: Assignment, user: User) -> None:
+    """作业分析查看权限：admin 全量，教师仅限自己布置的作业。"""
     if user.role == ROLE_ADMIN:
         return
     if assignment.teacher_id != user.id:
@@ -127,6 +132,7 @@ def student_knowledge_stats(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """学生知识点掌握度列表。"""
     student = _student_exists(db, student_id)
     scope = _student_class_scope(db, student, user, class_id)
     ensure_student_stats(db, student_id)
@@ -145,6 +151,7 @@ def student_weak_points(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """学生薄弱知识点 TOP N。"""
     student = _student_exists(db, student_id)
     scope = _student_class_scope(db, student, user, class_id)
     ensure_student_stats(db, student_id)
@@ -161,6 +168,7 @@ def student_learning_trend(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """学生成绩趋势（按时间排序的作业得分百分比）。"""
     student = _student_exists(db, student_id)
     scope = _student_class_scope(db, student, user, class_id)
     return get_student_learning_trend(db, student_id, scope)
@@ -178,6 +186,7 @@ def student_repeated_errors(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """学生重复错误统计（按错误类型聚合）。"""
     student = _student_exists(db, student_id)
     scope = _student_class_scope(db, student, user, class_id)
     return get_student_repeated_errors(db, student_id, top_n, min_count, scope)
@@ -210,6 +219,7 @@ def assignment_analysis(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """单次作业整体分析。"""
     a = _get_assignment(db, assignment_id)
     _can_view_assignment(db, a, user)
     return get_assignment_analysis(db, assignment_id)
@@ -224,6 +234,7 @@ def class_analytics(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """班级整体学情分析。"""
     cls = _get_class(db, class_id)
     _can_view_class(db, cls, user)
     student_ids = _get_class_student_ids(db, cls)
