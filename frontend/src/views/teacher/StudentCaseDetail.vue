@@ -309,7 +309,7 @@
             <aside class="case-rail">
               <section class="rail-section"><span class="rail-label">当前状态</span><strong>{{ labels[detail.status] || detail.status }}</strong><p>{{ detail.current_summary || '尚未填写状态说明' }}</p><small v-if="detail.owner_teacher_id" class="rail-owner">负责人：班主任 #{{ detail.owner_teacher_id }}</small></section>
               <section class="rail-section compact">
-                <div><span>学科方案</span><strong>{{ detail.subject_plans.length }}</strong></div>
+                <div><span>教学方案</span><strong>{{ detail.subject_plans.length }}</strong></div>
                 <div><span>阶段目标</span><strong>{{ detail.goals.length }}</strong></div>
                 <div><span>执行任务</span><strong>{{ detail.tasks.length }}</strong></div>
                 <div v-if="auth.role !== 'parent'"><span>督查记录</span><strong>{{ detail.reviews.length }}</strong></div>
@@ -317,7 +317,7 @@
               <section v-if="auth.role !== 'parent'" class="rail-section source-note"><span class="rail-label">数据来源</span><p>历史 DOCX 试导入</p><small>解析内容尚未成为正式方案，需由班主任核对后提交确认。</small></section>
               <section v-if="detail.status === 'draft'" class="rail-section next-steps">
                 <span class="rail-label">确认前检查</span>
-                <ol><li><span>1</span>核对诊断与成绩信息</li><li><span>2</span>确认学科方案负责人</li><li><span>3</span>补充可执行目标与任务</li></ol>
+                <ol><li><span>1</span>核对诊断与成绩信息</li><li><span>2</span>确认教学方案负责人</li><li><span>3</span>补充可执行目标与任务</li></ol>
               </section>
             </aside>
           </div>
@@ -362,7 +362,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="学科方案" name="subjects">
+        <el-tab-pane label="教学方案" name="subjects">
           <div v-if="subjectOptions.length" class="subject-workspace">
             <nav class="subject-nav" aria-label="选择学科">
               <div class="subject-nav-heading"><strong>全部科目</strong><span>{{ subjectOptions.length }} 科</span></div>
@@ -400,16 +400,11 @@
                 </div>
               </header>
 
-              <section v-if="(auth.role === 'teacher' && !detail.can_manage) || auth.role === 'subject_teacher'" class="teacher-suggestion-box">
-                <div><strong>学科建议</strong><span>提交后由班主任查看</span></div>
-                <el-input v-model="suggestionText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="填写对该生本学科方案的补充建议" />
-                <el-button type="primary" :loading="savingSuggestion" @click="saveSuggestion">提交学科建议</el-button>
-              </section>
-
               <div v-if="editingPlan" class="editing-note"><el-icon><EditPen /></el-icon><span>正在编辑 {{ selectedSubject }}方案，所有字段将按原文完整保存。</span></div>
 
               <section class="subject-section">
                 <div class="subject-section-heading"><div><el-icon><Search /></el-icon><h3>{{ selectedSubject === '德育' ? '行为表现' : '问题' }}</h3></div><span>{{ selectedSubject === '德育' ? '记录日常行为与关键表现' : '明确当前差距与主要原因' }}</span></div>
+                <div v-if="selectedPlan?.teacher_name" class="teacher-info-bar"><span class="teacher-label">授课老师</span><span class="teacher-name">{{ selectedPlan.teacher_name }}</span></div>
                 <el-form v-if="editingPlan" label-position="top" class="subject-edit-form">
                   <el-form-item label="学科老师姓名"><el-input v-model="planForm.teacher_name" placeholder="填写负责该科方案的老师姓名" maxlength="64" /></el-form-item>
                   <el-form-item :label="selectedSubject === '德育' ? '行为表现' : '问题定位'"><el-input v-model="planForm.problem_location" type="textarea" :autosize="{ minRows: 3, maxRows: 14 }" :placeholder="selectedSubject === '德育' ? '记录课堂、作业、纪律、品行等日常行为表现' : '完整填写该学科的问题定位'" /></el-form-item>
@@ -496,12 +491,12 @@
           </div>
           <div v-else class="empty-panel subject-empty">
             <template v-if="detail.can_manage">
-              <h3>尚未建立学科方案</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p>
+              <h3>尚未建立教学方案</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p>
               <div class="subject-create-actions"><el-button v-for="subject in subjectOrder" :key="subject" type="primary" plain @click="addSubject(subject)">新建{{ subject }}方案</el-button></div>
             </template>
             <template v-else>
-              <h3>{{ auth.role === 'subject_teacher' ? '所带学科暂未建立方案' : '尚未建立学科方案' }}</h3>
-              <p>{{ auth.role === 'subject_teacher' ? '班主任建立所带学科方案后，可在此查看并提交学科建议。' : '暂无可查看的学科方案。' }}</p>
+              <h3>{{ auth.role === 'subject_teacher' ? '所带学科暂未建立方案' : '尚未建立教学方案' }}</h3>
+              <p>{{ auth.role === 'subject_teacher' ? '班主任建立所带教学方案后，可在此查看并提交学科建议。' : '暂无可查看的教学方案。' }}</p>
             </template>
           </div>
         </el-tab-pane>
@@ -525,6 +520,13 @@
               <el-form-item label="整改要求"><el-input v-model="reviewForm.corrective_action" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="填写整改要求与具体措施" /></el-form-item>
               <el-form-item label="复查结果（可选）"><el-input v-model="reviewForm.recheck_result" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" placeholder="复查时填写结果，初次督查可留空" /></el-form-item>
               <div class="review-form-actions"><el-button type="primary" :loading="savingReview" @click="saveReview">提交督查记录</el-button></div>
+            </el-form>
+          </div>
+          <div v-if="(auth.role === 'teacher' && !detail.can_manage) || auth.role === 'subject_teacher'" class="review-form-card suggestion-card">
+            <div class="review-form-header"><strong>学科建议</strong><span>提交后由班主任查看</span></div>
+            <el-form label-position="top" class="review-form">
+              <el-form-item label="补充建议"><el-input v-model="suggestionText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="填写对该生本教学方案的补充建议" /></el-form-item>
+              <div class="review-form-actions"><el-button type="primary" :loading="savingSuggestion" @click="saveSuggestion">提交学科建议</el-button></div>
             </el-form>
           </div>
           <el-timeline v-if="detail.reviews.length" class="review-timeline">
@@ -561,10 +563,10 @@
             <div v-else class="empty-panel"><h3>暂无周测成绩</h3><p>班主任可在“周测成绩”页面按班级批量录入，该生的历次周测将在此汇聚并展示趋势。</p></div>
           </div>
         </el-tab-pane>
-        <el-tab-pane label="月度评价" name="monthly">
+        <el-tab-pane label="月度评定" name="monthly">
           <div class="weekly-section">
             <div class="weekly-header">
-              <div><strong>月度评价</strong><span>{{ monthlyRows.length }} 份</span></div>
+              <div><strong>月度评定</strong><span>{{ monthlyRows.length }} 份</span></div>
               <div class="weekly-actions">
                 <el-button @click="loadMonthly">刷新</el-button>
                 <el-button v-if="auth.role !== 'subject_teacher'" type="primary" plain @click="$router.push('/teacher/monthly-reports')">去管理</el-button>
@@ -576,17 +578,17 @@
               <el-table-column label="摘要" min-width="300" show-overflow-tooltip><template #default="{ row }">{{ (row.final_content || row.ai_content || '').slice(0,80) }}</template></el-table-column>
               <el-table-column v-if="auth.role !== 'subject_teacher'" label="操作" width="120"><template #default="{ row }"><el-button link type="primary" @click="$router.push('/teacher/monthly-reports')">查看</el-button></template></el-table-column>
             </el-table>
-            <div v-else class="empty-panel"><h3>暂无月度评价</h3><p>班主任可在“月度评价”页面按月生成 AI 初稿，汇总学情与德育并给出改进方案。</p></div>
+            <div v-else class="empty-panel"><h3>暂无月度评定</h3><p>班主任可在“月度评定”页面按月生成 AI 初稿，汇总学情与德育并给出改进方案。</p></div>
           </div>
         </el-tab-pane>
-        <el-tab-pane label="历史版本" name="versions">
+        <el-tab-pane label="生涯学案" name="versions">
           <div class="weekly-section">
             <div class="weekly-header">
-              <div><strong>历史版本</strong><span>当前 V{{ detail.version }} · 已存 {{ versions.length }} 个快照</span></div>
+              <div><strong>生涯学案</strong><span>当前 V{{ detail.version }} · 已存 {{ versions.length }} 个快照</span></div>
               <div class="weekly-actions"><el-button @click="loadVersions">刷新</el-button></div>
             </div>
-            <div v-if="versionsLoading" class="empty-panel"><h3>正在读取历史版本…</h3></div>
-            <div v-else-if="!versions.length" class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>暂无历史快照。阶段复盘确认调整后，旧版本将在这里自动保留（含总体问题、升学目标、学科方案、任务与督查）。</p></div>
+            <div v-if="versionsLoading" class="empty-panel"><h3>正在读取生涯学案…</h3></div>
+            <div v-else-if="!versions.length" class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>暂无历史快照。阶段复盘确认调整后，旧版本将在这里自动保留（含总体问题、升学目标、教学方案、任务与督查）。</p></div>
             <div v-else class="version-layout">
               <el-timeline class="review-timeline version-timeline">
                 <el-timeline-item v-for="v in versions" :key="v.id" :timestamp="formatDateTime(v.created_at)" :type="v.id === selectedVersionId ? 'primary' : ''">
@@ -603,9 +605,9 @@
                 <article><span class="rail-label">升学目标</span><p>{{ selectedVersion.snapshot?.case?.admission_target || '未记录' }}</p></article>
                 <article><span class="rail-label">当前状态说明</span><p>{{ selectedVersion.snapshot?.case?.current_summary || '未记录' }}</p></article>
                 <article>
-                  <span class="rail-label">学科方案（{{ (selectedVersion.snapshot?.subject_plans || []).length }}）</span>
+                  <span class="rail-label">教学方案（{{ (selectedVersion.snapshot?.subject_plans || []).length }}）</span>
                   <div v-for="p in (selectedVersion.snapshot?.subject_plans || [])" :key="p.id || p.subject" class="version-plan"><strong>{{ p.subject }}</strong><p>问题：{{ p.problem_location || '—' }}</p><p>目标：{{ p.struggle_goal || '—' }}</p></div>
-                  <p v-if="!(selectedVersion.snapshot?.subject_plans || []).length" class="placeholder-copy">该版本暂无学科方案。</p>
+                  <p v-if="!(selectedVersion.snapshot?.subject_plans || []).length" class="placeholder-copy">该版本暂无教学方案。</p>
                 </article>
                 <article>
                   <span class="rail-label">任务（{{ (selectedVersion.snapshot?.tasks || []).length }}）</span>
@@ -705,13 +707,13 @@ const overviewTargetEdits = ref([])
 const newProblemSubject = ref('')
 const transitionError = ref('')
 const statusCopy = {
-  draft: { title: '历史材料已导入，等待教师核对', desc: '请由班主任核对总体问题、升学目标和学科方案，确认无误后提交德育审查。' },
+  draft: { title: '历史材料已导入，等待教师核对', desc: '请由班主任核对总体问题、升学目标和教学方案，确认无误后提交德育审查。' },
   pending_confirmation: { title: '等待德育主任审查', desc: '已提交德育审查，等待德育主任审核；通过后家长可见正式方案，总览将锁定。' },
   revision_required: { title: '德育已退回，需班主任整改', desc: '德育主任已退回并给出整改要求，请按要求完善后重新提交审查。' },
   executing: { title: '方案正在执行中', desc: '德育已通过，家长已可见当前版本。请通过任务与执行记录跟踪进展，必要时发起阶段复盘。' },
   pending_review: { title: '已进入阶段复盘', desc: '请完成督查复盘记录，确认调整后将生成新版本，归档则结束本周期。' },
-  adjusted: { title: '复盘已调整（已生成新版本）', desc: '已按复盘结论调整并保留历史版本。可重新进入执行或再次复盘。' },
-  archived: { title: '已归档', desc: '本档案已归档，内容只读保留，历史版本仍可查看。' },
+  adjusted: { title: '复盘已调整（已生成新版本）', desc: '已按复盘结论调整并保留生涯学案。可重新进入执行或再次复盘。' },
+  archived: { title: '已归档', desc: '本档案已归档，内容只读保留，生涯学案仍可查看。' },
 }
 const stateTitle = computed(() => {
   const s = detail.value?.status
@@ -723,7 +725,7 @@ const stateDescription = computed(() => {
   const s = detail.value?.status
   if (s === 'pending_confirmation' && auth.role === 'deyu_director') return '请核对方案整体与德育相关内容，选择通过或退回整改并填写意见。'
   if (s === 'pending_confirmation' && detail.value?.can_manage) return '已提交德育审查，等待德育主任审核；撤回可退回草稿重新编辑。'
-  return statusCopy[s]?.desc || '所有后续调整都会保留历史版本，家长始终看到有版本依据的正式内容。'
+  return statusCopy[s]?.desc || '所有后续调整都会保留生涯学案，家长始终看到有版本依据的正式内容。'
 })
 const latestDeyuReturn = computed(() => {
   if (!detail.value?.reviews?.length) return null
@@ -765,12 +767,10 @@ const canEditOverview = computed(() => detail.value?.can_manage && ['draft', 're
 const canEditTasks = computed(() => detail.value?.can_manage && !['pending_confirmation', 'archived'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingOverview.value)
 const canCreateReview = computed(() => {
   if (!detail.value) return false
-  if (auth.role === 'admin') return true
-  return !!detail.value.can_manage
+  return auth.role === 'admin'
 })
 const reviewRoleTip = computed(() => {
-  if (auth.role === 'admin') return '管理员提交校级/校长督察，班主任提交班主任/学科层级'
-  if (detail.value?.can_manage) return '班主任可提交班主任/学科层级督查'
+  if (auth.role === 'admin') return '管理员提交校级/校长督察'
   return ''
 })
 const availableProblemSubjects = computed(() => {
@@ -807,7 +807,7 @@ function addProblemSubject() {
 function removeProblemSubject(index) {
   overviewProblemEdits.value.splice(index, 1)
 }
-// 学科方案缺失时展示总案原文作为参考，不抽取、不概括，避免导入内容被压缩。
+// 教学方案缺失时展示总案原文作为参考，不抽取、不概括，避免导入内容被压缩。
 const subjectProblemText = computed(() => detail.value?.overall_problem || '')
 const subjectTargetText = computed(() => detail.value?.admission_target || '')
 
@@ -1047,7 +1047,7 @@ function selectSubject(subject) {
 
 function addSubject(subject) {
   if (!detail.value?.can_manage) {
-    ElMessage.error('仅班主任可新建学科方案')
+    ElMessage.error('仅班主任可新建教学方案')
     return
   }
   if (!manualSubjects.value.includes(subject)) manualSubjects.value.push(subject)
@@ -1448,7 +1448,7 @@ async function loadVersions() {
       selectedVersionId.value = versions.value[0]?.id || null
     }
   } catch (e) {
-    ElMessage.error(e?.response?.data?.detail || '历史版本读取失败')
+    ElMessage.error(e?.response?.data?.detail || '生涯学案读取失败')
     versions.value = []
   } finally {
     versionsLoading.value = false
@@ -1572,7 +1572,7 @@ async function handleExport() {
 }
 
 async function handleArchive() {
-  const { value } = await ElMessageBox.prompt('请输入归档原因（将保留历史版本）', '归档确认', { confirmButtonText: '确认归档', cancelButtonText: '取消', inputPlaceholder: '例如：本周期已结束，归档留存' })
+  const { value } = await ElMessageBox.prompt('请输入归档原因（将保留生涯学案）', '归档确认', { confirmButtonText: '确认归档', cancelButtonText: '取消', inputPlaceholder: '例如：本周期已结束，归档留存' })
   if (!value || !String(value).trim()) { ElMessage.warning('请填写归档原因'); return }
   submitting.value = true
   transitionError.value = ''
@@ -1732,6 +1732,7 @@ onMounted(load)
 .subject-nav-item { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto 14px; align-items: center; gap: 10px; width: 100%; padding: 11px 13px; color: var(--ink-secondary); background: transparent; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; text-align: left; transition: background .18s, color .18s, border-color .18s; }.subject-nav-item:hover { background: var(--surface-soft); }.subject-nav-item.is-active { color: var(--brand-strong); background: linear-gradient(90deg, var(--brand-soft), color-mix(in oklch, var(--brand-soft) 70%, white)); border-left: 3px solid var(--brand); padding-left: 10px; }.subject-nav-item:disabled { cursor: not-allowed; opacity: .5; }.subject-avatar { display: grid; place-items: center; width: 32px; height: 32px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 9px; font-size: 12.5px; font-weight: 750; }.subject-nav-item.is-active .subject-avatar { color: #fff; background: var(--brand); border-color: transparent; }.subject-nav-item > span:nth-child(2) { display: grid; gap: 2px; }.subject-nav-item strong { color: var(--ink); font-size: 13.5px; }.subject-nav-item small { color: var(--ink-muted); font-size: 11px; }.subject-task-count { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; }.subject-nav-item .el-icon { color: var(--ink-muted); font-size: 11px; }.subject-add { display: flex; justify-content: center; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface-soft); }.subject-add :deep(.el-button) { width: 100%; border-radius: 10px; }
 .subject-detail { overflow: hidden; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.subject-detail-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--line); background: color-mix(in oklch, var(--surface-soft) 45%, white); }.subject-detail-header > div:first-child { display: flex; align-items: center; gap: 10px; }.subject-detail-header h2 { margin: 0; font-size: 17px; font-weight: 750; letter-spacing: -.015em; }.subject-chip { padding: 6px 10px; color: #fff; background: var(--brand); border-radius: 9px; font-size: 11.5px; font-weight: 700; box-shadow: 0 2px 8px color-mix(in oklch, var(--brand) 24%, transparent); }.subject-header-actions { display: flex; align-items: center; gap: 10px; }.subject-counts { display: flex; gap: 12px; margin-right: 2px; color: var(--ink-muted); font-size: 11.5px; }.subject-counts span { background: var(--surface); border: 1px solid var(--line); padding: 4px 8px; border-radius: 999px; }.editing-note { display: flex; align-items: center; gap: 8px; padding: 10px 22px; color: var(--brand-strong); background: var(--brand-soft); border-top: 1px solid color-mix(in oklch, var(--brand) 12%, var(--line)); border-bottom: 1px solid color-mix(in oklch, var(--brand) 12%, var(--line)); font-size: 12px; font-weight: 600; }.editing-note .el-icon { font-size: 14px; }
 .subject-section { padding: 20px 22px 22px; }.subject-section + .subject-section { border-top: 1px solid var(--line); }.subject-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }.subject-section-heading > div { display: flex; align-items: center; gap: 8px; }.subject-section-heading .el-icon { color: #fff; background: var(--brand); width: 22px; height: 22px; display: grid; place-items: center; border-radius: 7px; font-size: 12px; padding: 4px; }.subject-section-heading h3 { margin: 0; font-size: 15px; font-weight: 700; }.subject-section-heading > span { color: var(--ink-muted); font-size: 11.5px; }
+.teacher-info-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 14px; background: #f0f5ff; border: 1px solid #d0e0ff; border-radius: 10px; }.teacher-label { font-size: 12px; color: #5b7cff; font-weight: 600; white-space: nowrap; }.teacher-name { font-size: 13.5px; color: #1a2233; font-weight: 600; }
 .subject-fields { margin: 0; }.subject-fields > div { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }.subject-fields > div:last-child { border-bottom: 0; }.subject-fields dt { color: var(--ink); font-size: 12.5px; font-weight: 700; white-space: nowrap; }.subject-fields dd { margin: 0; color: var(--ink-secondary); font-size: 13.5px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; text-wrap: pretty; }.plan-fields { margin-bottom: 14px; }
 .subject-edit-form { display: grid; gap: 2px; }.subject-edit-form :deep(.el-form-item) { margin-bottom: 14px; }.subject-edit-form :deep(.el-form-item:last-child) { margin-bottom: 0; }.subject-edit-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12.5px; font-weight: 700; line-height: 1.4; }.subject-edit-form :deep(.el-textarea__inner) { padding: 11px 13px; color: var(--ink); background: var(--surface-soft); border-color: var(--line); font-family: inherit; font-size: 13.5px; line-height: 1.7; resize: vertical; }.plan-edit-form { margin-bottom: 14px; }
 .task-list-heading { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--line); }.task-list-heading > div { display: flex; align-items: baseline; gap: 8px; }.task-list-heading strong { font-size: 12.5px; font-weight: 700; }.task-list-heading span { color: var(--ink-muted); font-size: 11.5px; background: var(--surface-soft); border: 1px solid var(--line); padding: 3px 7px; border-radius: 999px; }.task-edit-form { margin-top: 12px; padding: 16px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; }.task-edit-form :deep(.el-form-item) { margin-bottom: 12px; }.task-edit-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; line-height: 1.4; }.task-edit-form :deep(.el-input), .task-edit-form :deep(.el-select), .task-edit-form :deep(.el-date-editor) { width: 100%; }.task-edit-form :deep(.el-textarea__inner) { line-height: 1.65; }.task-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }.task-form-actions { display: flex; justify-content: flex-end; gap: 8px; }.task-list { margin-top: 8px; }.task-row { display: flex; justify-content: space-between; gap: 20px; padding: 12px 0; border-bottom: 1px solid var(--line); }.task-row:last-child { border-bottom: 0; }.task-row strong { font-size: 13.5px; }.task-row p { margin: 4px 0 0; color: var(--ink-muted); font-size: 12px; white-space: pre-wrap; line-height: 1.6; }.task-side { display: grid; justify-items: end; align-content: start; gap: 6px; flex-shrink: 0; }.task-meta { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }.task-meta span { padding: 4px 7px; color: var(--ink-secondary); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 11px; font-weight: 600; }

@@ -3,6 +3,7 @@ export const ROLE_HOMES = {
   deyu_director: '/deyu/cases',
   teacher: '/teacher/student-cases',
   subject_teacher: '/subject/cases',
+  consultant: '/consultant/cases',
   student: '/student/assignments',
   parent: '/parent/children',
 }

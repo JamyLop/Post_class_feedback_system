@@ -768,6 +768,18 @@ def upsert_subject_plan(
     else:
         for field, value in body.model_dump().items():
             setattr(plan, field, value)
+    # 自动同步 class_teachers：确保该任课老师与班级关联
+    if body.teacher_id:
+        exists = db.query(ClassTeacher).filter_by(
+            class_id=case.class_id, teacher_id=body.teacher_id, subject=subject
+        ).first()
+        if not exists:
+            db.add(ClassTeacher(
+                class_id=case.class_id,
+                teacher_id=body.teacher_id,
+                role="subject_teacher",
+                subject=subject,
+            ))
     db.flush()
     audit(db, user.id, "subject_plan.upsert", "subject_plan", plan.id, case.id, {"subject": subject})
     db.commit()

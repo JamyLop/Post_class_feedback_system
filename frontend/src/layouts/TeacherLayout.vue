@@ -9,33 +9,15 @@
         </div>
       </div>
 
-      <el-scrollbar class="nav-scroll">
+        <el-scrollbar class="nav-scroll">
         <div class="nav-label">教学管理</div>
         <el-menu :default-active="activeMenu" router>
-          <el-menu-item index="/teacher/student-cases">
-            <el-icon><Files /></el-icon>
-            <span>学生档案</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/weekly-scores">
-            <el-icon><DataAnalysis /></el-icon>
-            <span>周测成绩</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/task-reminders">
-            <el-icon><Bell /></el-icon>
-            <span>任务提醒</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/points-reports">
-            <el-icon><TrendCharts /></el-icon>
-            <span>积分周月报</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/monthly-reports">
-            <el-icon><Notebook /></el-icon>
-            <span>月度评价</span>
-          </el-menu-item>
-          <el-menu-item index="/teacher/classes">
-            <el-icon><School /></el-icon>
-            <span>班级与教师</span>
-          </el-menu-item>
+          <template v-for="item in menuItems" :key="item.index">
+            <el-menu-item :index="item.index">
+              <el-icon><component :is="item.icon" /></el-icon>
+              <span>{{ item.title }}</span>
+            </el-menu-item>
+          </template>
         </el-menu>
       </el-scrollbar>
 
@@ -83,13 +65,26 @@ const workspaceRef = ref(null)
 
 const activeMenu = computed(() => route.path)
 
+const menuItems = computed(() => {
+  const role = auth.role
+  const allItems = [
+    { index: '/teacher/student-cases', icon: 'Files', title: '学生档案', roles: ['admin', 'teacher', 'deyu_director'] },
+    { index: '/teacher/weekly-scores', icon: 'DataAnalysis', title: '周测成绩', roles: ['admin', 'teacher'] },
+    { index: '/teacher/task-reminders', icon: 'Bell', title: '任务提醒', roles: ['admin', 'teacher'] },
+    { index: '/teacher/points-reports', icon: 'TrendCharts', title: '积分周月报', roles: ['admin', 'teacher'] },
+    { index: '/teacher/monthly-reports', icon: 'Notebook', title: '月度评定', roles: ['admin', 'teacher'] },
+    { index: '/teacher/classes', icon: 'School', title: '班级与教师', roles: ['admin', 'teacher'] },
+  ]
+  return allItems.filter(item => item.roles.includes(role))
+})
+
 const pageContext = computed(() => {
   if (route.path.includes('/student-cases/')) return '档案详情'
   if (route.path === '/teacher/student-cases') return '档案库'
   if (route.path === '/teacher/weekly-scores') return '周测'
   if (route.path === '/teacher/task-reminders') return '任务提醒'
   if (route.path === '/teacher/points-reports') return '积分周月报'
-  if (route.path === '/teacher/monthly-reports') return '月度评价'
+  if (route.path === '/teacher/monthly-reports') return '月度评定'
   if (route.path === '/teacher/classes') return '班级'
   return '教学'
 })
