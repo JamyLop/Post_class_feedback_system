@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <text class="h1">快速打卡</text>
 
     <view v-if="loadingCase" class="loading-bar">
@@ -25,7 +26,7 @@
           <view class="field">
             <text class="label">完成度</text>
             <view class="rate-row">
-              <slider :value="form.completion_rate" :min="0" :max="100" step="5" @change="e => form.completion_rate = e.detail.value" class="slider" activeColor="#6B5CE7" />
+              <slider :value="form.completion_rate" :min="0" :max="100" step="5" @change="e => form.completion_rate = e.detail.value" class="slider" activeColor="#253D61" />
               <text class="rate-num">{{ form.completion_rate }}%</text>
             </view>
           </view>
@@ -35,7 +36,7 @@
             <textarea v-model="form.self_check" placeholder="实际执行情况、问题与要求" class="textarea" />
           </view>
         </view>
-        <button class="btn-primary" :loading="submitting" @click="submit">提交打卡</button>
+        <button class="btn-primary" :loading="submitting" :disabled="submitting" @click="submit">提交打卡</button>
         <text class="hint">完成度 100% 自动标记任务完成</text>
       </template>
     </template>
@@ -43,6 +44,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase, checkinCaseTask } from '../../api/studentCases'
@@ -98,48 +100,48 @@ async function submit() {
 }
 
 onShow(() => load())
-onMounted(load)
+
 </script>
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
-.empty-text { text-align: center; color: #A09CB5; padding: 36rpx; font-size: 24rpx; }
-.hint { text-align: center; color: #A09CB5; font-size: 22rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 36rpx; font-size: 24rpx; }
+.hint { text-align: center; color: var(--mp-muted); font-size: 24rpx; }
 
 .card {
   background: #fff;
   border-radius: 20rpx;
   padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
   display: flex; flex-direction: column; gap: 20rpx;
 }
 .field { display: flex; flex-direction: column; gap: 8rpx; }
-.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.label { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 .picker {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
-  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: #1A1636;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
+  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: var(--mp-ink);
 }
 
 .task-preview {
-  background: #FAF9F7; border-radius: 14rpx; padding: 18rpx;
+  background: #F7F8FA; border-radius: 14rpx; padding: 18rpx;
 }
-.preview-subject { font-size: 22rpx; color: #6B5CE7; font-weight: 500; }
-.preview-title { font-size: 28rpx; font-weight: 600; color: #1A1636; display: block; margin-top: 6rpx; }
-.preview-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
+.preview-subject { font-size: 24rpx; color: var(--mp-primary); font-weight: 500; }
+.preview-title { font-size: 28rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-top: 6rpx; }
+.preview-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 
 .rate-row { display: flex; align-items: center; gap: 16rpx; }
 .slider { flex: 1; }
-.rate-num { font-size: 32rpx; font-weight: 700; color: #6B5CE7; min-width: 80rpx; text-align: right; }
+.rate-num { font-size: 32rpx; font-weight: 700; color: var(--mp-primary); min-width: 80rpx; text-align: right; }
 .textarea {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
   padding: 18rpx 20rpx; font-size: 26rpx; min-height: 160rpx; background: #fff;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  background: var(--mp-primary);
   color: #fff; border-radius: 14rpx; padding: 24rpx 0;
   font-size: 30rpx; font-weight: 600; border: none;
 }

@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -37,7 +38,9 @@
         </view>
       </view>
 
-      <view v-if="showForm" class="modal-mask" @click.self="showForm = false">
+      <view v-if="showForm" class="modal-mask">
+        <!-- 遮罩与表单分离，输入框的点击不会冒泡到关闭操作。 -->
+        <view class="modal-backdrop" @click="showForm = false" />
         <view class="modal-card">
           <text class="modal-title">提交学科建议</text>
 
@@ -53,8 +56,11 @@
 
           <view class="form-item">
             <text class="form-label">建议内容</text>
+            <!-- 微信原生文本域位于固定定位弹窗内，必须显式声明 fixed。 -->
             <textarea
               v-model="form.content"
+              :fixed="true"
+              :cursor-spacing="24"
               class="form-textarea"
               placeholder="请输入对学科方案的修改建议"
               maxlength="1000"
@@ -75,11 +81,12 @@
         </view>
       </view>
     </template>
-    <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" icon="📄" />
+    <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" />
   </view>
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase, listSubjectSuggestions, createSubjectSuggestion } from '../../api/studentCases'
@@ -153,76 +160,79 @@ onShow(() => load())
 <style scoped>
 .page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 18rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .header-card {
   background: #fff; border-radius: 20rpx; padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.h1 { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 8rpx; }
+.h1 { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 8rpx; }
 
 .section { display: flex; flex-direction: column; gap: 12rpx; }
-.section-h { font-size: 26rpx; font-weight: 600; color: #1A1636; }
+.section-h { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
 .section-head-row { display: flex; justify-content: space-between; align-items: center; }
-.add-link { font-size: 24rpx; color: #6B5CE7; font-weight: 500; }
-.empty-text { text-align: center; color: #A09CB5; padding: 28rpx; font-size: 24rpx; }
+.add-link { font-size: 24rpx; color: var(--mp-primary); font-weight: 500; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 28rpx; font-size: 24rpx; }
 
 .plan-card, .suggestion-card {
-  background: #FAF9F7; border-radius: 14rpx; padding: 20rpx;
+  background: #F7F8FA; border-radius: 14rpx; padding: 20rpx;
   display: flex; flex-direction: column; gap: 10rpx;
 }
 .subject-chip {
-  font-size: 22rpx; font-weight: 600; color: #6B5CE7;
-  background: #EEEDFD; padding: 6rpx 16rpx; border-radius: 16rpx;
+  font-size: 24rpx; font-weight: 600; color: var(--mp-primary);
+  background: var(--mp-soft); padding: 6rpx 16rpx; border-radius: 16rpx;
   display: inline-block;
 }
 
 .field { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; }
-.dt { font-size: 22rpx; color: #8E8B9E; }
-.dd { font-size: 24rpx; color: #4A4763; line-height: 1.6; white-space: pre-wrap; }
+.dt { font-size: 24rpx; color: var(--mp-muted); }
+.dd { font-size: 24rpx; color: var(--mp-body); line-height: 1.6; white-space: pre-wrap; }
 
 .sug-head { display: flex; justify-content: space-between; align-items: center; }
-.sug-time { font-size: 22rpx; color: #A09CB5; }
-.sug-body { font-size: 24rpx; color: #4A4763; line-height: 1.6; white-space: pre-wrap; margin-top: 6rpx; }
+.sug-time { font-size: 24rpx; color: var(--mp-muted); }
+.sug-body { font-size: 24rpx; color: var(--mp-body); line-height: 1.6; white-space: pre-wrap; margin-top: 6rpx; }
 
 .modal-mask {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.45); z-index: 100;
+  z-index: 100; box-sizing: border-box;
   display: flex; align-items: center; justify-content: center;
   padding: 40rpx;
 }
+.modal-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.45); }
 .modal-card {
+  position: relative; box-sizing: border-box;
   background: #fff; border-radius: 20rpx; padding: 32rpx;
   width: 100%; display: flex; flex-direction: column; gap: 24rpx;
 }
-.modal-title { font-size: 30rpx; font-weight: 700; color: #1A1636; }
+.modal-title { font-size: 30rpx; font-weight: 700; color: var(--mp-ink); }
 
 .form-item { display: flex; flex-direction: column; gap: 8rpx; }
-.form-label { font-size: 24rpx; font-weight: 600; color: #4A4763; }
+.form-label { font-size: 24rpx; font-weight: 600; color: var(--mp-body); }
 .form-input {
+  box-sizing: border-box; width: 100%; height: 88rpx; color: var(--mp-ink);
   font-size: 26rpx; padding: 18rpx; border-radius: 10rpx;
-  border: 1rpx solid #E0E7E5; background: #FAF9F7;
+  border: 1rpx solid var(--mp-line); background: #F7F8FA;
 }
 .form-textarea {
   font-size: 26rpx; padding: 18rpx; border-radius: 10rpx;
-  border: 1rpx solid #E0E7E5; background: #FAF9F7;
-  min-height: 160rpx; width: 100%; box-sizing: border-box;
+  border: 1rpx solid var(--mp-line); background: #F7F8FA;
+  height: 280rpx; min-height: 160rpx; width: 100%; box-sizing: border-box; color: var(--mp-ink);
 }
 .picker-box {
   display: flex; justify-content: space-between; align-items: center;
   font-size: 26rpx; padding: 18rpx; border-radius: 10rpx;
-  border: 1rpx solid #E0E7E5; background: #FAF9F7;
-  color: #4A4763;
+  border: 1rpx solid var(--mp-line); background: #F7F8FA;
+  color: var(--mp-body);
 }
-.picker-arrow { color: #A09CB5; font-size: 28rpx; }
+.picker-arrow { color: var(--mp-muted); font-size: 28rpx; }
 
 .modal-actions { display: flex; gap: 16rpx; margin-top: 8rpx; }
 .modal-btn {
   flex: 1; text-align: center; padding: 20rpx; border-radius: 12rpx;
   font-size: 28rpx; font-weight: 600;
 }
-.modal-btn.cancel { background: #F5F3EF; color: #4A4763; }
-.modal-btn.confirm { background: #6B5CE7; color: #fff; }
+.modal-btn.cancel { background: #F3F5F8; color: var(--mp-body); }
+.modal-btn.confirm { background: var(--mp-primary); color: #fff; }
 .modal-btn.disabled { opacity: 0.5; }
 </style>

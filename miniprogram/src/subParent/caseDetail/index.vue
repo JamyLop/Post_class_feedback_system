@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -14,7 +15,7 @@
           <text class="meta-text">{{ detail.class_name }} · 第{{ detail.version }}版</text>
         </view>
         <view class="state-banner" :class="`is-${detail.status}`">
-          <text class="state-title">{{ stateTitle }}</text>
+
           <text class="state-desc">{{ stateDesc }}</text>
         </view>
       </view>
@@ -40,7 +41,7 @@
         </view>
 
         <view v-if="active==='subjects'" class="tab-panel">
-          <EmptyState v-if="!detail.subject_plans.length" title="暂无学科方案" icon="📖" />
+          <EmptyState v-if="!detail.subject_plans.length" title="暂无学科方案" />
           <view v-for="plan in detail.subject_plans" :key="plan.id" class="plan-card">
             <view class="plan-head">
               <text class="subject-chip">{{ plan.subject }}</text>
@@ -55,7 +56,7 @@
         </view>
 
         <view v-if="active==='tasks'" class="tab-panel">
-          <EmptyState v-if="!detail.tasks.length" title="暂无任务" icon="📋" />
+          <EmptyState v-if="!detail.tasks.length" title="暂无任务" />
           <view v-for="task in detail.tasks" :key="task.id" class="task-card" @click="openTask(task.id)">
             <view class="task-head">
               <text class="subject-tag">{{ task.subject || '综合' }}</text>
@@ -71,16 +72,17 @@
         </view>
 
         <view v-if="active==='reviews'" class="tab-panel">
-          <EmptyState v-if="!detail.reviews.length" title="暂无督查复盘" icon="📋" />
+          <EmptyState v-if="!detail.reviews.length" title="暂无督查复盘" />
           <Timeline v-else :items="reviewItems" />
         </view>
       </view>
     </template>
-    <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" icon="📄" />
+    <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" />
   </view>
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { getStudentCase } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
@@ -146,64 +148,66 @@ onMounted(load)
 <style scoped>
 .page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 18rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .header-card {
   background: #fff; border-radius: 20rpx; padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
 .title-row { display: flex; gap: 12rpx; align-items: baseline; }
-.h1 { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.suffix { font-size: 22rpx; color: #8E8B9E; }
+.h1 { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.suffix { font-size: 24rpx; color: var(--mp-muted); }
 .meta { display: flex; gap: 12rpx; align-items: center; flex-wrap: wrap; margin-top: 10rpx; }
-.meta-text { font-size: 22rpx; color: #8E8B9E; }
-.state-banner { margin-top: 14rpx; padding: 16rpx 18rpx; border-radius: 12rpx; background: #FAF9F7; }
+.meta-text { font-size: 24rpx; color: var(--mp-muted); }
+.state-banner { margin-top: 14rpx; padding: 16rpx 18rpx; border-radius: 12rpx; background: #F7F8FA; }
 .state-banner.is-executing { background: #F0FDF4; }
-.state-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; }
-.state-desc { font-size: 22rpx; color: #6E6B83; display: block; margin-top: 4rpx; }
+.state-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; }
+.state-desc { font-size: 24rpx; color: #526177; display: block; margin-top: 4rpx; }
 
 .tabs {
   background: #fff; border-radius: 20rpx; overflow: hidden;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.tab-bar { display: flex; border-bottom: 2rpx solid #F0EFFC; }
+.tab-bar { display: flex; border-bottom: 2rpx solid var(--mp-soft); }
 .tab {
   flex: 1; text-align: center; padding: 22rpx 0;
-  font-size: 26rpx; color: #8E8B9E;
+  font-size: 26rpx; color: var(--mp-muted);
   border-bottom: 4rpx solid transparent;
 }
-.tab.active { color: #6B5CE7; border-bottom-color: #6B5CE7; font-weight: 600; background: #FAF9F7; }
+.tab.active { color: var(--mp-primary); border-bottom-color: var(--mp-primary); font-weight: 600; background: #F7F8FA; }
 .tab-panel { padding: 24rpx; display: flex; flex-direction: column; gap: 18rpx; }
 
 .section { display: flex; flex-direction: column; gap: 8rpx; }
-.section-muted { background: #FAF9F7; border-radius: 12rpx; padding: 16rpx; }
-.section-h { font-size: 24rpx; font-weight: 600; color: #1A1636; }
-.section-body { font-size: 26rpx; color: #4A4763; line-height: 1.7; white-space: pre-wrap; }
+.section-muted { background: #F7F8FA; border-radius: 12rpx; padding: 16rpx; }
+.section-h { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
+.section-body { font-size: 26rpx; color: var(--mp-body); line-height: 1.7; white-space: pre-wrap; }
 
 .plan-card {
-  background: #FAF9F7; border-radius: 14rpx; padding: 20rpx;
+  background: #F7F8FA; border-radius: 14rpx; padding: 20rpx;
   display: flex; flex-direction: column; gap: 10rpx;
 }
 .plan-head { display: flex; justify-content: space-between; align-items: center; }
 .subject-chip {
-  font-size: 22rpx; font-weight: 600; color: #6B5CE7;
-  background: #EEEDFD; padding: 6rpx 16rpx; border-radius: 16rpx;
+  font-size: 24rpx; font-weight: 600; color: var(--mp-primary);
+  background: var(--mp-soft); padding: 6rpx 16rpx; border-radius: 16rpx;
 }
-.teacher-tip { font-size: 20rpx; color: #A09CB5; }
+.teacher-tip { font-size: 24rpx; color: var(--mp-muted); }
 .field { display: flex; flex-direction: column; gap: 4rpx; margin-top: 4rpx; }
-.dt { font-size: 22rpx; color: #8E8B9E; }
-.dd { font-size: 24rpx; color: #4A4763; line-height: 1.6; white-space: pre-wrap; }
+.dt { font-size: 24rpx; color: var(--mp-muted); }
+.dd { font-size: 24rpx; color: var(--mp-body); line-height: 1.6; white-space: pre-wrap; }
 
 .task-card {
-  background: #FAF9F7; border-radius: 14rpx; padding: 20rpx;
+  background: #F7F8FA; border-radius: 14rpx; padding: 20rpx;
 }
 .task-head { display: flex; gap: 12rpx; align-items: center; flex-wrap: wrap; }
 .subject-tag {
-  font-size: 20rpx; color: #6B5CE7; background: #EEEDFD;
+  font-size: 24rpx; color: var(--mp-primary); background: var(--mp-soft);
   padding: 4rpx 12rpx; border-radius: 16rpx;
 }
-.task-title { font-size: 26rpx; font-weight: 600; color: #1A1636; }
-.task-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 6rpx; }
-.task-link { font-size: 22rpx; color: #6B5CE7; display: block; margin-top: 8rpx; }
+.task-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.task-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
+.task-link { font-size: 24rpx; color: var(--mp-primary); display: block; margin-top: 8rpx; }
 .checkin-section { margin-top: 12rpx; }
 </style>
+
+<style scoped src="../../styles/details.css"></style>

@@ -1,9 +1,10 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
       <text class="h1">个人信息</text>
       <text class="p">查看个人基本信息</text>
-      <button class="refresh-btn" @click="loadProfile" :loading="loading">刷新</button>
+      <button class="refresh-btn" @click="loadProfile" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
     <view v-if="loading" class="loading-bar">
@@ -73,6 +74,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../../stores/auth'
@@ -81,11 +83,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const user = ref(null)
 
-const avatarColors = ['#6B5CE7', '#F5881F', '#16A34A', '#E74C6F', '#3B82F6']
-const avatarColor = computed(() => {
-  const idx = (user.value?.name || '').charCodeAt(0) % avatarColors.length
-  return avatarColors[idx]
-})
+const avatarColor = computed(() => '#253D61')
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
@@ -117,20 +115,20 @@ onShow(() => {
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .refresh-btn {
-  align-self: flex-start; font-size: 22rpx; color: #6B5CE7;
-  background: #F0EFFC; border: none; border-radius: 10rpx;
+  align-self: flex-start; font-size: 24rpx; color: var(--mp-primary);
+  background: var(--mp-soft); border: none; border-radius: 10rpx;
   padding: 8rpx 20rpx; margin-top: 4rpx;
 }
 .refresh-btn::after { border: none; }
 
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .avatar-card {
-  background: #1F4F55; border-radius: 16rpx;
+  background: var(--mp-primary); border-radius: 16rpx;
   padding: 32rpx; display: flex; align-items: center; gap: 20rpx;
 }
 .avatar {
@@ -144,20 +142,20 @@ onShow(() => {
 
 .card {
   background: #fff; border-radius: 12rpx; padding: 24rpx;
-  border: 1rpx solid #E0E7E5;
+  border: 1rpx solid var(--mp-line);
 }
-.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-bottom: 14rpx; }
+.card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-bottom: 14rpx; }
 
 .info-list { display: flex; flex-direction: column; }
 .info-row { padding: 16rpx 0; display: flex; align-items: center; justify-content: space-between; }
-.info-row.has-border { border-top: 2rpx solid #F0EFFC; }
-.info-label { font-size: 26rpx; color: #6E6B83; }
-.info-value { font-size: 26rpx; color: #1A1636; font-weight: 500; }
+.info-row.has-border { border-top: 2rpx solid var(--mp-soft); }
+.info-label { font-size: 26rpx; color: #526177; }
+.info-value { font-size: 26rpx; color: var(--mp-ink); font-weight: 500; }
 
 .status-tag { padding: 4rpx 14rpx; border-radius: 14rpx; }
-.status-tag.is-active { background: #E0F0E7; }
-.status-tag.is-disabled { background: #F7E0D9; }
-.status-text { font-size: 22rpx; font-weight: 500; }
-.status-tag.is-active .status-text { color: #2E7D5B; }
-.status-tag.is-disabled .status-text { color: #9C4E3F; }
+.status-tag.is-active { background: #EAF3EE; }
+.status-tag.is-disabled { background: #FAECE9; }
+.status-text { font-size: 24rpx; font-weight: 500; }
+.status-tag.is-active .status-text { color: #286349; }
+.status-tag.is-disabled .status-text { color: #A33E39; }
 </style>

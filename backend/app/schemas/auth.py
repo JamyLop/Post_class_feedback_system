@@ -19,6 +19,7 @@ class UserOut(BaseModel):
     name: str
     role: str
     status: str = "active"
+    subject: str = ""
 
 
 class LoginResponse(BaseModel):

@@ -7,7 +7,14 @@
 const BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
 
 // 真机 localhost 检测：mp 平台上 localhost 指向手机自身，必然不可达
-const isMp = typeof uni !== 'undefined' && uni.getSystemInfoSync
+function isPhysicalDevice() {
+  try {
+    const platform = uni.getSystemInfoSync().platform
+    return platform === 'ios' || platform === 'android'
+  } catch (_) {
+    return false
+  }
+}
 let _warnedLocalhost = false
 function warnIfLocalhostOnDevice() {
   if (_warnedLocalhost) return
@@ -80,8 +87,9 @@ function request({ url, method = 'GET', data, header = {}, showError = true }) {
       },
       fail(err) {
         let msg = err.errMsg || '网络异常'
-        // localhost 在真机上常见 fail，需给出可操作提示
-        if ((BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')) && msg.includes('request:fail')) {
+        // 保留开发者工具的实际错误，避免把域名校验等失败误报成真机问题。
+        console.warn('[request] 请求失败', { url: fullUrl.split('?')[0], errMsg: msg })
+        if (isPhysicalDevice() && (BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')) && msg.includes('request:fail')) {
           msg = '网络异常：真机无法访问 localhost，请配置 VITE_API_BASE 为局域网 IP 或线上 HTTPS'
         }
         if (showError) uni.showToast({ title: msg.slice(0, 40), icon: 'none' })

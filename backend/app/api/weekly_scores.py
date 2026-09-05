@@ -3,17 +3,18 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
-from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
-from app.models.weekly_score import WeeklyTestScore
+from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
+from app.models.weekly_score import WeeklyTestScore, WeeklyScoreEvaluation
 from app.schemas.weekly_score import (
     ClassWeeklySummary,
+    WeeklyScoreEvaluationSave,
     WeeklyTestScoreBatchCreate,
     WeeklyTestScoreCreate,
     WeeklyTestScoreOut,
@@ -24,13 +25,26 @@ from app.schemas.weekly_score import (
 router = APIRouter(prefix="/weekly-test-scores", tags=["weekly-test-scores"])
 
 
-def _enrich(row: WeeklyTestScore, db: Session) -> dict:
+def _enrich(row: WeeklyTestScore, db: Session, user: User) -> dict:
     data = WeeklyTestScoreOut.model_validate(row).model_dump()
     stu = db.get(User, row.student_id)
     cls = db.get(Class, row.class_id)
     data["student_name"] = stu.name if stu else None
     data["class_name"] = cls.name if cls else None
+    data["can_evaluate"] = _evaluation_role(db, row, user) is not None
     return data
+
+
+def _evaluation_role(db: Session, row: WeeklyTestScore, user: User) -> str | None:
+    if user.role not in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
+        return None
+    cls = db.get(Class, row.class_id)
+    relations = db.query(ClassTeacher).filter_by(class_id=row.class_id, teacher_id=user.id).all()
+    if cls and (cls.teacher_id == user.id or any(r.role == "head_teacher" for r in relations)):
+        return "head_teacher"
+    if any(r.role == "subject_teacher" and r.subject == row.subject for r in relations):
+        return "subject_teacher"
+    return None
 
 
 def _can_manage_class(db: Session, class_id: int, user: User) -> bool:
@@ -59,6 +73,16 @@ def _verify_membership(db: Session, student_id: int, class_id: int):
 def _filter_scope(query, db: Session, user: User):
     if user.role == ROLE_ADMIN:
         return query
+    if user.role == ROLE_SUBJECT_TEACHER:
+        # 任课账号仅能读取自己任教班级的对应学科，所有周测读取接口共用此边界。
+        relations = db.query(ClassTeacher).filter_by(teacher_id=user.id).all()
+        scopes = [and_(WeeklyTestScore.class_id == r.class_id, WeeklyTestScore.subject == r.subject)
+                  for r in relations if r.role == "subject_teacher" and r.subject]
+        head_ids = [r.id for r in db.query(Class).filter_by(teacher_id=user.id).all()]
+        head_ids += [r.class_id for r in relations if r.role == "head_teacher"]
+        if head_ids:
+            scopes.append(WeeklyTestScore.class_id.in_(head_ids))
+        return query.filter(or_(*scopes)) if scopes else query.filter(WeeklyTestScore.id == -1)
     if user.role == ROLE_TEACHER:
         # 教师仅可见自己负责的班级
         legacy_ids = [r.id for r in db.query(Class).filter(Class.teacher_id == user.id).all()]
@@ -100,7 +124,7 @@ def list_scores(
     if end_date:
         q = q.filter(WeeklyTestScore.exam_date <= end_date)
     rows = q.order_by(WeeklyTestScore.exam_date.desc(), WeeklyTestScore.id.desc()).all()
-    return [_enrich(r, db) for r in rows]
+    return [_enrich(r, db, user) for r in rows]
 
 
 @router.get("/trend", response_model=list[WeeklyTestTrendPoint])
@@ -172,7 +196,7 @@ def create_score(
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="该学生该科目当日已有成绩，请编辑而非重复录入") from exc
-    return _enrich(row, db)
+    return _enrich(row, db, user)
 
 
 @router.post("/batch", response_model=list[WeeklyTestScoreOut])
@@ -226,7 +250,7 @@ def batch_upsert(
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="批量保存冲突") from exc
-    return [_enrich(r, db) for r in results]
+    return [_enrich(r, db, user) for r in results]
 
 
 @router.put("/{score_id}", response_model=WeeklyTestScoreOut)
@@ -255,7 +279,33 @@ def update_score(
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="修改后与其他记录冲突") from exc
-    return _enrich(row, db)
+    return _enrich(row, db, user)
+
+
+@router.put("/{score_id}/evaluation", response_model=WeeklyTestScoreOut)
+def save_evaluation(
+    score_id: int,
+    body: WeeklyScoreEvaluationSave,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
+):
+    # 同一成绩串行保存，避免重复点击或并发请求创建同一教师的重复评价。
+    row = db.query(WeeklyTestScore).filter_by(id=score_id).with_for_update().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="成绩记录不存在")
+    role = _evaluation_role(db, row, user)
+    if role is None:
+        raise HTTPException(status_code=403, detail="仅本班班主任和对应学科老师可评价")
+    evaluation = db.query(WeeklyScoreEvaluation).filter_by(score_id=row.id, teacher_id=user.id).first()
+    if evaluation is None:
+        evaluation = WeeklyScoreEvaluation(score_id=row.id, teacher_id=user.id)
+        db.add(evaluation)
+    evaluation.teacher_name = user.name
+    evaluation.teacher_role = role
+    evaluation.content = body.content
+    db.commit()
+    db.refresh(row)
+    return _enrich(row, db, user)
 
 
 @router.delete("/{score_id}")

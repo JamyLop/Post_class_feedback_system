@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -15,11 +16,12 @@
         <text class="body">{{ detail.content || detail.description }}</text>
       </view>
     </template>
-    <EmptyState v-else title="作业不存在" desc="可能已被移除" icon="📄" />
+    <EmptyState v-else title="作业不存在" desc="可能已被移除" />
   </view>
 </template>
 
 <script setup>
+import WorkspaceLink from '../../../components/WorkspaceLink.vue'
 import { ref, onMounted } from 'vue'
 import { getAssignment } from '../../../api/assignments'
 import EmptyState from '../../../components/EmptyState.vue'
@@ -42,23 +44,23 @@ onMounted(load)
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 18rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .header-card {
   background: #fff; border-radius: 20rpx; padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.h1 { font-size: 32rpx; font-weight: 700; color: #1A1636; }
+.h1 { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
 .meta-row { display: flex; gap: 12rpx; align-items: center; margin-top: 12rpx; }
 .subject-chip {
-  font-size: 22rpx; font-weight: 500; color: #6B5CE7;
-  background: #EEEDFD; padding: 6rpx 14rpx; border-radius: 14rpx;
+  font-size: 24rpx; font-weight: 500; color: var(--mp-primary);
+  background: var(--mp-soft); padding: 6rpx 14rpx; border-radius: 14rpx;
 }
-.meta { font-size: 22rpx; color: #A09CB5; }
+.meta { font-size: 24rpx; color: var(--mp-muted); }
 
 .content-card {
   background: #fff; border-radius: 20rpx; padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.body { font-size: 28rpx; color: #4A4763; line-height: 1.8; white-space: pre-wrap; }
+.body { font-size: 28rpx; color: var(--mp-body); line-height: 1.8; white-space: pre-wrap; }
 </style>

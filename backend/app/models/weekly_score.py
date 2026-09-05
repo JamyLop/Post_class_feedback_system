@@ -3,7 +3,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -28,5 +28,26 @@ class WeeklyTestScore(Base):
     rank_in_class: Mapped[int | None] = mapped_column(Integer, nullable=True)
     remark: Mapped[str] = mapped_column(Text, default="")
     recorded_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    evaluations: Mapped[list["WeeklyScoreEvaluation"]] = relationship(
+        cascade="all, delete-orphan", order_by="WeeklyScoreEvaluation.id", lazy="selectin"
+    )
+
+
+class WeeklyScoreEvaluation(Base):
+    """每位教师独立评价同一条成绩，修改自己的评价不会覆盖其他教师。"""
+
+    __tablename__ = "weekly_score_evaluations"
+    __table_args__ = (
+        UniqueConstraint("score_id", "teacher_id", name="uq_weekly_evaluation_score_teacher"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    score_id: Mapped[int] = mapped_column(ForeignKey("weekly_test_scores.id", ondelete="CASCADE"), index=True)
+    teacher_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    teacher_name: Mapped[str] = mapped_column(String(64))
+    teacher_role: Mapped[str] = mapped_column(String(24))
+    content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

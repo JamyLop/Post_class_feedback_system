@@ -7,3 +7,4 @@ export const createWeeklyScore = (data) => http.post('/weekly-test-scores', data
 export const batchCreateWeeklyScores = (data) => http.post('/weekly-test-scores/batch', data)
 export const updateWeeklyScore = (id, data) => http.put(`/weekly-test-scores/${id}`, data)
 export const deleteWeeklyScore = (id) => http.delete(`/weekly-test-scores/${id}`)
+export const saveWeeklyEvaluation = (id, data) => http.put(`/weekly-test-scores/${id}/evaluation`, data)

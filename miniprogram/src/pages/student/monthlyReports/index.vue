@@ -1,16 +1,17 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
-      <text class="h1">我的月度评价</text>
-      <text class="p">查看老师发布的月度综合评价</text>
-      <button class="refresh-btn" @click="reload" :loading="loading">刷新</button>
+      <text class="h1">我的月度评定</text>
+      <text class="p">查看老师发布的月度综合评定</text>
+      <button class="refresh-btn" @click="reload" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
     <template v-else>
-      <EmptyState v-if="!reportList.length" title="暂无月度评价" desc="老师尚未发布评价" icon="📋" />
+      <EmptyState v-if="!reportList.length" title="暂无月度评定" desc="老师尚未发布评定" />
       <view v-else class="report-list">
         <view v-for="(item, idx) in reportList" :key="item.id" class="report-card" :class="{ 'has-border': idx > 0 }">
           <view class="report-head">
@@ -21,7 +22,7 @@
           </view>
           <text class="report-time">发布于 {{ formatTime(item.published_at) }}</text>
           <view class="report-content">
-            <text class="content-text">{{ item.final_content || item.ai_content || '暂无内容' }}</text>
+            <text class="content-text">{{ item.final_content || '暂无内容' }}</text>
           </view>
         </view>
       </view>
@@ -30,6 +31,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../../components/WorkspaceLink.vue'
 import { ref, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../../stores/auth'
@@ -70,32 +72,32 @@ onShow(() => { if (guardRole()) reload() })
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
 .head { display: flex; flex-direction: column; gap: 6rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .refresh-btn {
-  align-self: flex-start; font-size: 22rpx; color: #6B5CE7;
-  background: #F0EFFC; border: none; border-radius: 10rpx;
+  align-self: flex-start; font-size: 24rpx; color: var(--mp-primary);
+  background: var(--mp-soft); border: none; border-radius: 10rpx;
   padding: 8rpx 20rpx; margin-top: 4rpx;
 }
 .refresh-btn::after { border: none; }
 
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .report-card {
   background: #fff; border-radius: 16rpx; padding: 24rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
 .report-card.has-border { margin-top: 16rpx; }
 .report-head { display: flex; align-items: center; gap: 12rpx; }
-.report-month { font-size: 30rpx; font-weight: 700; color: #1A1636; }
+.report-month { font-size: 30rpx; font-weight: 700; color: var(--mp-ink); }
 .status-tag {
   padding: 4rpx 12rpx; border-radius: 14rpx;
-  font-size: 20rpx; font-weight: 500;
+  font-size: 24rpx; font-weight: 500;
 }
-.status-tag.is-published { background: #EEEDFD; color: #6B5CE7; }
+.status-tag.is-published { background: var(--mp-soft); color: var(--mp-primary); }
 .status-text { white-space: nowrap; }
-.report-time { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 6rpx; }
+.report-time { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .report-content { margin-top: 16rpx; }
-.content-text { font-size: 26rpx; color: #4A4763; line-height: 1.8; white-space: pre-wrap; }
+.content-text { font-size: 26rpx; color: var(--mp-body); line-height: 1.8; white-space: pre-wrap; }
 </style>

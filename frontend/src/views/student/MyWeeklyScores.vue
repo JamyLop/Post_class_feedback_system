@@ -41,7 +41,10 @@
             <span class="rank-badge">{{ row.rank_in_class ? `第 ${row.rank_in_class} 名` : '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="教师评语/备注" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
+        <el-table-column label="教师评价" min-width="320">
+          <template #default="{ row }"><WeeklyScoreEvaluations :score="row" /></template>
+        </el-table-column>
       </el-table>
     </div>
   </section>
@@ -51,6 +54,7 @@
 import { ref, onMounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { listWeeklyScores, getWeeklyTrend } from '../../api/weeklyScores'
+import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()

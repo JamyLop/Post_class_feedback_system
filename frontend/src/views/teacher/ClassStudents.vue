@@ -57,6 +57,14 @@
             <el-form-item label="生源地学校">
               <el-input v-model="newForm.source_school" placeholder="填写学生原就读学校" maxlength="128" />
             </el-form-item>
+            <el-form-item label="了解渠道">
+              <el-input v-model="newForm.channel" placeholder="选填，例如：转介绍 / 线上咨询" maxlength="64" clearable />
+            </el-form-item>
+            <el-form-item label="咨询老师">
+              <el-select v-model="newForm.consultant_id" clearable filterable placeholder="选填，请选择咨询老师" style="width: 100%">
+                <el-option v-for="item in consultantOptions" :key="item.id" :label="`${item.name}（${item.username}）`" :value="item.id" />
+              </el-select>
+            </el-form-item>
             <el-form-item label="入学月份" required><el-input-number v-model="newForm.enrollment_month" :min="1" :max="12" /></el-form-item>
             <el-form-item label="班级位号" required><el-input-number v-model="newForm.seat_number" :min="1" :max="99" /></el-form-item>
           </el-form>
@@ -107,7 +115,8 @@ const dialogVisible = ref(false)
 const activeTab = ref('create')
 const creating = ref(false)
 const classInfo = ref(null)
-const newForm = reactive({ name: '', gender: '', ethnicity: '', grade: '', source_school: '', enrollment_month: 7, seat_number: 1 })
+const consultantOptions = ref([])
+const newForm = reactive({ name: '', gender: '', ethnicity: '', grade: '', source_school: '', channel: '', consultant_id: null, enrollment_month: 7, seat_number: 1 })
 
 async function load() {
   loading.value = true
@@ -128,7 +137,17 @@ async function openAddDialog() {
   keyword.value = ''
   selected.value = []
   candidates.value = await listUsers('student', '')
-  Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', enrollment_month: 7, seat_number: 1 })
+  Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', channel: '', consultant_id: null, enrollment_month: 7, seat_number: 1 })
+  // 咨询老师选填：班主任可只读查询 teacher / consultant 名单
+  try {
+    const [teachers, consultants] = await Promise.all([
+      listUsers('teacher', '').catch(() => []),
+      listUsers('consultant', '').catch(() => []),
+    ])
+    consultantOptions.value = [...(teachers || []), ...(consultants || [])]
+  } catch {
+    consultantOptions.value = []
+  }
 }
 
 async function onSearch() {
@@ -160,12 +179,14 @@ async function onCreateAndAdd() {
       ethnicity: newForm.ethnicity?.trim() || '',
       grade: newForm.grade?.trim() || '',
       source_school: newForm.source_school?.trim() || '',
+      channel: newForm.channel?.trim() || '',
+      consultant_id: newForm.consultant_id || null,
       enrollment_month: newForm.enrollment_month,
       seat_number: newForm.seat_number,
     })
     ElMessage.success('新建学生并加入班级成功，账号已自动生成')
     dialogVisible.value = false
-    Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', enrollment_month: 7, seat_number: 1 })
+    Object.assign(newForm, { name: '', gender: '', ethnicity: '', grade: classInfo.value?.grade || '', source_school: '', channel: '', consultant_id: null, enrollment_month: 7, seat_number: 1 })
     load()
   } catch (err) {
     ElMessage.error(err.response?.data?.detail || '创建失败')

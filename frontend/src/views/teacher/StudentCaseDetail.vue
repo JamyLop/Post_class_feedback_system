@@ -92,7 +92,7 @@
 
             <template v-if="!editingProfile">
               <div class="profile-section">
-                <div class="profile-section-title"><span class="section-marker"></span><div><h3>学生信息</h3><p>用于识别学生、入学背景、入学成绩及家长联系方式</p></div></div>
+                <div class="profile-section-title"><span class="section-marker"></span><div><h3>学生信息</h3><p>用于识别学生、入学背景与入学成绩</p></div></div>
                 <dl class="profile-grid">
                   <div><dt>姓名</dt><dd>{{ profileValue('student_name') }}</dd></div>
                   <div><dt>性别</dt><dd>{{ profileValue('gender') }}</dd></div>
@@ -114,18 +114,7 @@
                   <div><dt>地理</dt><dd>{{ entranceScoreDisplay('entrance_geography') }}</dd></div>
                 </dl>
                 <div v-if="hasLegacyEntranceScores" class="entrance-legacy-tip">备注：{{ profileValue('entrance_scores') }}</div>
-                <div class="merged-parent-divider"><span>家长联系方式</span><small>手机号即家长登录账号，录入后自动注册（默认密码 88888888）</small></div>
-                <dl class="profile-grid parent-grid">
-                  <div><dt>家长姓名</dt><dd>{{ profileValue('parent_name') }}</dd></div>
-                  <div><dt>联系电话</dt><dd>{{ profileValue('parent_phone') }}</dd></div>
-                  <div><dt>与学生关系</dt><dd>{{ parentRelationshipLabel(profileValue('parent_relationship')) }}</dd></div>
-                </dl>
-                <div v-if="detail.guardian_accounts && detail.guardian_accounts.length" class="parent-account-tip">
-                  <el-icon><CircleCheckFilled /></el-icon>
-                  <span>已绑定家长账号：<strong v-for="acc in detail.guardian_accounts" :key="acc.parent_id" class="parent-account-chip">{{ acc.name }}（{{ acc.username }}）</strong> 默认密码 88888888</span>
-                </div>
-                <div v-else-if="profileValue('parent_phone') !== '暂未填写'" class="parent-account-tip is-warn"><el-icon><WarningFilled /></el-icon><span>已记录家长手机号，保存后系统将自动注册家长账号（默认密码 88888888）并绑定至该学生</span></div>
-                <div v-else class="parent-empty-tip">尚未录入家长联系方式，录入后系统将自动注册家长账号</div>
+
               </div>
               <div class="profile-section">
                 <div class="profile-section-title"><span class="section-marker"></span><div><h3>家庭反馈</h3><p>由班主任根据家长沟通情况如实记录</p></div></div>
@@ -183,17 +172,7 @@
                   <el-form-item label="历史"><el-input-number v-model="profileForm.entrance_history" :min="0" :max="150" controls-position="right" placeholder="选填" style="width:100%" /></el-form-item>
                   <el-form-item label="地理"><el-input-number v-model="profileForm.entrance_geography" :min="0" :max="150" controls-position="right" placeholder="选填" style="width:100%" /></el-form-item>
                 </div>
-                <div class="merged-parent-divider is-form"><span>家长联系方式</span><small>手机号即家长登录账号，录入后自动注册</small></div>
-                <div class="parent-notice"><el-icon><CircleCheckFilled /></el-icon><span>录入手机号后系统将自动以该手机号注册家长账号，默认密码 <strong>88888888</strong>，家长可直接登录查看已确认档案。</span></div>
-                <div class="profile-form-grid parent-form-grid">
-                  <el-form-item label="家长姓名"><el-input v-model="profileForm.parent_name" maxlength="64" placeholder="例如：张先生 / 李女士" /></el-form-item>
-                  <el-form-item label="联系电话"><el-input v-model="profileForm.parent_phone" maxlength="32" placeholder="11位手机号，自动作为家长登录账号" /></el-form-item>
-                  <el-form-item label="与学生关系">
-                    <el-select v-model="profileForm.parent_relationship" clearable placeholder="请选择">
-                      <el-option label="父亲" value="父亲" /><el-option label="母亲" value="母亲" /><el-option label="监护人" value="监护人" /><el-option label="其他" value="其他" />
-                    </el-select>
-                  </el-form-item>
-                </div>
+
               </div>
               <div class="profile-form-block">
                 <h3>家庭反馈</h3>
@@ -559,6 +538,9 @@
               <el-table-column label="分数" width="120"><template #default="{ row }">{{ row.score }} / {{ row.max_score }}</template></el-table-column>
               <el-table-column prop="rank_in_class" label="排名" width="90"><template #default="{ row }">{{ row.rank_in_class || '-' }}</template></el-table-column>
               <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+              <el-table-column label="教师评价" min-width="320">
+                <template #default="{ row }"><WeeklyScoreEvaluations :score="row" @saved="updated => Object.assign(row, updated)" /></template>
+              </el-table-column>
             </el-table>
             <div v-else class="empty-panel"><h3>暂无周测成绩</h3><p>班主任可在“周测成绩”页面按班级批量录入，该生的历次周测将在此汇聚并展示趋势。</p></div>
           </div>
@@ -575,10 +557,10 @@
             <el-table v-if="monthlyRows.length" :data="monthlyRows" style="margin-top:12px">
               <el-table-column prop="month_label" label="月份" width="110" />
               <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="monthlyStatusType(row.status)">{{ monthlyStatusText(row.status) }}</el-tag></template></el-table-column>
-              <el-table-column label="摘要" min-width="300" show-overflow-tooltip><template #default="{ row }">{{ (row.final_content || row.ai_content || '').slice(0,80) }}</template></el-table-column>
+              <el-table-column label="摘要" min-width="300" show-overflow-tooltip><template #default="{ row }">{{ (row.final_content || '').slice(0,80) }}</template></el-table-column>
               <el-table-column v-if="auth.role !== 'subject_teacher'" label="操作" width="120"><template #default="{ row }"><el-button link type="primary" @click="$router.push('/teacher/monthly-reports')">查看</el-button></template></el-table-column>
             </el-table>
-            <div v-else class="empty-panel"><h3>暂无月度评定</h3><p>班主任可在“月度评定”页面按月生成 AI 初稿，汇总学情与德育并给出改进方案。</p></div>
+            <div v-else class="empty-panel"><h3>暂无月度评定</h3><p>班主任可在“月度评定”页面按月手动填写学情、德育表现与改进建议。</p></div>
           </div>
         </el-tab-pane>
         <el-tab-pane label="生涯学案" name="versions">
@@ -644,6 +626,7 @@ import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, exportStudentCase, getStudentCase, listCaseVersions, listStageCompletions, rebuildStageCompletion, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
+import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import { listMonthlyReports } from '../../api/monthlyReports'
 import { useAuthStore } from '../../stores/auth'
 
@@ -879,11 +862,6 @@ const hasLegacyEntranceScores = computed(() => {
   return !hasNew
 })
 
-function parentRelationshipLabel(value) {
-  if (!value || value === '暂未填写') return '暂未填写'
-  return value
-}
-
 function profileValue(field) {
   return detail.value?.student_profile?.[field] || '暂未填写'
 }
@@ -904,27 +882,16 @@ async function saveProfile() {
     ElMessage.warning('请填写学生姓名')
     return
   }
-  if (profileForm.value.parent_phone && !/^1[3-9]\d{9}$/.test(profileForm.value.parent_phone.trim())) {
-    ElMessage.warning('家长联系方式需为11位手机号')
-    return
-  }
   savingProfile.value = true
   try {
-    const wasPhone = (detail.value.student_profile?.parent_phone || '').trim()
-    const newPhone = (profileForm.value.parent_phone || '').trim()
-    const saved = await updateStudentProfile(detail.value.id, profileForm.value)
+    // 此页不再维护家长联系方式，省略隐藏字段以保留已有绑定和资料。
+    const payload = { ...profileForm.value }
+    for (const field of ['parent_name', 'parent_phone', 'parent_relationship']) delete payload[field]
+    const saved = await updateStudentProfile(detail.value.id, payload)
     detail.value.student_profile = saved
     detail.value.student_name = saved.student_name
     editingProfile.value = false
-    try {
-      const refreshed = await getStudentCase(detail.value.id)
-      detail.value.guardian_accounts = refreshed.guardian_accounts || detail.value.guardian_accounts
-    } catch {}
-    if (newPhone && newPhone !== wasPhone) {
-      ElMessage.success('已保存，家长账号 ' + newPhone + ' 已自动注册，默认密码 88888888')
-    } else {
-      ElMessage.success('学生基本信息已保存')
-    }
+    ElMessage.success('学生基本信息已保存')
   } catch (e) {
     ElMessage.error(e?.response?.data?.detail || '保存失败，请重试')
   } finally {
@@ -1454,7 +1421,7 @@ async function loadVersions() {
     versionsLoading.value = false
   }
 }
-function monthlyStatusText(s) { return { generating:'生成中', generated:'待发布', published:'已发布', failed:'生成失败'}[s] || s }
+function monthlyStatusText(s) { return { generating:'待填写', generated:'待发布', published:'已发布', failed:'待补充'}[s] || s }
 function monthlyStatusType(s) { return { generated:'warning', published:'success', failed:'danger'}[s] || 'info' }
 
 watch(active, (v) => { if (v === 'weekly') loadWeekly(); if (v === 'monthly') loadMonthly(); if (v === 'versions') loadVersions() })
@@ -1600,17 +1567,11 @@ onMounted(load)
 .entrance-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .parent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .entrance-form-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.parent-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .merged-parent-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); }
 .merged-parent-divider span { font-size: 12.5px; font-weight: 700; color: var(--ink); white-space: nowrap; }
 .merged-parent-divider small { color: var(--ink-muted); font-size: 11.5px; }
 .merged-parent-divider.is-form { margin: 16px 0 8px; padding: 14px 0 0; border-top: 1px dashed var(--line); }
 .entrance-legacy-tip { margin-top: 8px; color: var(--ink-muted); font-size: 12px; }
-.parent-account-tip { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; font-size: 12.5px; color: #166534; }
-.parent-account-tip.is-warn { background: var(--warning-soft); border-color: #fde68a; color: #92400e; }
-.parent-account-chip { display: inline-flex; align-items: center; padding: 2px 8px; background: #fff; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; margin-left: 4px; }
-.parent-empty-tip { margin-top: 12px; padding: 10px 12px; background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; color: var(--ink-muted); font-size: 12.5px; text-align: center; }
-.parent-notice { display: flex; gap: 8px; padding: 10px 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; font-size: 12.5px; color: var(--ink-secondary); margin-bottom: 12px; }
 .health-visibility-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--line); }
 .health-field-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
 .health-field-label > span { min-width: 0; }

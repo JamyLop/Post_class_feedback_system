@@ -24,13 +24,13 @@ defineProps({ items: { type: Array, default: () => [] } })
 .tl-line { display: flex; flex-direction: column; align-items: center; width: 20rpx; flex-shrink: 0; }
 .tl-dot {
   width: 16rpx; height: 16rpx; border-radius: 50%;
-  background: #B8B0F6; border: 3rpx solid #EEEDFD;
+  background: var(--mp-muted); border: 3rpx solid var(--mp-soft);
   flex-shrink: 0; margin-top: 6rpx; z-index: 1;
 }
-.tl-dot.is-first { background: #1F4F55; border-color: #DDEBE8; }
-.tl-connector { width: 2rpx; flex: 1; background: #E8E6F0; margin: 4rpx 0; }
+.tl-dot.is-first { background: var(--mp-primary); border-color: var(--mp-soft); }
+.tl-connector { width: 2rpx; flex: 1; background: var(--mp-line); margin: 4rpx 0; }
 .tl-body { padding: 4rpx 0 24rpx; flex: 1; }
-.tl-title { font-size: 26rpx; font-weight: 600; color: #1A1636; }
-.tl-desc { font-size: 24rpx; color: #6E6B83; margin-top: 6rpx; display: block; line-height: 1.6; }
-.tl-time { font-size: 22rpx; color: #A09CB5; margin-top: 6rpx; display: block; }
+.tl-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.tl-desc { font-size: 24rpx; color: #526177; margin-top: 6rpx; display: block; line-height: 1.6; }
+.tl-time { font-size: 24rpx; color: var(--mp-muted); margin-top: 6rpx; display: block; }
 </style>

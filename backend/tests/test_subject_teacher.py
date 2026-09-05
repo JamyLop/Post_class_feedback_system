@@ -188,11 +188,13 @@ def test_subject_teacher_register_with_invite(client, auth, db, seed_users):
             "password": "test123456",
             "name": "新任课老师",
             "role": "subject_teacher",
+            "subject": "数学",
             "invite_code": code,
         },
     )
     assert r.status_code == 200, r.text
     assert r.json()["role"] == "subject_teacher"
+    assert db.query(User).filter_by(username="subject_new").one().subject == "数学"
 
 
 def test_admin_class_teacher_links_crud(client, auth, db, seed_users):

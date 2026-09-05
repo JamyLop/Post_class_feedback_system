@@ -27,7 +27,7 @@
     {
       "path": "pages/student/monthlyReports/index",
       "style": {
-        "navigationBarTitleText": "月度评价"
+        "navigationBarTitleText": "月度评定"
       }
     },
     {
@@ -130,15 +130,15 @@
         },
         {
           "path": "monthlyReports/index",
-          "style": { "navigationBarTitleText": "月度评价" }
+          "style": { "navigationBarTitleText": "月度评定" }
         },
         {
           "path": "monthlyReports/generate",
-          "style": { "navigationBarTitleText": "生成评价" }
+          "style": { "navigationBarTitleText": "填写评定" }
         },
         {
           "path": "monthlyReports/detail",
-          "style": { "navigationBarTitleText": "评价详情" }
+          "style": { "navigationBarTitleText": "评定详情" }
         },
         {
           "path": "classManager/index",
@@ -179,10 +179,10 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "一生一案",
-    "navigationBarBackgroundColor": "#F4F6F5",
-    "backgroundColor": "#F4F6F5",
+    "navigationBarBackgroundColor": "#F3F5F8",
+    "backgroundColor": "#F3F5F8",
     "app-plus": {
-      "background": "#F4F6F5"
+      "background": "#F3F5F8"
     }
   }
 }

@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
       <text class="h1">新建学生</text>
       <text class="p">在 {{ className }} 中添加学生</text>
@@ -71,7 +72,7 @@
     </view>
 
     <view class="submit-bar">
-      <button class="btn-submit" :loading="submitting" @click="handleSubmit">
+      <button class="btn-submit" :loading="submitting" :disabled="submitting" @click="handleSubmit">
         {{ submitting ? '创建中...' : '创建并入班' }}
       </button>
     </view>
@@ -79,6 +80,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { createAndEnrollStudent } from '../../api/classes'
@@ -146,46 +148,46 @@ async function handleSubmit() {
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; padding-bottom: 140rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
 .card {
   background: #fff; border-radius: 10rpx; padding: 24rpx;
-  border: 1rpx solid #E0E7E5;
+  border: 1rpx solid var(--mp-line);
 }
-.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-bottom: 14rpx; }
+.card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-bottom: 14rpx; }
 
 .form { display: flex; flex-direction: column; gap: 16rpx; }
 .field { display: flex; flex-direction: column; gap: 6rpx; }
-.field-label { font-size: 24rpx; font-weight: 500; color: #4A4763; }
-.required { color: #EF4444; }
+.field-label { font-size: 24rpx; font-weight: 500; color: var(--mp-body); }
+.required { color: #A33E39; }
 .input {
-  border: 1rpx solid #CCD8D6; border-radius: 8rpx;
+  border: 1rpx solid #C6D0DE; border-radius: 8rpx;
   padding: 18rpx 22rpx; font-size: 28rpx; background: #fff;
 }
 
 .radio-group { display: flex; flex-wrap: wrap; gap: 12rpx; }
 .radio-item {
   padding: 14rpx 24rpx; border-radius: 8rpx;
-  border: 1rpx solid #CCD8D6; background: #fff;
+  border: 1rpx solid #C6D0DE; background: #fff;
 }
-.radio-item.active { border-color: #1F4F55; background: #DDEBE8; }
-.radio-label { font-size: 26rpx; color: #4A4763; }
-.radio-item.active .radio-label { color: #1F4F55; font-weight: 600; }
+.radio-item.active { border-color: var(--mp-primary); background: var(--mp-soft); }
+.radio-label { font-size: 26rpx; color: var(--mp-body); }
+.radio-item.active .radio-label { color: var(--mp-primary); font-weight: 600; }
 
 .hint-card {
   background: #FFF8E8; border-radius: 10rpx; padding: 18rpx;
-  border: 1rpx solid #F8E8B8;
+  border: 1rpx solid #FBF1DF;
 }
-.hint-text { font-size: 22rpx; color: #8A641C; display: block; line-height: 1.6; }
+.hint-text { font-size: 24rpx; color: #865C1E; display: block; line-height: 1.6; }
 
 .submit-bar {
   position: fixed; left: 0; right: 0; bottom: 0;
   background: #fff; padding: 20rpx 28rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
-  border-top: 1rpx solid #E0E7E5;
+  border-top: 1rpx solid var(--mp-line);
 }
 .btn-submit {
-  background: #1F4F55; color: #fff; border-radius: 8rpx;
+  background: var(--mp-primary); color: #fff; border-radius: 8rpx;
   padding: 24rpx 0; font-size: 30rpx; font-weight: 600; border: none;
 }
 .btn-submit::after { border: none; }

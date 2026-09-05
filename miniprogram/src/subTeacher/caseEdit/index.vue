@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -25,7 +26,7 @@
               <textarea v-model="basicForm.current_summary" placeholder="当前执行状态说明（可选）" class="textarea" />
             </view>
           </view>
-          <button class="btn-primary" :loading="saving" @click="saveBasic">保存</button>
+          <button class="btn-primary" :loading="saving" :disabled="saving" @click="saveBasic">保存</button>
         </view>
 
         <view v-if="tab==='subjects'" class="tab-panel">
@@ -74,7 +75,7 @@
           </view>
           <view class="modal-btns">
             <button class="btn-outline" @click="showPlanForm=false">取消</button>
-            <button class="btn-primary" :loading="savingPlan" @click="savePlan">保存</button>
+            <button class="btn-primary" :loading="savingPlan" :disabled="savingPlan" @click="savePlan">保存</button>
           </view>
         </view>
       </view>
@@ -83,6 +84,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase, updateStudentCase, upsertSubjectPlan } from '../../api/studentCases'
@@ -192,63 +194,63 @@ async function savePlan() {
 }
 
 onShow(() => load())
-onMounted(load)
+
 </script>
 
 <style scoped>
 .page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 16rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .tabs {
   background: #fff;
   border-radius: 20rpx;
   overflow: hidden;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.tab-bar { display: flex; border-bottom: 2rpx solid #F0EFFC; }
+.tab-bar { display: flex; border-bottom: 2rpx solid var(--mp-soft); }
 .tab {
   flex: 1; text-align: center; padding: 22rpx 0;
-  font-size: 26rpx; color: #8E8B9E;
+  font-size: 26rpx; color: var(--mp-muted);
   border-bottom: 4rpx solid transparent;
 }
-.tab.active { color: #6B5CE7; border-bottom-color: #6B5CE7; font-weight: 600; }
+.tab.active { color: var(--mp-primary); border-bottom-color: var(--mp-primary); font-weight: 600; }
 .tab-panel { padding: 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
 
 .form { display: flex; flex-direction: column; gap: 14rpx; }
 .field { display: flex; flex-direction: column; gap: 6rpx; }
-.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.label { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 .textarea {
-  border: 2rpx solid #E8E6F0;
+  border: 2rpx solid var(--mp-line);
   border-radius: 14rpx;
   padding: 18rpx 20rpx;
   font-size: 26rpx;
   min-height: 120rpx;
   background: #fff;
 }
-.empty-text { text-align: center; color: #A09CB5; padding: 28rpx; font-size: 24rpx; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 28rpx; font-size: 24rpx; }
 
 .plan-card {
-  background: #FAF9F7;
+  background: #F7F8FA;
   border-radius: 14rpx;
   padding: 18rpx;
   display: flex; flex-direction: column; gap: 8rpx;
 }
 .plan-head { display: flex; justify-content: space-between; align-items: center; }
 .subject-chip {
-  font-size: 22rpx; font-weight: 600;
-  color: #6B5CE7; background: #EEEDFD;
+  font-size: 24rpx; font-weight: 600;
+  color: var(--mp-primary); background: var(--mp-soft);
   padding: 6rpx 16rpx; border-radius: 16rpx;
 }
-.edit-link { font-size: 22rpx; color: #6B5CE7; }
+.edit-link { font-size: 24rpx; color: var(--mp-primary); }
 .field { display: flex; flex-direction: column; gap: 4rpx; margin-top: 4rpx; }
-.dt { font-size: 22rpx; color: #8E8B9E; }
-.dd { font-size: 24rpx; color: #4A4763; line-height: 1.6; white-space: pre-wrap; }
+.dt { font-size: 24rpx; color: var(--mp-muted); }
+.dd { font-size: 24rpx; color: var(--mp-body); line-height: 1.6; white-space: pre-wrap; }
 .add-btn { text-align: center; padding: 16rpx; }
-.add-link { font-size: 26rpx; color: #6B5CE7; font-weight: 500; }
+.add-link { font-size: 26rpx; color: var(--mp-primary); font-weight: 500; }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  background: var(--mp-primary);
   color: #fff;
   border-radius: 14rpx;
   padding: 22rpx 0;
@@ -259,8 +261,8 @@ onMounted(load)
 .btn-primary::after { border: none; }
 .btn-outline {
   background: #fff;
-  color: #6B5CE7;
-  border: 2rpx solid #D5D0F7;
+  color: var(--mp-primary);
+  border: 2rpx solid #B8C6D8;
   border-radius: 14rpx;
   padding: 22rpx 0;
   font-size: 28rpx;
@@ -282,8 +284,10 @@ onMounted(load)
   display: flex; flex-direction: column; gap: 16rpx;
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; }
-.modal-title { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.modal-close { font-size: 28rpx; color: #A09CB5; padding: 8rpx; }
+.modal-title { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.modal-close { font-size: 28rpx; color: var(--mp-muted); padding: 8rpx; }
 .modal-btns { display: flex; gap: 14rpx; margin-top: 8rpx; }
 .modal-btns button { flex: 1; }
 </style>
+
+<style scoped src="../../styles/details.css"></style>

@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -22,7 +23,7 @@
           <text class="task-desc">{{ task.description || '暂无描述' }}</text>
           <view class="task-actions">
             <view class="task-action-btn" @click="goCheckin(task.id)">
-              <text>✅ 打卡</text>
+              <text>任务打卡</text>
             </view>
           </view>
         </view>
@@ -73,7 +74,7 @@
           </view>
           <view class="modal-btns">
             <button class="btn-outline" @click="showForm=false">取消</button>
-            <button class="btn-primary" :loading="saving" @click="saveTask">保存</button>
+            <button class="btn-primary" :loading="saving" :disabled="saving" @click="saveTask">保存</button>
           </view>
         </view>
       </view>
@@ -82,6 +83,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase, createTask, updateTask } from '../../api/studentCases'
@@ -156,57 +158,57 @@ async function saveTask() {
 function goCheckin(taskId) { uni.navigateTo({ url: `/subTeacher/checkin/index?caseId=${getCaseId()}&taskId=${taskId}` }) }
 
 onShow(() => load())
-onMounted(load)
+
 </script>
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 18rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 .head { margin-bottom: 4rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 4rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 
 .list { display: flex; flex-direction: column; gap: 14rpx; }
 .task-card {
   background: #fff;
   border-radius: 18rpx;
   padding: 22rpx;
-  box-shadow: 0 2rpx 12rpx rgba(107,92,231,0.05);
+  box-shadow: none;
 }
 .task-top { display: flex; justify-content: space-between; align-items: center; }
 .task-info { display: flex; gap: 10rpx; align-items: center; flex: 1; }
 .subject-tag {
-  font-size: 20rpx; color: #6B5CE7;
-  background: #EEEDFD;
+  font-size: 24rpx; color: var(--mp-primary);
+  background: var(--mp-soft);
   padding: 4rpx 12rpx; border-radius: 16rpx; flex-shrink: 0;
 }
-.task-title { font-size: 26rpx; font-weight: 600; color: #1A1636; }
+.task-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
 .task-status {
-  font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 16rpx;
-  background: #F5F3EF; color: #8E8B9E; flex-shrink: 0;
+  font-size: 24rpx; padding: 4rpx 12rpx; border-radius: 16rpx;
+  background: #F3F5F8; color: var(--mp-muted); flex-shrink: 0;
 }
-.task-status.is-in_progress { background: #DCFCE7; color: #16A34A; }
+.task-status.is-in_progress { background: #DCFCE7; color: #286349; }
 .task-status.is-completed { background: #D1FAE5; color: #059669; }
-.task-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 8rpx; }
-.task-desc { font-size: 24rpx; color: #6E6B83; display: block; margin-top: 6rpx; line-height: 1.5; }
+.task-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 8rpx; }
+.task-desc { font-size: 24rpx; color: #526177; display: block; margin-top: 6rpx; line-height: 1.5; }
 .task-actions { display: flex; gap: 14rpx; margin-top: 12rpx; }
 .task-action-btn {
-  font-size: 22rpx; color: #6B5CE7;
-  background: #F0EFFC;
+  font-size: 24rpx; color: var(--mp-primary);
+  background: var(--mp-soft);
   padding: 8rpx 18rpx; border-radius: 12rpx;
 }
-.empty-text { text-align: center; color: #A09CB5; padding: 36rpx; font-size: 24rpx; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 36rpx; font-size: 24rpx; }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  background: var(--mp-primary);
   color: #fff; border-radius: 14rpx; padding: 22rpx 0;
   font-size: 28rpx; font-weight: 600; border: none;
 }
 .btn-primary::after { border: none; }
 .btn-outline {
-  background: #fff; color: #6B5CE7;
-  border: 2rpx solid #D5D0F7; border-radius: 14rpx;
+  background: #fff; color: var(--mp-primary);
+  border: 2rpx solid #B8C6D8; border-radius: 14rpx;
   padding: 22rpx 0; font-size: 28rpx;
 }
 .btn-outline::after { border: none; }
@@ -222,22 +224,22 @@ onMounted(load)
   overflow-y: auto; display: flex; flex-direction: column; gap: 14rpx;
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; }
-.modal-title { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.modal-close { font-size: 28rpx; color: #A09CB5; padding: 8rpx; }
+.modal-title { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.modal-close { font-size: 28rpx; color: var(--mp-muted); padding: 8rpx; }
 .form { display: flex; flex-direction: column; gap: 12rpx; }
 .field { display: flex; flex-direction: column; gap: 6rpx; }
-.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.label { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 .input {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
   padding: 18rpx 20rpx; font-size: 26rpx; background: #fff;
 }
 .textarea {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
   padding: 18rpx 20rpx; font-size: 26rpx; min-height: 100rpx; background: #fff;
 }
 .picker {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
-  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: #1A1636;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
+  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: var(--mp-ink);
 }
 .modal-btns { display: flex; gap: 14rpx; margin-top: 8rpx; }
 .modal-btns button { flex: 1; }

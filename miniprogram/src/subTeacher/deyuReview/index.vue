@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
       <text class="h1">德育审查</text>
       <text class="p">班主任提交的方案在此排队，通过后进入执行</text>
@@ -19,7 +20,7 @@
           <CaseStatusTag :status="c.status" />
         </view>
       </view>
-      <EmptyState v-else title="暂无待审查方案" desc="所有方案已处理完毕" icon="✅" />
+      <EmptyState v-else title="暂无待审查方案" desc="所有方案已处理完毕" />
 
       <view v-if="recentDecisions.length" class="card">
         <text class="card-title">最近审查记录</text>
@@ -38,6 +39,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
@@ -52,8 +54,8 @@ const recentDecisions = ref([])
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (auth.role !== 'deyu_director' && auth.role !== 'admin') {
-    uni.showToast({ title: '仅德育主任/校长可访问', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
+  if (auth.role !== 'deyu_director') {
+    uni.showToast({ title: '仅德育主任可进行审查', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true
 }
@@ -92,35 +94,35 @@ onShow(() => { if (guardRole()) load() })
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
 .head { margin-bottom: 4rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; line-height: 1.5; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; line-height: 1.5; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .card {
   background: #fff;
   border-radius: 20rpx;
   padding: 24rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-bottom: 14rpx; }
+.card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-bottom: 14rpx; }
 
 .case-row { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 0; gap: 12rpx; }
-.case-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.case-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .case-info { flex: 1; }
-.case-name { font-size: 28rpx; font-weight: 600; color: #1A1636; display: block; }
-.case-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
+.case-name { font-size: 28rpx; font-weight: 600; color: var(--mp-ink); display: block; }
+.case-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 
 .review-row { display: flex; align-items: center; gap: 14rpx; padding: 14rpx 0; }
-.review-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.review-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .review-icon {
   width: 44rpx; height: 44rpx; border-radius: 12rpx;
   display: flex; align-items: center; justify-content: center;
-  font-size: 22rpx; font-weight: 700; flex-shrink: 0;
+  font-size: 24rpx; font-weight: 700; flex-shrink: 0;
 }
-.review-icon.approved { background: #DCFCE7; color: #16A34A; }
-.review-icon.rejected { background: #FEE2E2; color: #EF4444; }
+.review-icon.approved { background: #DCFCE7; color: #286349; }
+.review-icon.rejected { background: #FEE2E2; color: #A33E39; }
 .review-copy { flex: 1; }
-.review-label { font-size: 24rpx; color: #1A1636; }
-.review-time { font-size: 20rpx; color: #A09CB5; display: block; margin-top: 2rpx; }
+.review-label { font-size: 24rpx; color: var(--mp-ink); }
+.review-time { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 2rpx; }
 </style>

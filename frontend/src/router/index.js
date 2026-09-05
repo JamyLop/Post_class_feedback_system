@@ -76,6 +76,7 @@ const routes = [
       { path: '', redirect: '/subject/cases' },
       { path: 'subject/cases', component: () => import('../views/subject/SubjectCases.vue') },
       { path: 'subject/cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
+      { path: 'subject/weekly-scores', component: () => import('../views/teacher/WeeklyScores.vue') },
     ],
   },
   {

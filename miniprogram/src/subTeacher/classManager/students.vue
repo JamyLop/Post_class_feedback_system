@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
       <text class="h1">学生管理</text>
       <text class="p">{{ className }}</text>
@@ -7,13 +8,13 @@
 
     <view class="action-bar">
       <button class="btn-primary" @click="goAddStudent">新建学生</button>
-      <button class="btn-outline" @click="loadData" :loading="loading">刷新</button>
+      <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
-    <EmptyState v-else-if="!studentList.length" title="暂无学生" desc="点击「新建学生」添加" icon="👤" />
+    <EmptyState v-else-if="!studentList.length" title="暂无学生" desc="点击「新建学生」添加" />
     <view v-else class="student-list">
       <view v-for="(stu, idx) in studentList" :key="stu.id" class="student-card" :class="{ 'has-border': idx > 0 }">
         <view class="student-avatar" :style="{ background: getAvatarColor(stu.name) }">
@@ -29,6 +30,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
@@ -41,7 +43,7 @@ const className = ref('')
 const loading = ref(false)
 const studentList = ref([])
 
-const avatarColors = ['#6B5CE7', '#F5881F', '#16A34A', '#E74C6F', '#3B82F6']
+const avatarColors = ['#253D61', '#F5881F', '#286349', '#E74C6F', '#3B82F6']
 function getAvatarColor(name) {
   const idx = (name || '').charCodeAt(0) % avatarColors.length
   return avatarColors[idx]
@@ -81,27 +83,27 @@ onMounted(() => { if (guardRole()) loadData() })
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
 .action-bar { display: flex; gap: 16rpx; }
 .btn-primary {
-  flex: 2; background: #1F4F55; color: #fff; border-radius: 8rpx;
+  flex: 2; background: var(--mp-primary); color: #fff; border-radius: 8rpx;
   padding: 18rpx 0; font-size: 28rpx; font-weight: 600; border: none;
 }
 .btn-primary::after { border: none; }
 .btn-outline {
-  flex: 1; background: #fff; color: #1F4F55; border: 1rpx solid #B9CCCA;
+  flex: 1; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE;
   border-radius: 8rpx; padding: 18rpx 0; font-size: 28rpx;
 }
 .btn-outline::after { border: none; }
 
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .student-card {
   background: #fff; border-radius: 12rpx; padding: 20rpx;
-  border: 1rpx solid #E0E7E5; display: flex; align-items: center; gap: 16rpx;
+  border: 1rpx solid var(--mp-line); display: flex; align-items: center; gap: 16rpx;
 }
 .student-card.has-border { margin-top: 12rpx; }
 .student-avatar {
@@ -111,6 +113,6 @@ onMounted(() => { if (guardRole()) loadData() })
 }
 .avatar-text { color: #fff; font-size: 28rpx; font-weight: 700; }
 .student-info { flex: 1; }
-.student-name { font-size: 28rpx; font-weight: 600; color: #1A1636; display: block; }
-.student-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
+.student-name { font-size: 28rpx; font-weight: 600; color: var(--mp-ink); display: block; }
+.student-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 </style>

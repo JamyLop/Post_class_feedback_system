@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <text class="h1">提交督查</text>
 
     <view v-if="loadingCase" class="loading-bar">
@@ -56,12 +57,13 @@
           <textarea v-model="form.recheck_result" placeholder="复查情况" class="textarea" />
         </view>
       </view>
-      <button class="btn-primary" :loading="submitting" @click="submit">提交</button>
+      <button class="btn-primary" :loading="submitting" :disabled="submitting" @click="submit">提交</button>
     </template>
   </view>
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listStudentCases, createCaseReview } from '../../api/studentCases'
@@ -136,41 +138,41 @@ async function submit() {
 }
 
 onShow(() => load())
-onMounted(load)
+
 </script>
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .card {
   background: #fff;
   border-radius: 20rpx;
   padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
   display: flex; flex-direction: column; gap: 18rpx;
 }
 .field { display: flex; flex-direction: column; gap: 8rpx; }
-.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.label { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 .picker {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
-  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: #1A1636;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
+  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: var(--mp-ink);
 }
-.picker.disabled { background: #FAF9F7; color: #A09CB5; }
+.picker.disabled { background: #F7F8FA; color: var(--mp-muted); }
 .case-preview {
-  background: #FAF9F7; border-radius: 14rpx; padding: 16rpx 20rpx;
+  background: #F7F8FA; border-radius: 14rpx; padding: 16rpx 20rpx;
 }
-.preview-name { font-size: 26rpx; font-weight: 600; color: #1A1636; }
-.preview-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
+.preview-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.preview-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 .textarea {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
   padding: 18rpx 20rpx; font-size: 26rpx; min-height: 140rpx; background: #fff;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  background: var(--mp-primary);
   color: #fff; border-radius: 14rpx; padding: 24rpx 0;
   font-size: 30rpx; font-weight: 600; border: none;
 }

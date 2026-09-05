@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -11,22 +12,22 @@
         </view>
         <text class="meta">{{ detail.class_name }} · 第{{ detail.version }}版</text>
         <view class="state-banner" :class="`is-${detail.status}`">
-          <text class="state-title">{{ stateTitle }}</text>
+
           <text class="state-desc">{{ stateDesc }}</text>
         </view>
         <view v-if="detail.can_manage" class="actions-bar">
-          <view class="action-btn" @click="goEdit"><text class="action-icon">✏️</text><text>编辑</text></view>
-          <view class="action-btn" @click="goTasks"><text class="action-icon">📋</text><text>任务</text></view>
-          <view class="action-btn" @click="goReview"><text class="action-icon">📤</text><text>督查</text></view>
+          <view class="action-btn" @click="goEdit"><text>编辑</text></view>
+          <view class="action-btn" @click="goTasks"><text>任务</text></view>
+          <view class="action-btn" @click="goReview"><text>督查</text></view>
           <view v-if="showSubmit" class="action-btn primary" @click="doTransition('pending_confirmation')">
-            <text class="action-icon">📨</text><text>提交审查</text>
+            <text>提交审查</text>
           </view>
           <view v-if="detail.status==='executing'" class="action-btn" @click="doTransition('pending_review')">
-            <text class="action-icon">🔄</text><text>进入复盘</text>
+            <text>进入复盘</text>
           </view>
         </view>
         <view v-if="detail.viewer_role === 'subject_teacher'" class="actions-bar">
-          <view class="action-btn primary" @click="goSuggestion"><text class="action-icon">💬</text><text>学科建议</text></view>
+          <view class="action-btn primary" @click="goSuggestion"><text>学科建议</text></view>
         </view>
       </view>
 
@@ -53,7 +54,6 @@
             <view class="field"><text class="dt">姓名</text><text class="dd">{{ detail.student_profile.student_name || '—' }}</text></view>
             <view class="field"><text class="dt">性别</text><text class="dd">{{ detail.student_profile.gender || '—' }}</text></view>
             <view class="field"><text class="dt">来源学校</text><text class="dd">{{ detail.student_profile.source_school || '—' }}</text></view>
-            <view class="field"><text class="dt">家长</text><text class="dd">{{ detail.student_profile.parent_name || '—' }} {{ detail.student_profile.parent_phone ? '('+detail.student_profile.parent_phone+')' : '' }}</text></view>
           </view>
         </view>
 
@@ -83,7 +83,7 @@
             <text class="add-link" @click="goTasks">管理</text>
           </view>
           <view v-if="!detail.tasks.length" class="empty-text">暂无任务</view>
-          <view v-for="task in detail.tasks" :key="task.id" class="task-card" @click="goCheckin(task.id)">
+          <view v-for="task in detail.tasks" :key="task.id" class="task-card" @click="detail.can_manage && goCheckin(task.id)">
             <view class="task-head">
               <text class="subject-tag">{{ task.subject || '综合' }}</text>
               <text class="task-title">{{ task.title }}</text>
@@ -106,11 +106,12 @@
         </view>
       </view>
     </template>
-    <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" icon="📄" />
+    <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" />
   </view>
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase, transitionCase } from '../../api/studentCases'
@@ -208,96 +209,98 @@ function onAddPlan(e) {
 }
 
 onShow(() => load())
-onMounted(load)
+
 </script>
 
 <style scoped>
 .page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 18rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .header-card {
   background: #fff;
   border-radius: 20rpx;
   padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
 .title-row { display: flex; gap: 12rpx; align-items: center; }
-.h1 { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 8rpx; }
-.state-banner { margin-top: 14rpx; padding: 16rpx 18rpx; border-radius: 14rpx; background: #F5F3EF; }
+.h1 { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 8rpx; }
+.state-banner { margin-top: 14rpx; padding: 16rpx 18rpx; border-radius: 14rpx; background: #F3F5F8; }
 .state-banner.is-executing { background: #EEF8EE; }
-.state-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; }
-.state-desc { font-size: 22rpx; color: #6E6B83; display: block; margin-top: 4rpx; }
+.state-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; }
+.state-desc { font-size: 24rpx; color: #526177; display: block; margin-top: 4rpx; }
 
 .actions-bar { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 18rpx; }
 .action-btn {
   display: flex; align-items: center; gap: 6rpx;
   font-size: 24rpx; padding: 12rpx 20rpx;
   border-radius: 12rpx;
-  background: #F5F3EF;
-  color: #4A4763;
+  background: #F3F5F8;
+  color: var(--mp-body);
 }
-.action-btn.primary { background: #6B5CE7; color: #fff; }
-.action-icon { font-size: 22rpx; }
+.action-btn.primary { background: var(--mp-primary); color: #fff; }
+.action-icon { font-size: 24rpx; }
 
 .tabs {
   background: #fff;
   border-radius: 20rpx;
   overflow: hidden;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.tab-bar { display: flex; border-bottom: 2rpx solid #F0EFFC; }
+.tab-bar { display: flex; border-bottom: 2rpx solid var(--mp-soft); }
 .tab {
   flex: 1; text-align: center; padding: 22rpx 0;
-  font-size: 26rpx; color: #8E8B9E;
+  font-size: 26rpx; color: var(--mp-muted);
   border-bottom: 4rpx solid transparent;
 }
-.tab.active { color: #6B5CE7; border-bottom-color: #6B5CE7; font-weight: 600; }
+.tab.active { color: var(--mp-primary); border-bottom-color: var(--mp-primary); font-weight: 600; }
 .tab-panel { padding: 24rpx; display: flex; flex-direction: column; gap: 18rpx; }
 
 .section { display: flex; flex-direction: column; gap: 8rpx; }
-.section-muted { background: #FAF9F7; border-radius: 14rpx; padding: 18rpx; }
-.section-h { font-size: 24rpx; font-weight: 600; color: #1A1636; }
-.section-body { font-size: 26rpx; color: #4A4763; line-height: 1.7; white-space: pre-wrap; }
+.section-muted { background: #F7F8FA; border-radius: 14rpx; padding: 18rpx; }
+.section-h { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
+.section-body { font-size: 26rpx; color: var(--mp-body); line-height: 1.7; white-space: pre-wrap; }
 .section-head-row { display: flex; justify-content: space-between; align-items: center; }
-.empty-text { text-align: center; color: #A09CB5; padding: 28rpx; font-size: 24rpx; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 28rpx; font-size: 24rpx; }
 
 .field { display: flex; flex-direction: column; gap: 4rpx; margin-top: 8rpx; }
-.dt { font-size: 22rpx; color: #8E8B9E; }
-.dd { font-size: 24rpx; color: #4A4763; line-height: 1.6; white-space: pre-wrap; }
+.dt { font-size: 24rpx; color: var(--mp-muted); }
+.dd { font-size: 24rpx; color: var(--mp-body); line-height: 1.6; white-space: pre-wrap; }
 
 .plan-card {
-  background: #FAF9F7;
+  background: #F7F8FA;
   border-radius: 14rpx;
   padding: 20rpx;
   display: flex; flex-direction: column; gap: 10rpx;
 }
 .plan-head { display: flex; justify-content: space-between; align-items: center; }
 .subject-chip {
-  font-size: 22rpx; font-weight: 600;
-  color: #6B5CE7;
-  background: #EEEDFD;
+  font-size: 24rpx; font-weight: 600;
+  color: var(--mp-primary);
+  background: var(--mp-soft);
   padding: 6rpx 16rpx;
   border-radius: 16rpx;
 }
-.edit-link { font-size: 22rpx; color: #6B5CE7; }
+.edit-link { font-size: 24rpx; color: var(--mp-primary); }
 .add-plan { text-align: center; padding: 14rpx; }
-.add-link { font-size: 24rpx; color: #6B5CE7; font-weight: 500; }
+.add-link { font-size: 24rpx; color: var(--mp-primary); font-weight: 500; }
 
 .task-card {
-  background: #FAF9F7;
+  background: #F7F8FA;
   border-radius: 14rpx;
   padding: 18rpx;
 }
 .task-head { display: flex; gap: 10rpx; align-items: center; flex-wrap: wrap; }
 .subject-tag {
-  font-size: 20rpx; color: #6B5CE7;
-  background: #EEEDFD;
+  font-size: 24rpx; color: var(--mp-primary);
+  background: var(--mp-soft);
   padding: 4rpx 12rpx;
   border-radius: 16rpx;
 }
-.task-title { font-size: 26rpx; font-weight: 600; color: #1A1636; }
-.task-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 6rpx; }
+.task-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.task-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .checkin-section { margin-top: 12rpx; }
 </style>
+
+<style scoped src="../../styles/details.css"></style>

@@ -186,6 +186,32 @@ def test_head_teacher_can_complete_student_profile_during_execution(
     ).count() == 1
 
 
+def test_profile_save_preserves_omitted_guardian_information(client, auth, db, seed_users):
+    from app.models.class_ import StudentGuardian
+    from app.models.user import User
+
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    profile = db.query(CaseStudentProfile).filter_by(student_case_id=case_id).one()
+    # 历史联系方式即使不是手机号，也不能因隐藏字段而阻止学生资料保存。
+    profile.parent_name = "已有家长"
+    profile.parent_phone = "历史固定电话"
+    profile.parent_relationship = "母亲"
+    db.add(StudentGuardian(parent_id=seed_users["parent1"], student_id=seed_users["student1"]))
+    db.commit()
+    user_count = db.query(User).count()
+    response = client.put(f"/api/student-cases/{case_id}/student-profile", headers=auth("teacher1"),
+                          json={"student_name": "张三", "source_school": "新学校", "parent_evaluation": "继续保持"})
+    assert response.status_code == 200, response.text
+    assert response.json()["source_school"] == "新学校"
+    assert response.json()["parent_evaluation"] == "继续保持"
+    assert response.json()["parent_name"] == "已有家长"
+    assert response.json()["parent_phone"] == "历史固定电话"
+    assert response.json()["parent_relationship"] == "母亲"
+    assert db.query(User).count() == user_count
+    assert db.query(StudentGuardian).filter_by(parent_id=seed_users["parent1"], student_id=seed_users["student1"]).count() == 1
+
+
 def test_status_permission_and_immutable_version(client, auth, db, seed_users):
     class_id = _setup_high3(db, seed_users)
     _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)

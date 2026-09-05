@@ -1,4 +1,4 @@
-"""月度评价 API：AI生成月度评价（学情+德育+改进方案），班主任可编辑发布。"""
+"""月度评定 API：教师手动填写、保存与发布。"""
 
 import calendar
 import logging
@@ -19,9 +19,7 @@ from app.models.monthly_report import (
 )
 from app.models.student_case import StudentCase
 from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
-from app.monthly.engine import build_monthly_snapshot
-from app.schemas.monthly_report import MonthlyReportGenerateIn, MonthlyReportOut, MonthlyReportUpdateIn
-from app.tasks.monthly_report_tasks import generate_monthly_report_task
+from app.schemas.monthly_report import MonthlyReportCreateIn, MonthlyReportOut, MonthlyReportUpdateIn
 
 router = APIRouter(prefix="/monthly-reports", tags=["monthly-reports"])
 _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
@@ -51,7 +49,7 @@ def _authorize_student_class(db: Session, student_id: int, class_id: int, user: 
         # 也允许通过 ClassTeacher 关联
         from app.models.class_ import ClassTeacher
         if not db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=user.id).first():
-            raise HTTPException(status_code=403, detail="无权操作该班级月度评价")
+            raise HTTPException(status_code=403, detail="无权操作该班级月度评定")
     member = db.query(ClassStudent).filter(ClassStudent.class_id == class_id, ClassStudent.student_id == student_id).first()
     if member is None:
         raise HTTPException(status_code=403, detail="学生不属于该班级")
@@ -59,24 +57,30 @@ def _authorize_student_class(db: Session, student_id: int, class_id: int, user: 
 def _report_access(db: Session, report_id: int, user: User) -> MonthlyReport:
     r = db.get(MonthlyReport, report_id)
     if r is None:
-        raise HTTPException(status_code=404, detail="月度评价不存在")
+        raise HTTPException(status_code=404, detail="月度评定不存在")
     if user.role == ROLE_ADMIN:
         return r
     if user.role == ROLE_STUDENT:
         if r.student_id != user.id or r.status != MONTHLY_STATUS_PUBLISHED:
-            raise HTTPException(status_code=403, detail="无权查看该月度评价")
+            raise HTTPException(status_code=403, detail="无权查看该月度评定")
         return r
     if user.role == ROLE_PARENT:
         linked = db.query(StudentGuardian).filter_by(parent_id=user.id, student_id=r.student_id).first()
         if linked is None or r.status != MONTHLY_STATUS_PUBLISHED:
-            raise HTTPException(status_code=403, detail="无权查看该月度评价")
+            raise HTTPException(status_code=403, detail="无权查看该月度评定")
         return r
     _authorize_student_class(db, r.student_id, r.class_id, user)
     return r
 
-@router.post("/generate", response_model=MonthlyReportOut)
-def generate_monthly(
-    body: MonthlyReportGenerateIn,
+@router.post("/generate")
+def generate_monthly(user: User = Depends(_manager)):
+    # 老客户端必须升级，不能继续触发 AI 或覆盖教师已保存的正文。
+    raise HTTPException(status_code=410, detail="月度评定已改为手动填写，请更新客户端后新建评定")
+
+
+@router.post("", response_model=MonthlyReportOut)
+def create_monthly(
+    body: MonthlyReportCreateIn,
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
@@ -85,103 +89,27 @@ def generate_monthly(
         raise HTTPException(status_code=404, detail="学生不存在")
     _authorize_student_class(db, body.student_id, body.class_id, user)
     period_start, period_end = _month_bounds(body.month_label)
-
-    # 校验 student_case_id 归属
-    sc_id = body.student_case_id
-    if sc_id is not None:
-        sc = db.get(StudentCase, sc_id)
+    if body.student_case_id is not None:
+        sc = db.get(StudentCase, body.student_case_id)
         if sc is None or sc.student_id != body.student_id or sc.class_id != body.class_id:
             raise HTTPException(status_code=400, detail="student_case_id 与学生/班级不匹配")
-
-    # 快照
-    try:
-        snapshot = build_monthly_snapshot(db, body.student_id, body.class_id, body.month_label, sc_id)
-    except Exception as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    # 幂等：同学生同月唯一
-    report = db.query(MonthlyReport).filter(
-        MonthlyReport.student_id == body.student_id,
-        MonthlyReport.class_id == body.class_id,
-        MonthlyReport.month_label == body.month_label,
+    # 锁定学生，串行检查同班同月重复创建，防止双击或并发请求覆盖手写内容。
+    db.query(User).filter(User.id == body.student_id).with_for_update().first()
+    existing = db.query(MonthlyReport).filter_by(
+        student_id=body.student_id, class_id=body.class_id, month_label=body.month_label,
     ).first()
-    if report is None:
-        report = MonthlyReport(
-            student_id=body.student_id,
-            class_id=body.class_id,
-            student_case_id=sc_id,
-            month_label=body.month_label,
-            period_start=period_start,
-            period_end=period_end,
-            input_snapshot=snapshot,
-        )
-        db.add(report)
-    else:
-        report.student_case_id = sc_id
-        report.period_start = period_start
-        report.period_end = period_end
-        report.input_snapshot = snapshot
-        report.status = MONTHLY_STATUS_GENERATING
-        report.error_message = ""
-        report.ai_content = ""
-        report.final_content = ""
-        report.published_at = None
+    if existing:
+        raise HTTPException(status_code=409, detail="该学生本月已有评定，请打开原评定编辑")
+    report = MonthlyReport(
+        student_id=body.student_id, class_id=body.class_id,
+        student_case_id=body.student_case_id, month_label=body.month_label,
+        period_start=period_start, period_end=period_end,
+        # 沿用 generated 存储值表示待发布，兼容历史记录且无需迁移。
+        status=MONTHLY_STATUS_GENERATED, final_content=body.final_content,
+        reviewed_by=user.id, prompt_version="manual_v1", input_snapshot={},
+    )
+    db.add(report)
     db.commit()
-    db.refresh(report)
-    # 开发/测试环境直接同步生成，避免依赖 Celery/Redis 导致 100s 超时
-    from app.core.config import settings as _settings
-
-    use_sync = _settings.app_env == "dev" or _settings.llm_provider == "mock"
-    if use_sync:
-        try:
-            from datetime import datetime, timezone
-
-            from app.monthly.engine import generate_monthly_report as _gen
-
-            result = _gen(report.input_snapshot)
-            report.ai_content = result.text
-            report.final_content = result.text
-            report.model_name = result.model
-            report.prompt_tokens = result.prompt_tokens
-            report.completion_tokens = result.completion_tokens
-            report.total_tokens = result.total_tokens
-            report.duration_ms = result.duration_ms
-            report.error_message = ""
-            report.status = MONTHLY_STATUS_GENERATED
-            report.generated_at = datetime.now(timezone.utc)
-            db.commit()
-        except Exception as inner:
-            report.status = MONTHLY_STATUS_FAILED
-            report.error_message = str(inner)[:1000]
-            db.commit()
-            raise HTTPException(status_code=500, detail=f"月度评价生成失败: {inner}") from inner
-    else:
-        try:
-            generate_monthly_report_task.delay(report.id)
-        except Exception as exc:
-            logger.warning("monthly_celery_delay_failed fallback_to_sync report_id=%s err=%s", report.id, exc)
-            try:
-                from datetime import datetime, timezone
-
-                from app.monthly.engine import generate_monthly_report as _gen
-
-                result = _gen(report.input_snapshot)
-                report.ai_content = result.text
-                report.final_content = result.text
-                report.model_name = result.model
-                report.prompt_tokens = result.prompt_tokens
-                report.completion_tokens = result.completion_tokens
-                report.total_tokens = result.total_tokens
-                report.duration_ms = result.duration_ms
-                report.error_message = ""
-                report.status = MONTHLY_STATUS_GENERATED
-                report.generated_at = datetime.now(timezone.utc)
-                db.commit()
-            except Exception as inner:
-                report.status = MONTHLY_STATUS_FAILED
-                report.error_message = str(inner)[:1000]
-                db.commit()
-                raise HTTPException(status_code=500, detail=f"月度评价生成失败: {inner}") from inner
     db.refresh(report)
     return _enrich(report, db)
 
@@ -231,8 +159,10 @@ def get_report(report_id: int, db: Session = Depends(get_db), user: User = Depen
 @router.put("/{report_id}", response_model=MonthlyReportOut)
 def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
-    if r.status not in (MONTHLY_STATUS_GENERATED, MONTHLY_STATUS_PUBLISHED):
-        raise HTTPException(status_code=409, detail="月度评价尚未生成，不能编辑")
+    # 旧的失败/排队记录可由教师接手，保存后进入待发布状态。
+    if r.status in (MONTHLY_STATUS_GENERATING, MONTHLY_STATUS_FAILED):
+        r.status = MONTHLY_STATUS_GENERATED
+        r.error_message = ""
     r.final_content = body.final_content.strip()
     r.reviewed_by = user.id
     if r.status == MONTHLY_STATUS_PUBLISHED:
@@ -247,9 +177,9 @@ def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Dep
 def publish_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
     if r.status != MONTHLY_STATUS_GENERATED:
-        raise HTTPException(status_code=409, detail="只有已生成的月度评价可以发布")
+        raise HTTPException(status_code=409, detail="只有待发布的月度评定可以发布")
     if not r.final_content.strip():
-        raise HTTPException(status_code=409, detail="月度评价内容为空，不能发布")
+        raise HTTPException(status_code=409, detail="月度评定内容为空，不能发布")
     from datetime import datetime, timezone
     r.status = MONTHLY_STATUS_PUBLISHED
     r.reviewed_by = user.id

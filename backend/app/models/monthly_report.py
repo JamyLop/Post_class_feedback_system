@@ -1,4 +1,4 @@
-"""月度评价模型：按自然月汇总学情与德育状态，AI初稿 + 班主任可编辑发布。"""
+"""月度评定模型：按自然月保存教师手写内容与发布状态。"""
 
 from datetime import date, datetime
 from typing import Any
@@ -15,7 +15,7 @@ MONTHLY_STATUS_FAILED = "failed"
 
 
 class MonthlyReport(Base):
-    """学生月度评价表：一个月一份，记录AI输入快照与教师定稿。"""
+    """学生月度评定表；AI 元数据字段仅保留用于兼容历史记录。"""
 
     __tablename__ = "monthly_reports"
 

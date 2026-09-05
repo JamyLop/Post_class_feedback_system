@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
       <text class="h1">录入周测成绩</text>
       <text class="p">{{ className }}</text>
@@ -47,7 +48,7 @@
       <view v-if="loadingStudents" class="loading-bar">
         <text class="loading-text">加载学生列表...</text>
       </view>
-      <EmptyState v-else-if="!studentList.length" title="暂无学生" desc="请先在班级中添加学生" icon="👤" />
+      <EmptyState v-else-if="!studentList.length" title="暂无学生" desc="请先在班级中添加学生" />
       <view v-else class="student-list">
         <view v-for="(stu, idx) in studentList" :key="stu.id" class="student-row" :class="{ 'has-border': idx > 0 }">
           <view class="student-info">
@@ -75,7 +76,7 @@
 
     <!-- 提交按钮 -->
     <view class="submit-bar">
-      <button class="btn-submit" :loading="submitting" @click="handleSubmit">
+      <button class="btn-submit" :loading="submitting" :disabled="submitting" @click="handleSubmit">
         {{ submitting ? '提交中...' : '保存成绩' }}
       </button>
     </view>
@@ -83,6 +84,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { listClassStudents } from '../../api/classes'
@@ -186,61 +188,61 @@ async function handleSubmit() {
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; padding-bottom: 140rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
 .card {
   background: #fff; border-radius: 10rpx; padding: 24rpx;
-  border: 1rpx solid #E0E7E5;
+  border: 1rpx solid var(--mp-line);
 }
-.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-bottom: 14rpx; }
+.card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-bottom: 14rpx; }
 .card-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14rpx; }
-.student-count { font-size: 22rpx; color: #A09CB5; }
+.student-count { font-size: 24rpx; color: var(--mp-muted); }
 
 .form { display: flex; flex-direction: column; gap: 16rpx; }
 .field { display: flex; flex-direction: column; gap: 6rpx; }
-.field-label { font-size: 24rpx; font-weight: 500; color: #4A4763; }
-.required { color: #EF4444; }
+.field-label { font-size: 24rpx; font-weight: 500; color: var(--mp-body); }
+.required { color: #A33E39; }
 .input {
-  border: 1rpx solid #CCD8D6; border-radius: 8rpx;
+  border: 1rpx solid #C6D0DE; border-radius: 8rpx;
   padding: 18rpx 22rpx; font-size: 28rpx; background: #fff;
 }
 .picker-box {
   display: flex; align-items: center; justify-content: space-between;
-  background: #fff; border: 1rpx solid #CCD8D6; border-radius: 8rpx;
+  background: #fff; border: 1rpx solid #C6D0DE; border-radius: 8rpx;
   padding: 18rpx 22rpx;
 }
-.picker-text { font-size: 28rpx; color: #1A1636; }
-.picker-arrow { font-size: 20rpx; color: #A09CB5; }
+.picker-text { font-size: 28rpx; color: var(--mp-ink); }
+.picker-arrow { font-size: 24rpx; color: var(--mp-muted); }
 
 .loading-bar { text-align: center; padding: 32rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .student-row {
   padding: 16rpx 0; display: flex; align-items: center; justify-content: space-between;
 }
-.student-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.student-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .student-info { flex: 1; }
-.student-name { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; }
-.student-id { font-size: 20rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
+.student-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; }
+.student-id { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 .student-score { display: flex; gap: 12rpx; }
 .score-input {
-  width: 120rpx; border: 1rpx solid #CCD8D6; border-radius: 8rpx;
-  padding: 12rpx 14rpx; font-size: 28rpx; text-align: center; background: #FAF9F7;
+  width: 120rpx; border: 1rpx solid #C6D0DE; border-radius: 8rpx;
+  padding: 12rpx 14rpx; font-size: 28rpx; text-align: center; background: #F7F8FA;
 }
-.score-input.has-value { background: #fff; border-color: #1F4F55; }
+.score-input.has-value { background: #fff; border-color: var(--mp-primary); }
 .rank-input {
-  width: 100rpx; border: 1rpx solid #CCD8D6; border-radius: 8rpx;
-  padding: 12rpx 14rpx; font-size: 28rpx; text-align: center; background: #FAF9F7;
+  width: 100rpx; border: 1rpx solid #C6D0DE; border-radius: 8rpx;
+  padding: 12rpx 14rpx; font-size: 28rpx; text-align: center; background: #F7F8FA;
 }
 
 .submit-bar {
   position: fixed; left: 0; right: 0; bottom: 0;
   background: #fff; padding: 20rpx 28rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
-  border-top: 1rpx solid #E0E7E5;
+  border-top: 1rpx solid var(--mp-line);
 }
 .btn-submit {
-  background: #1F4F55; color: #fff; border-radius: 8rpx;
+  background: var(--mp-primary); color: #fff; border-radius: 8rpx;
   padding: 24rpx 0; font-size: 30rpx; font-weight: 600; border: none;
 }
 .btn-submit::after { border: none; }

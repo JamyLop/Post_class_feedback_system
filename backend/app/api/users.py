@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.user import (
     ROLE_ADMIN,
+    ROLE_CONSULTANT,
     ROLE_STUDENT,
     ROLE_TEACHER,
     ROLES,
@@ -66,7 +67,12 @@ def list_users(
     """按角色分页查询用户，支持用户名/姓名模糊搜索。"""
     if role not in ROLES:
         raise HTTPException(status_code=400, detail="无效角色")
-    _require_teacher_student_scope(user, role)
+    # 班主任新建学生时需选择咨询老师，允许只读查询 teacher/consultant 名单；
+    # admin 等高权限角色仍不可见，创建/更新仍受 _require_teacher_student_scope 限制。
+    if user.role == ROLE_TEACHER and role in (ROLE_TEACHER, ROLE_CONSULTANT):
+        pass
+    else:
+        _require_teacher_student_scope(user, role)
     q = db.query(User).filter(User.role == role)
     if keyword:
         like = f"%{keyword}%"

@@ -16,14 +16,18 @@
             <el-icon><Files /></el-icon>
             <span>班级档案与科目方案</span>
           </el-menu-item>
+          <el-menu-item index="/subject/weekly-scores">
+            <el-icon><Files /></el-icon>
+            <span>周测成绩与评价</span>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
       <div class="subject-note">
         <span class="subject-dot"></span>
         <div class="subject-text">
-          <strong>只读协同</strong>
-          <small>查看所带学科方案，意见走学科建议</small>
+          <strong>教学协同</strong>
+          <small>查看学科方案，提交教学建议与周测评价</small>
         </div>
       </div>
     </el-aside>

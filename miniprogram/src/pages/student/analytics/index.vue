@@ -1,8 +1,9 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
       <text class="h1">学情分析</text>
-      <text class="p">周测、月度评价与知识点掌握</text>
+      <text class="p">周测成绩、变化趋势与月度评定</text>
       <view class="filter-row">
         <picker :range="subjectOptions" @change="onSubjectChange">
           <view class="filter-btn">
@@ -30,9 +31,10 @@
           </view>
           <text class="card-meta">{{ r.subject }} {{ r.class_name ? '· ' + r.class_name : '' }} {{ r.rank_in_class ? `· 班级排名 ${r.rank_in_class}` : '' }}</text>
           <text v-if="r.remark" class="card-remark">{{ r.remark }}</text>
+          <WeeklyScoreEvaluations :score="r" />
         </view>
       </view>
-      <EmptyState v-else title="暂无周测" desc="教师尚未录入周考成绩" icon="📊" />
+      <EmptyState v-else title="暂无周测" desc="教师尚未录入周考成绩" />
     </template>
 
     <template v-if="active==='trend'">
@@ -51,7 +53,7 @@
           </view>
         </view>
       </view>
-      <EmptyState v-else title="暂无趋势" desc="选择科目后查看单科趋势" icon="📈" />
+      <EmptyState v-else title="暂无趋势" desc="选择科目后查看单科趋势" />
     </template>
 
     <template v-if="active==='monthly'">
@@ -60,17 +62,19 @@
       </view>
       <view v-else-if="monthlyRows.length" class="list">
         <view v-for="r in monthlyRows" :key="r.id" class="card">
-          <text class="card-title">{{ r.title || r.month || '月度评价' }}</text>
-          <text class="card-meta">{{ r.month || r.created_at?.slice(0,7) || '' }} {{ r.class_name ? '· ' + r.class_name : '' }}</text>
-          <text class="card-body">{{ (r.content || r.summary || '').slice(0,160) || '—' }}</text>
+          <text class="card-title">{{ r.month_label || '月度评定' }}</text>
+          <text class="card-meta">{{ r.month_label || r.created_at?.slice(0,7) || '' }} {{ r.class_name ? '· ' + r.class_name : '' }}</text>
+          <text class="card-body">{{ (r.final_content || '').slice(0,160) || '—' }}</text>
         </view>
       </view>
-      <EmptyState v-else title="暂无月度评价" desc="班主任尚未发布月度评价" icon="📝" />
+      <EmptyState v-else title="暂无月度评定" desc="班主任尚未发布月度评定" />
     </template>
   </view>
 </template>
 
 <script setup>
+import WorkspaceLink from '../../../components/WorkspaceLink.vue'
+import WeeklyScoreEvaluations from '../../../components/WeeklyScoreEvaluations.vue'
 import { ref, onMounted, watch } from 'vue'
 import { listWeeklyScores, getWeeklyTrend, listMonthlyReports } from '../../../api/assignments'
 import { http } from '../../../utils/request'
@@ -99,7 +103,7 @@ function onSubjectChange(e) {
 }
 function percent(score, max) {
   if (!max) return 0
-  return Math.round((score / max) * 100)
+  return Math.min(100, Math.max(0, Math.round((score / max) * 100)))
 }
 
 async function loadWeekly() {
@@ -149,51 +153,51 @@ onMounted(() => { loadWeekly(); loadTrend(); loadMonthly() })
 <style scoped>
 .page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 16rpx; }
 .head { display: flex; flex-direction: column; gap: 6rpx; }
-.h1 { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.p { font-size: 22rpx; color: #8E8B9E; }
+.h1 { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.p { font-size: 24rpx; color: var(--mp-muted); }
 .filter-row { display: flex; gap: 12rpx; align-items: center; margin-top: 8rpx; }
 .filter-btn {
   display: flex; align-items: center; gap: 6rpx;
-  background: #fff; border: 2rpx solid #E8E6F0;
+  background: #fff; border: 2rpx solid var(--mp-line);
   border-radius: 12rpx; padding: 12rpx 18rpx;
 }
-.filter-text { font-size: 24rpx; color: #1A1636; }
-.filter-arrow { font-size: 22rpx; color: #B8B0F6; }
+.filter-text { font-size: 24rpx; color: var(--mp-ink); }
+.filter-arrow { font-size: 24rpx; color: var(--mp-muted); }
 .refresh-btn {
-  font-size: 22rpx; color: #6B5CE7;
-  background: #F0EFFC; border: none; border-radius: 10rpx;
+  font-size: 24rpx; color: var(--mp-primary);
+  background: var(--mp-soft); border: none; border-radius: 10rpx;
 }
 .refresh-btn::after { border: none; }
 
 .tabs { display: flex; gap: 10rpx; }
 .tab {
   flex: 1; text-align: center; padding: 16rpx 0;
-  font-size: 24rpx; color: #8E8B9E;
+  font-size: 24rpx; color: var(--mp-muted);
   background: #fff; border-radius: 14rpx;
-  border: 2rpx solid #E8E6F0;
+  border: 2rpx solid var(--mp-line);
 }
 .tab.active {
-  color: #6B5CE7; border-color: #D5D0F7;
-  background: #F0EFFC; font-weight: 600;
+  color: var(--mp-primary); border-color: #B8C6D8;
+  background: var(--mp-soft); font-weight: 600;
 }
 
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 .list { display: flex; flex-direction: column; gap: 12rpx; }
 
 .card {
   background: #fff; border-radius: 18rpx; padding: 22rpx;
-  box-shadow: 0 2rpx 12rpx rgba(107,92,231,0.05);
+  box-shadow: none;
 }
 .card-head { display: flex; justify-content: space-between; align-items: center; }
-.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; }
-.score { font-size: 28rpx; font-weight: 700; color: #6B5CE7; }
-.card-meta { font-size: 22rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
-.card-remark { font-size: 22rpx; color: #6E6B83; display: block; margin-top: 8rpx; }
-.card-body { font-size: 24rpx; color: #6E6B83; display: block; margin-top: 8rpx; line-height: 1.6; white-space: pre-wrap; }
+.card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.score { font-size: 28rpx; font-weight: 700; color: var(--mp-primary); }
+.card-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
+.card-remark { font-size: 24rpx; color: #526177; display: block; margin-top: 8rpx; }
+.card-body { font-size: 24rpx; color: #526177; display: block; margin-top: 8rpx; line-height: 1.6; white-space: pre-wrap; }
 
 .trend-head { display: flex; justify-content: space-between; align-items: center; padding: 8rpx 0; }
-.trend-title { font-size: 24rpx; font-weight: 600; color: #1A1636; }
-.bar-wrap { height: 12rpx; background: #F0EFFC; border-radius: 999rpx; margin-top: 12rpx; overflow: hidden; }
-.bar { height: 100%; background: linear-gradient(90deg, #6B5CE7, #A78BFA); border-radius: 999rpx; }
+.trend-title { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
+.bar-wrap { height: 12rpx; background: var(--mp-soft); border-radius: 999rpx; margin-top: 12rpx; overflow: hidden; }
+.bar { height: 100%; background: var(--mp-primary); border-radius: 999rpx; }
 </style>

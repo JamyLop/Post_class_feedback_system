@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="tabs">
       <view class="tab-bar">
         <text class="tab" :class="{ active: tab==='users' }" @click="tab='users'">用户管理</text>
@@ -8,13 +9,17 @@
 
       <view v-if="tab==='users'" class="tab-panel">
         <view class="filters">
+          <view class="role-filter">
           <picker :range="roleOptions" range-key="label" @change="onRoleChange">
             <view class="filter-btn">
               <text class="filter-text">{{ currentRoleLabel }}</text>
               <text class="filter-arrow">›</text>
             </view>
           </picker>
-          <input v-model="keyword" placeholder="搜索姓名" class="search-input" @confirm="loadUsers" />
+          </view>
+          <view class="search-field">
+            <input v-model="keyword" placeholder="搜索姓名" confirm-type="search" class="search-input" @confirm="loadUsers" />
+          </view>
         </view>
         <view v-if="loadingUsers" class="loading-bar">
           <text class="loading-text">加载中...</text>
@@ -55,13 +60,13 @@
           </view>
           <view v-else class="empty-text">暂无邀请码</view>
           <view class="create-row">
-            <picker :range="inviteRoleOptions" range-key="label" @change="newInviteRole = inviteRoleOptions[e.detail.value].value">
+            <picker :range="inviteRoleOptions" range-key="label" @change="e => newInviteRole = inviteRoleOptions[e.detail.value].value">
               <view class="filter-btn">
                 <text class="filter-text">{{ inviteRoleLabel }}</text>
                 <text class="filter-arrow">›</text>
               </view>
             </picker>
-            <button class="btn-primary-sm" :loading="creatingInvite" @click="createCode">生成</button>
+            <button class="btn-primary-sm" :loading="creatingInvite" :disabled="creatingInvite" @click="createCode">生成</button>
           </view>
         </template>
       </view>
@@ -95,7 +100,7 @@
         </view>
         <view class="modal-btns">
           <button class="btn-outline" @click="showCreateUser=false">取消</button>
-          <button class="btn-primary" :loading="creatingUser" @click="doCreateUser">创建</button>
+          <button class="btn-primary" :loading="creatingUser" :disabled="creatingUser" @click="doCreateUser">创建</button>
         </view>
       </view>
     </view>
@@ -124,7 +129,7 @@
         </view>
         <view class="modal-btns">
           <button class="btn-outline" @click="editingUser=null">取消</button>
-          <button class="btn-primary" :loading="savingUser" @click="doSaveUser">保存</button>
+          <button class="btn-primary" :loading="savingUser" :disabled="savingUser" @click="doSaveUser">保存</button>
         </view>
       </view>
     </view>
@@ -132,6 +137,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
@@ -247,82 +253,88 @@ onShow(() => {
 </script>
 
 <style scoped>
-.page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 16rpx; }
+.page { box-sizing: border-box; width: 100%; padding: 24rpx 32rpx calc(40rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 24rpx; }
 .tabs {
-  background: #fff; border-radius: 20rpx; overflow: hidden;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  background: #fff; border-radius: 16rpx; overflow: hidden;
+  box-shadow: none;
 }
-.tab-bar { display: flex; border-bottom: 2rpx solid #F0EFFC; }
+.tab-bar { display: flex; border-bottom: 2rpx solid var(--mp-soft); }
 .tab {
   flex: 1; text-align: center; padding: 22rpx 0;
-  font-size: 26rpx; color: #8E8B9E;
+  font-size: 26rpx; color: var(--mp-muted);
   border-bottom: 4rpx solid transparent;
 }
-.tab.active { color: #6B5CE7; border-bottom-color: #6B5CE7; font-weight: 600; }
-.tab-panel { padding: 22rpx; display: flex; flex-direction: column; gap: 14rpx; }
+.tab.active { color: var(--mp-primary); border-bottom-color: var(--mp-primary); font-weight: 600; }
+.tab-panel { padding: 24rpx; display: flex; flex-direction: column; gap: 24rpx; }
 
-.filters { display: flex; gap: 12rpx; }
+.filters { display: flex; align-items: center; gap: 16rpx; min-width: 0; }
+/* 隔离全局 picker 的等分规则，固定角色宽度并让搜索框填满剩余空间。 */
+.role-filter { flex: 0 0 220rpx; min-width: 0; }
 .filter-btn {
-  display: flex; align-items: center; gap: 6rpx;
-  background: #FAF9F7; border: 2rpx solid #E8E6F0;
+  box-sizing: border-box; height: 88rpx; display: flex; align-items: center; justify-content: space-between; gap: 12rpx;
+  background: #F7F8FA; border: 2rpx solid var(--mp-line);
   border-radius: 12rpx; padding: 14rpx 18rpx;
 }
-.filter-text { font-size: 26rpx; color: #1A1636; }
-.filter-arrow { font-size: 22rpx; color: #B8B0F6; }
+.filter-text { font-size: 26rpx; color: var(--mp-ink); }
+.filter-arrow { font-size: 24rpx; color: var(--mp-muted); }
+.search-field { flex: 1; min-width: 0; height: 88rpx; }
 .search-input {
-  flex: 1; border: 2rpx solid #E8E6F0; border-radius: 12rpx;
-  padding: 14rpx 18rpx; font-size: 26rpx; background: #fff;
+  box-sizing: border-box; width: 100%; height: 88rpx; min-height: 88rpx; border: 2rpx solid var(--mp-line); border-radius: 12rpx;
+  padding: 0 18rpx; font-size: 26rpx; background: #fff; color: var(--mp-ink);
 }
 
 .loading-bar { text-align: center; padding: 32rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 .list { display: flex; flex-direction: column; gap: 0; }
 
 .user-row { display: flex; align-items: center; gap: 14rpx; padding: 14rpx 0; }
-.user-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.user-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .user-avatar {
   width: 56rpx; height: 56rpx;
-  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  background: var(--mp-primary);
   border-radius: 14rpx; display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 22rpx; font-weight: 700; flex-shrink: 0;
+  color: #fff; font-size: 24rpx; font-weight: 700; flex-shrink: 0;
 }
-.user-info { flex: 1; }
-.user-name { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; }
-.user-meta { font-size: 20rpx; color: #A09CB5; display: block; margin-top: 2rpx; }
+.user-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.user-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; }
+.user-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 2rpx; }
 .user-status {
-  font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 12rpx;
+  font-size: 24rpx; padding: 4rpx 12rpx; border-radius: 12rpx;
   flex-shrink: 0;
 }
-.user-status.active { background: #DCFCE7; color: #16A34A; }
-.user-status.disabled { background: #FEE2E2; color: #EF4444; }
-.edit-link { font-size: 24rpx; color: #6B5CE7; flex-shrink: 0; }
+.user-status.active { background: #DCFCE7; color: #286349; }
+.user-status.disabled { background: #FEE2E2; color: #A33E39; }
+.edit-link { font-size: 24rpx; color: var(--mp-primary); flex-shrink: 0; }
 
 .invite-row { display: flex; align-items: center; gap: 14rpx; padding: 14rpx 0; }
-.invite-row.has-border { border-top: 2rpx solid #F0EFFC; }
-.invite-info { flex: 1; }
-.invite-code { font-size: 28rpx; font-weight: 700; color: #1A1636; font-family: monospace; display: block; }
-.invite-meta { font-size: 20rpx; color: #A09CB5; display: block; margin-top: 2rpx; }
-.danger-link { font-size: 24rpx; color: #EF4444; flex-shrink: 0; }
-.disabled-text { font-size: 22rpx; color: #C4C0D4; flex-shrink: 0; }
+.invite-row.has-border { border-top: 2rpx solid var(--mp-soft); }
+.invite-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.invite-code { font-size: 28rpx; font-weight: 700; color: var(--mp-ink); font-family: monospace; display: block; }
+.invite-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 2rpx; }
+.danger-link { font-size: 24rpx; color: #A33E39; flex-shrink: 0; }
+.disabled-text { font-size: 24rpx; color: var(--mp-muted); flex-shrink: 0; }
 
-.empty-text { text-align: center; color: #A09CB5; padding: 28rpx; font-size: 24rpx; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 48rpx 24rpx; font-size: 24rpx; }
 .create-row { display: flex; gap: 12rpx; align-items: center; }
+.create-row > picker { flex: 1; min-width: 0; }
+.tab-panel > .btn-outline { box-sizing: border-box; width: 100%; margin: 0; }
 
 .btn-primary-sm {
-  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  box-sizing: border-box; min-height: 88rpx; display: flex; align-items: center; justify-content: center; margin: 0; flex-shrink: 0;
+  background: var(--mp-primary);
   color: #fff; border-radius: 12rpx; padding: 12rpx 28rpx;
   font-size: 26rpx; font-weight: 600; border: none;
 }
 .btn-primary-sm::after { border: none; }
 .btn-primary {
-  background: linear-gradient(135deg, #6B5CE7, #8B78F0);
+  background: var(--mp-primary);
   color: #fff; border-radius: 14rpx; padding: 22rpx 0;
   font-size: 28rpx; font-weight: 600; border: none;
 }
 .btn-primary::after { border: none; }
 .btn-outline {
-  background: #fff; color: #6B5CE7;
-  border: 2rpx solid #D5D0F7; border-radius: 14rpx;
+  background: #fff; color: var(--mp-primary);
+  border: 2rpx solid #B8C6D8; border-radius: 14rpx;
   padding: 22rpx 0; font-size: 28rpx;
 }
 .btn-outline::after { border: none; }
@@ -338,18 +350,18 @@ onShow(() => {
   overflow-y: auto; display: flex; flex-direction: column; gap: 14rpx;
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; }
-.modal-title { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.modal-close { font-size: 28rpx; color: #A09CB5; padding: 8rpx; }
+.modal-title { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.modal-close { font-size: 28rpx; color: var(--mp-muted); padding: 8rpx; }
 .form { display: flex; flex-direction: column; gap: 12rpx; }
 .field { display: flex; flex-direction: column; gap: 6rpx; }
-.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.label { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 .input {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
   padding: 18rpx 20rpx; font-size: 26rpx; background: #fff;
 }
 .picker {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
-  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: #1A1636;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
+  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: var(--mp-ink);
 }
 .modal-btns { display: flex; gap: 14rpx; margin-top: 8rpx; }
 .modal-btns button { flex: 1; }

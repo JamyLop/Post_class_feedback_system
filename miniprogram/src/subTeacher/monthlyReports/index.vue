@@ -1,8 +1,9 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
-      <text class="h1">月度评价</text>
-      <text class="p">AI 生成学生月度综合评价</text>
+      <text class="h1">月度评定</text>
+      <text class="p">教师手动填写、审阅与发布月度评定</text>
     </view>
 
     <!-- 筛选栏 -->
@@ -29,16 +30,16 @@
 
     <!-- 操作栏 -->
     <view class="action-bar">
-      <button class="btn-primary" @click="goGenerate">生成评价</button>
-      <button class="btn-outline" @click="loadData" :loading="loading">刷新</button>
+      <button class="btn-primary" @click="goGenerate">新建评定</button>
+      <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
-    <!-- 评价列表 -->
+    <!-- 评定列表 -->
     <view class="card">
       <view v-if="loading" class="loading-bar">
         <text class="loading-text">加载中...</text>
       </view>
-      <EmptyState v-else-if="!reportList.length" title="暂无月度评价" desc="点击「生成评价」开始" icon="📋" />
+      <EmptyState v-else-if="!reportList.length" title="暂无月度评定" desc="点击「新建评定」开始" />
       <view v-else class="report-list">
         <view v-for="(item, idx) in reportList" :key="item.id" class="report-row" :class="{ 'has-border': idx > 0 }" @click="goDetail(item.id)">
           <view class="report-info">
@@ -59,6 +60,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
@@ -71,7 +73,7 @@ const loading = ref(false)
 const classList = ref([])
 const classIndex = ref(0)
 const statusIndex = ref(0)
-const statusOptions = ['全部', '已生成', '已发布', '生成中', '失败']
+const statusOptions = ['全部', '待发布', '已发布', '待填写', '待补充']
 const statusValues = ['', 'generated', 'published', 'generating', 'failed']
 const reportList = ref([])
 
@@ -80,7 +82,7 @@ const selectedClassId = computed(() => classIndex.value > 0 ? classList.value[cl
 const selectedStatus = computed(() => statusValues[statusIndex.value] || null)
 
 function statusLabel(s) {
-  return { generating: '生成中', generated: '已生成', published: '已发布', failed: '失败' }[s] || s
+  return { generating: '待填写', generated: '待发布', published: '已发布', failed: '待补充' }[s] || s
 }
 
 function guardRole() {
@@ -131,56 +133,56 @@ onShow(() => {
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
 .filter-bar { display: flex; gap: 16rpx; }
 .filter-item { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
-.filter-label { font-size: 22rpx; font-weight: 500; color: #53666A; }
+.filter-label { font-size: 24rpx; font-weight: 500; color: #526177; }
 .picker-box {
   display: flex; align-items: center; justify-content: space-between;
-  background: #fff; border: 1rpx solid #E0E7E5; border-radius: 8rpx;
+  background: #fff; border: 1rpx solid var(--mp-line); border-radius: 8rpx;
   padding: 16rpx 18rpx;
 }
-.picker-text { font-size: 26rpx; color: #1A1636; }
-.picker-arrow { font-size: 20rpx; color: #A09CB5; }
+.picker-text { font-size: 26rpx; color: var(--mp-ink); }
+.picker-arrow { font-size: 24rpx; color: var(--mp-muted); }
 
 .action-bar { display: flex; gap: 16rpx; }
 .btn-primary {
-  flex: 2; background: #1F4F55; color: #fff; border-radius: 8rpx;
+  flex: 2; background: var(--mp-primary); color: #fff; border-radius: 8rpx;
   padding: 18rpx 0; font-size: 28rpx; font-weight: 600; border: none;
 }
 .btn-primary::after { border: none; }
 .btn-outline {
-  flex: 1; background: #fff; color: #1F4F55; border: 1rpx solid #B9CCCA;
+  flex: 1; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE;
   border-radius: 8rpx; padding: 18rpx 0; font-size: 28rpx;
 }
 .btn-outline::after { border: none; }
 
 .card {
   background: #fff; border-radius: 10rpx; padding: 24rpx;
-  border: 1rpx solid #E0E7E5;
+  border: 1rpx solid var(--mp-line);
 }
 .loading-bar { text-align: center; padding: 32rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .report-row {
   padding: 18rpx 0; display: flex; align-items: center; justify-content: space-between;
 }
-.report-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.report-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .report-info { flex: 1; }
 .report-head { display: flex; align-items: center; gap: 10rpx; }
-.student-name { font-size: 26rpx; font-weight: 600; color: #1A1636; }
+.student-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
 .status-tag {
   padding: 4rpx 12rpx; border-radius: 14rpx;
-  font-size: 20rpx; font-weight: 500;
+  font-size: 24rpx; font-weight: 500;
 }
-.status-tag.is-generated { background: #E0F0E7; color: #2E7D5B; }
-.status-tag.is-published { background: #EEEDFD; color: #6B5CE7; }
-.status-tag.is-generating { background: #F8E8B8; color: #8A641C; }
-.status-tag.is-failed { background: #F7E0D9; color: #9C4E3F; }
+.status-tag.is-generated { background: #EAF3EE; color: #286349; }
+.status-tag.is-published { background: var(--mp-soft); color: var(--mp-primary); }
+.status-tag.is-generating { background: #FBF1DF; color: #865C1E; }
+.status-tag.is-failed { background: #FAECE9; color: #A33E39; }
 .status-text { white-space: nowrap; }
-.report-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
-.report-preview { font-size: 22rpx; color: #6E6B83; display: block; margin-top: 6rpx; line-height: 1.5; }
-.report-arrow { font-size: 32rpx; color: #739095; font-weight: 600; margin-left: 12rpx; }
+.report-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
+.report-preview { font-size: 24rpx; color: #526177; display: block; margin-top: 6rpx; line-height: 1.5; }
+.report-arrow { font-size: 32rpx; color: var(--mp-muted); font-weight: 600; margin-left: 12rpx; }
 </style>

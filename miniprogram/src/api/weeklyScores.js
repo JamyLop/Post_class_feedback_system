@@ -20,3 +20,4 @@ export const updateWeeklyScore = (id, data) => http.put(`/weekly-test-scores/${i
 
 // 删除成绩
 export const deleteWeeklyScore = (id) => http.del(`/weekly-test-scores/${id}`)
+export const saveWeeklyEvaluation = (id, data) => http.put(`/weekly-test-scores/${id}/evaluation`, data)

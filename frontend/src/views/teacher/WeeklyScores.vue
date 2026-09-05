@@ -3,10 +3,10 @@
     <header class="page-head">
       <div>
         <div class="scope-line"><span>高三试点</span><span>周测成绩</span></div>
-        <h1>周测成绩录入</h1>
-        <p>按班级、学科与周次批量录入学生周测分数，支持单条编辑、删除与趋势查看。</p>
+        <h1>周测成绩与评价</h1>
+        <p>查看周测分数与趋势，由班主任和对应学科老师分别记录评价与学习建议。</p>
       </div>
-      <div class="head-actions">
+      <div v-if="canManageScores" class="head-actions">
         <el-button type="primary" @click="openBatchDialog"><el-icon><Plus /></el-icon>批量录入</el-button>
         <el-button @click="openSingleDialog"><el-icon><EditPen /></el-icon>单条录入</el-button>
       </div>
@@ -34,24 +34,27 @@
 
     <section class="list-surface">
       <el-table v-loading="loading" :data="filteredRows" empty-text="暂无周测成绩" style="width: 100%">
-        <el-table-column label="学生" min-width="130">
-          <template #default="{ row }"><strong>{{ row.student_name || `学生#${row.student_id}` }}</strong></template>
+        <el-table-column label="学生 / 班级" min-width="140">
+          <template #default="{ row }"><strong>{{ row.student_name || `学生#${row.student_id}` }}</strong><div class="score-secondary">{{ row.class_name }}</div></template>
         </el-table-column>
-        <el-table-column prop="class_name" label="班级" min-width="140" />
-        <el-table-column prop="subject" label="学科" width="100" />
-        <el-table-column prop="exam_date" label="考试日期" width="120" />
-        <el-table-column prop="exam_name" label="周次" min-width="130" show-overflow-tooltip />
-        <el-table-column label="分数" width="120">
+        <el-table-column prop="subject" label="学科" width="80" />
+        <el-table-column label="周测 / 日期" min-width="140">
+          <template #default="{ row }">{{ row.exam_name || '周测' }}<div class="score-secondary">{{ row.exam_date }}</div></template>
+        </el-table-column>
+        <el-table-column label="分数" width="105">
           <template #default="{ row }">{{ row.score }} / {{ row.max_score }}</template>
         </el-table-column>
-        <el-table-column prop="rank_in_class" label="排名" width="90">
+        <el-table-column prop="rank_in_class" label="排名" width="65">
           <template #default="{ row }">{{ row.rank_in_class || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
+        <el-table-column label="教师评价" min-width="290">
+          <template #default="{ row }"><WeeklyScoreEvaluations :score="row" @saved="updated => Object.assign(row, updated)" /></template>
+        </el-table-column>
+        <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="editRow(row)">编辑</el-button>
-            <el-button link type="danger" @click="removeRow(row)">删除</el-button>
+            <el-button v-if="canManageScores" link type="primary" @click="editRow(row)">编辑</el-button>
+            <el-button v-if="canManageScores" link type="danger" @click="removeRow(row)">删除</el-button>
             <el-button link @click="viewTrend(row)">趋势</el-button>
           </template>
         </el-table-column>
@@ -120,12 +123,16 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
+import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
+import { useAuthStore } from '../../stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { EditPen, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { listClasses, listStudents } from '../../api/classes'
 import { batchCreateWeeklyScores, createWeeklyScore, deleteWeeklyScore, getClassWeeklySummary, getWeeklyTrend, listWeeklyScores, updateWeeklyScore } from '../../api/weeklyScores'
 
+const auth = useAuthStore()
+const canManageScores = computed(() => ['admin', 'teacher'].includes(auth.role))
 const subjects = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
 const classes = ref([])
 const rows = ref([])
@@ -289,6 +296,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.score-secondary { color: var(--ink-muted); font-size: 12px; line-height: 1.6; }
 .weekly-page {
   display: flex;
   flex-direction: column;

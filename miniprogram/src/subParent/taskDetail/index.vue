@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -23,14 +24,15 @@
         <view v-if="checkins.length">
           <Timeline :items="timelineItems" />
         </view>
-        <EmptyState v-else title="暂无执行记录" desc="班主任尚未录入打卡" icon="📋" />
+        <EmptyState v-else title="暂无执行记录" desc="班主任尚未录入打卡" />
       </view>
     </template>
-    <EmptyState v-else title="任务不存在" desc="参数错误或无权查看" icon="📄" />
+    <EmptyState v-else title="任务不存在" desc="参数错误或无权查看" />
   </view>
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { getStudentCase } from '../../api/studentCases'
 import Timeline from '../../components/Timeline.vue'
@@ -85,34 +87,34 @@ onMounted(load)
 <style scoped>
 .page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 18rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .header-card {
   background: #fff; border-radius: 20rpx; padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
 .head-row { display: flex; gap: 10rpx; align-items: center; flex-wrap: wrap; margin-bottom: 14rpx; }
 .subject-tag {
-  font-size: 20rpx; color: #6B5CE7; background: #EEEDFD;
+  font-size: 24rpx; color: var(--mp-primary); background: var(--mp-soft);
   padding: 4rpx 12rpx; border-radius: 16rpx;
 }
 .cadence {
-  font-size: 20rpx; color: #8E8B9E; background: #FAF9F7;
+  font-size: 24rpx; color: var(--mp-muted); background: #F7F8FA;
   padding: 4rpx 12rpx; border-radius: 16rpx;
 }
 .status-chip {
-  font-size: 20rpx; color: #1A1636; background: #F5F3EF;
+  font-size: 24rpx; color: var(--mp-ink); background: #F3F5F8;
   padding: 4rpx 12rpx; border-radius: 16rpx;
 }
-.h1 { font-size: 30rpx; font-weight: 700; color: #1A1636; display: block; }
-.desc { font-size: 24rpx; color: #6E6B83; display: block; margin-top: 10rpx; line-height: 1.6; white-space: pre-wrap; }
+.h1 { font-size: 30rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.desc { font-size: 24rpx; color: #526177; display: block; margin-top: 10rpx; line-height: 1.6; white-space: pre-wrap; }
 .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 14rpx; }
-.meta-text { font-size: 22rpx; color: #A09CB5; }
-.link { font-size: 22rpx; color: #6B5CE7; }
+.meta-text { font-size: 24rpx; color: var(--mp-muted); }
+.link { font-size: 24rpx; color: var(--mp-primary); }
 
 .card {
   background: #fff; border-radius: 20rpx; padding: 24rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
-.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-bottom: 16rpx; }
+.card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-bottom: 16rpx; }
 </style>

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.class_ import Class, ClassStudent
-from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
+from app.models.class_ import Class, ClassStudent, StudentConsultant
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.core.security import hash_password
 
 from app.schemas.class_ import (
@@ -249,6 +249,12 @@ def create_and_add_student(
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="姓名不能为空")
+    # 先校验咨询老师（选填）：避免建一半报错时残留未提交事务占用连接
+    consultant = None
+    if body.consultant_id is not None:
+        consultant = db.get(User, body.consultant_id)
+        if consultant is None or consultant.role not in (ROLE_TEACHER, ROLE_CONSULTANT):
+            raise HTTPException(status_code=400, detail="所选咨询老师不存在")
     username = _generate_student_username(db, cls, body.enrollment_month, body.seat_number)
     # 默认初始密码 123456，班主任无需关心账号
     stu = User(
@@ -265,6 +271,9 @@ def create_and_add_student(
     db.add(stu)
     db.flush()
     db.add(ClassStudent(class_id=class_id, student_id=stu.id))
+    # 咨询老师选填：若传入则自动建立学生-咨询老师关联，方便后续在咨询侧展示
+    if consultant is not None:
+        db.add(StudentConsultant(consultant_id=consultant.id, student_id=stu.id))
     db.commit()
     db.refresh(stu)
     return stu

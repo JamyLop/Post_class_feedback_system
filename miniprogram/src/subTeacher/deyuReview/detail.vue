@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
@@ -67,7 +68,7 @@
         <button
           class="btn-submit"
           :class="decision === 'approved' ? 'btn-approve' : 'btn-reject'"
-          :loading="submitting"
+          :loading="submitting" :disabled="submitting"
           @click="submit"
         >
           {{ decision === 'approved' ? '确认通过' : '确认退回' }}
@@ -78,6 +79,7 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase, deyuReview } from '../../api/studentCases'
@@ -133,66 +135,66 @@ async function submit() {
 }
 
 onShow(() => load())
-onMounted(load)
+
 </script>
 
 <style scoped>
 .page { padding: 24rpx 20rpx 48rpx; display: flex; flex-direction: column; gap: 18rpx; }
 .loading-bar { text-align: center; padding: 48rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .header-card {
   background: #fff; border-radius: 20rpx; padding: 28rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
 }
 .title-row { display: flex; gap: 12rpx; align-items: center; }
-.h1 { font-size: 32rpx; font-weight: 700; color: #1A1636; }
-.meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 8rpx; }
+.h1 { font-size: 32rpx; font-weight: 700; color: var(--mp-ink); }
+.meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 8rpx; }
 
 .card {
   background: #fff; border-radius: 20rpx; padding: 24rpx;
-  box-shadow: 0 2rpx 16rpx rgba(107,92,231,0.06);
+  box-shadow: none;
   display: flex; flex-direction: column; gap: 14rpx;
 }
-.divider { height: 2rpx; background: #F0EFFC; margin: 4rpx 0; }
+.divider { height: 2rpx; background: var(--mp-soft); margin: 4rpx 0; }
 .section { display: flex; flex-direction: column; gap: 8rpx; }
-.section-h { font-size: 24rpx; font-weight: 600; color: #1A1636; }
-.section-body { font-size: 26rpx; color: #4A4763; line-height: 1.7; white-space: pre-wrap; }
+.section-h { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
+.section-body { font-size: 26rpx; color: var(--mp-body); line-height: 1.7; white-space: pre-wrap; }
 
 .plan-row { display: flex; gap: 12rpx; align-items: center; padding: 10rpx 0; }
-.plan-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.plan-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .plan-chip {
-  font-size: 22rpx; font-weight: 600; color: #6B5CE7;
-  background: #EEEDFD; padding: 6rpx 16rpx; border-radius: 16rpx;
+  font-size: 24rpx; font-weight: 600; color: var(--mp-primary);
+  background: var(--mp-soft); padding: 6rpx 16rpx; border-radius: 16rpx;
 }
-.plan-desc { font-size: 22rpx; color: #8E8B9E; }
+.plan-desc { font-size: 24rpx; color: var(--mp-muted); }
 
 .action-card { gap: 16rpx; }
-.action-title { font-size: 28rpx; font-weight: 700; color: #1A1636; }
+.action-title { font-size: 28rpx; font-weight: 700; color: var(--mp-ink); }
 .decision-row { display: flex; gap: 14rpx; }
 .decision-btn {
-  flex: 1; border: 2rpx solid #E8E6F0;
+  flex: 1; border: 2rpx solid var(--mp-line);
   border-radius: 16rpx; padding: 20rpx; text-align: center;
 }
-.decision-btn.active.approved { border-color: #16A34A; background: #F0FDF4; }
-.decision-btn.active.rejected { border-color: #EF4444; background: #FEF2F2; }
+.decision-btn.active.approved { border-color: #286349; background: #F0FDF4; }
+.decision-btn.active.rejected { border-color: #A33E39; background: #FEF2F2; }
 .decision-icon { font-size: 36rpx; display: block; }
-.decision-label { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-top: 4rpx; }
-.decision-desc { font-size: 20rpx; color: #8E8B9E; display: block; margin-top: 4rpx; }
+.decision-label { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-top: 4rpx; }
+.decision-desc { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 
 .field { display: flex; flex-direction: column; gap: 6rpx; }
-.label { font-size: 24rpx; font-weight: 600; color: #1A1636; }
+.label { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 .textarea {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
   padding: 18rpx 20rpx; font-size: 26rpx; min-height: 120rpx; background: #fff;
 }
 .picker {
-  border: 2rpx solid #E8E6F0; border-radius: 14rpx;
-  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: #1A1636;
+  border: 2rpx solid var(--mp-line); border-radius: 14rpx;
+  padding: 18rpx 20rpx; background: #fff; font-size: 26rpx; color: var(--mp-ink);
 }
 
 .btn-submit { border-radius: 14rpx; padding: 24rpx 0; font-size: 30rpx; font-weight: 600; border: none; }
 .btn-submit::after { border: none; }
-.btn-approve { background: linear-gradient(135deg, #16A34A, #22C55E); color: #fff; }
-.btn-reject { background: linear-gradient(135deg, #EF4444, #F87171); color: #fff; }
+.btn-approve { background: #286349; color: #fff; }
+.btn-reject { background: #A33E39; color: #fff; }
 </style>

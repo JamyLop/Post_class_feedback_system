@@ -7,14 +7,12 @@
       </view>
       <text class="hero-title">新用户注册</text>
       <text class="hero-desc">使用邀请码注册账号</text>
-      <view class="hero-wave"></view>
+
     </view>
 
     <view class="card">
       <view class="card-header">
-        <view class="card-icon register">
-          <text class="icon-text">📝</text>
-        </view>
+
         <view class="card-text">
           <text class="card-title">邀请码注册</text>
           <text class="card-desc">请输入管理员提供的邀请码</text>
@@ -56,7 +54,7 @@
           <input v-model="form.confirmPassword" password placeholder="请再次输入密码" class="input" />
         </view>
       </view>
-      <button class="btn-primary" :loading="loading" @click="handleRegister">注册</button>
+      <button class="btn-primary" :loading="loading" :disabled="loading" @click="handleRegister">注册</button>
       <view class="login-row">
         <text class="login-text">已有账号？</text>
         <text class="login-link" @click="goLogin">返回登录</text>
@@ -155,93 +153,5 @@ function goLogin() {
 </script>
 
 <style scoped>
-.page { padding: 0 28rpx 48rpx; display: flex; flex-direction: column; gap: 24rpx; }
-
-.hero {
-  background: #1F4F55;
-  border-radius: 12rpx;
-  padding: 48rpx 32rpx 40rpx;
-  color: #fff;
-  position: relative;
-  overflow: hidden;
-  margin-top: 20rpx;
-}
-.hero::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 8rpx; background: #F3C969; }
-.hero-top { display: flex; align-items: center; gap: 14rpx; }
-.hero-logo { font-size: 30rpx; font-weight: 700; letter-spacing: 2rpx; }
-.hero-badge { font-size: 22rpx; color: #DDEBE8; font-weight: 500; }
-.hero-title { font-size: 40rpx; font-weight: 700; display: block; margin-top: 20rpx; }
-.hero-desc { font-size: 26rpx; color: rgba(255,255,255,0.75); display: block; margin-top: 8rpx; }
-
-.card {
-  background: #fff;
-  border-radius: 10rpx;
-  padding: 28rpx;
-  border: 1rpx solid #E0E7E5;
-}
-
-.card-header { display: flex; align-items: center; gap: 16rpx; margin-bottom: 20rpx; }
-.card-icon {
-  width: 72rpx; height: 72rpx;
-  border-radius: 18rpx;
-  display: flex; align-items: center; justify-content: center;
-}
-.card-icon.register { background: #E8E6F0; }
-.icon-text { font-size: 32rpx; }
-.card-text { flex: 1; }
-.card-title { font-size: 30rpx; font-weight: 600; color: #1A1636; display: block; }
-.card-desc { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 2rpx; }
-
-.form { display: flex; flex-direction: column; gap: 16rpx; margin-bottom: 20rpx; }
-.field { display: flex; flex-direction: column; gap: 6rpx; }
-.field-label { font-size: 24rpx; font-weight: 500; color: #4A4763; }
-.required { color: #EF4444; }
-.input {
-  border: 1rpx solid #CCD8D6;
-  border-radius: 8rpx;
-  padding: 20rpx 22rpx;
-  font-size: 28rpx;
-  background: #fff;
-}
-
-.role-selector {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-.role-option {
-  padding: 14rpx 24rpx;
-  border-radius: 8rpx;
-  border: 1rpx solid #CCD8D6;
-  background: #fff;
-}
-.role-option.active {
-  border-color: #1F4F55;
-  background: #DDEBE8;
-}
-.role-label { font-size: 26rpx; color: #4A4763; }
-.role-option.active .role-label { color: #1F4F55; font-weight: 600; }
-
-.btn-primary {
-  background: #1F4F55;
-  color: #fff;
-  border-radius: 8rpx;
-  padding: 24rpx 0;
-  font-size: 30rpx;
-  font-weight: 600;
-  border: none;
-}
-.btn-primary::after { border: none; }
-
-.login-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  margin-top: 16rpx;
-}
-.login-text { font-size: 24rpx; color: #8E8B9E; }
-.login-link { font-size: 24rpx; color: #1F4F55; font-weight: 600; }
-
-.footer-text { text-align: center; font-size: 22rpx; color: #899799; padding: 8rpx 0; }
+@import "../../styles/auth.css";
 </style>

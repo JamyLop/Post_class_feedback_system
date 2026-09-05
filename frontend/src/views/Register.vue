@@ -27,6 +27,12 @@
           <el-input v-model="form.invite_code" placeholder="输入年级组发放的邀请码" clearable />
         </el-form-item>
 
+        <el-form-item v-if="form.role === 'subject_teacher'" label="教授学科">
+          <el-select v-model="form.subject" placeholder="请选择您教授的学科" style="width: 100%">
+            <el-option v-for="s in subjectOptions" :key="s" :label="s" :value="s" />
+          </el-select>
+        </el-form-item>
+
         <div class="grid-2">
           <el-form-item label="用户名">
             <el-input v-model="form.username" placeholder="学号 / 工号，3-64位" clearable />
@@ -71,11 +77,18 @@ const form = reactive({
   name: '',
   password: '',
   confirm: '',
+  subject: '',
 })
+
+const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
 
 async function onSubmit() {
   if (!form.invite_code || !form.username || !form.name || !form.password) {
     ElMessage.warning('请填写完整信息')
+    return
+  }
+  if (form.role === 'subject_teacher' && !form.subject) {
+    ElMessage.warning('请选择您教授的学科')
     return
   }
   if (form.password !== form.confirm) {
@@ -84,13 +97,17 @@ async function onSubmit() {
   }
   loading.value = true
   try {
-    await registerApi({
+    const payload = {
       role: form.role,
       invite_code: form.invite_code.trim(),
       username: form.username.trim(),
       name: form.name.trim(),
       password: form.password,
-    })
+    }
+    if (form.role === 'subject_teacher') {
+      payload.subject = form.subject
+    }
+    await registerApi(payload)
     ElMessage.success('注册成功，请登录')
     router.push('/login')
   } catch (e) {

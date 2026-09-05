@@ -1,10 +1,10 @@
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class MonthlyReportGenerateIn(BaseModel):
+class MonthlyReportScopeIn(BaseModel):
     student_id: int
     class_id: int
     month_label: str = Field(pattern=r"^\d{4}-\d{2}$", description="YYYY-MM")
@@ -13,6 +13,18 @@ class MonthlyReportGenerateIn(BaseModel):
 
 class MonthlyReportUpdateIn(BaseModel):
     final_content: str = Field(min_length=1, max_length=8000)
+
+    @field_validator("final_content")
+    @classmethod
+    def require_content(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("请填写评定内容")
+        return value
+
+
+class MonthlyReportCreateIn(MonthlyReportScopeIn, MonthlyReportUpdateIn):
+    pass
 
 
 class MonthlyReportOut(BaseModel):

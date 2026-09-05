@@ -641,6 +641,10 @@ def upsert_student_profile(
         db.add(profile)
     # 基本资料允许在执行期补录，但每次变更都进入总案审计日志。
     changes = body.model_dump()
+    # 基本信息页已移除家长联系方式；未提交这些字段时保留旧资料，也不触发账号注册。
+    for field in ("parent_name", "parent_phone", "parent_relationship"):
+        if field not in body.model_fields_set:
+            changes.pop(field, None)
     for field, value in changes.items():
         setattr(profile, field, value.strip() if isinstance(value, str) else value)
     # 家长手机号格式校验

@@ -27,16 +27,16 @@ const label = computed(() => map[props.status] || props.status)
   gap: 8rpx;
   padding: 6rpx 16rpx;
   border-radius: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 500;
-  background: #E4EEEE;
-  color: #1F4F55;
+  background: var(--mp-soft);
+  color: var(--mp-primary);
 }
-.tag.is-executing { background: #E0F0E7; color: #2E7D5B; }
-.tag.is-pending_confirmation, .tag.is-pending_review { background: #F8E8B8; color: #8A641C; }
-.tag.is-revision_required { background: #F7E0D9; color: #9C4E3F; }
-.tag.is-adjusted { background: #DDEBE8; color: #2E7D5B; }
-.tag.is-archived { background: #E8ECEB; color: #6C7C7F; }
+.tag.is-executing { background: #EAF3EE; color: #286349; }
+.tag.is-pending_confirmation, .tag.is-pending_review { background: #FBF1DF; color: #865C1E; }
+.tag.is-revision_required { background: #FAECE9; color: #A33E39; }
+.tag.is-adjusted { background: var(--mp-soft); color: #286349; }
+.tag.is-archived { background: var(--mp-soft); color: var(--mp-muted); }
 .dot { width: 10rpx; height: 10rpx; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .txt { white-space: nowrap; }
 </style>

@@ -348,11 +348,16 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     if invite.expires_at is not None and invite.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="邀请码已过期")
 
+    # 任课老师必须填写教授学科
+    if body.role == ROLE_SUBJECT_TEACHER and not body.subject:
+        raise HTTPException(status_code=400, detail="任课老师注册时必须填写教授学科")
+
     user = User(
         username=body.username,
         password_hash=hash_password(body.password),
         name=body.name,
         role=body.role,
+        subject=body.subject or "",
     )
     db.add(user)
     db.flush()

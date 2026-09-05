@@ -1,8 +1,9 @@
 <template>
   <view class="page">
+    <WorkspaceLink />
     <view class="head">
-      <text class="h1">周测成绩管理</text>
-      <text class="p">录入与查看班级周测成绩</text>
+      <text class="h1">周测成绩与评价</text>
+      <text class="p">查看周测表现，记录教师评价与学习建议</text>
     </view>
 
     <!-- 筛选栏 -->
@@ -29,8 +30,8 @@
 
     <!-- 操作栏 -->
     <view class="action-bar">
-      <button class="btn-primary" @click="goCreate">录入成绩</button>
-      <button class="btn-outline" @click="loadData" :loading="loading">刷新</button>
+      <button v-if="auth.role !== 'subject_teacher'" class="btn-primary" @click="goCreate">录入成绩</button>
+      <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
     <!-- 班级汇总统计 -->
@@ -66,9 +67,10 @@
       <view v-if="loading" class="loading-bar">
         <text class="loading-text">加载中...</text>
       </view>
-      <EmptyState v-else-if="!scoreList.length" title="暂无成绩记录" desc="点击上方「录入成绩」添加" icon="📊" />
+      <EmptyState v-else-if="!scoreList.length" title="暂无成绩记录" desc="点击上方「录入成绩」添加" />
       <view v-else class="score-list">
-        <view v-for="(item, idx) in scoreList" :key="item.id" class="score-row" :class="{ 'has-border': idx > 0 }">
+        <view v-for="(item, idx) in scoreList" :key="item.id" class="score-entry" :class="{ 'has-border': idx > 0 }">
+          <view class="score-row">
           <view class="score-info">
             <view class="score-head">
               <text class="student-name">{{ item.student_name || `学生#${item.student_id}` }}</text>
@@ -80,6 +82,8 @@
             <text class="score-value">{{ item.score }}<text class="score-max">/{{ item.max_score }}</text></text>
             <text v-if="item.rank_in_class" class="rank-text">第{{ item.rank_in_class }}名</text>
           </view>
+          </view>
+          <WeeklyScoreEvaluations :score="item" @saved="applyEvaluation" />
         </view>
       </view>
     </view>
@@ -87,6 +91,8 @@
 </template>
 
 <script setup>
+import WorkspaceLink from '../../components/WorkspaceLink.vue'
+import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
@@ -109,7 +115,7 @@ const selectedSubject = computed(() => subjectIndex.value > 0 ? subjectOptions[s
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (!['teacher', 'admin'].includes(auth.role)) {
+  if (!['teacher', 'admin', 'subject_teacher'].includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true
@@ -132,14 +138,20 @@ async function loadData() {
     if (selectedSubject.value) params.subject = selectedSubject.value
 
     const [scores, summary] = await Promise.all([
-      listWeeklyScores(params).catch(() => []),
+      listWeeklyScores(params),
       selectedClassId.value ? getClassSummary({ class_id: selectedClassId.value, subject: selectedSubject.value }).catch(() => []) : Promise.resolve([]),
     ])
     scoreList.value = Array.isArray(scores) ? scores : []
     summaryList.value = Array.isArray(summary) ? summary : []
+  } catch (error) {
+    uni.showToast({ title: '周测成绩加载失败，请刷新重试', icon: 'none' })
   } finally {
     loading.value = false
   }
+}
+
+function applyEvaluation(updated) {
+  scoreList.value = scoreList.value.map(row => row.id === updated.id ? updated : row)
 }
 
 function onClassChange(e) {
@@ -169,69 +181,70 @@ onShow(() => {
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
-.h1 { font-size: 34rpx; font-weight: 700; color: #1A1636; display: block; }
-.p { font-size: 24rpx; color: #8E8B9E; display: block; margin-top: 6rpx; }
+.h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
 .filter-bar { display: flex; gap: 16rpx; }
 .filter-item { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
-.filter-label { font-size: 22rpx; font-weight: 500; color: #53666A; }
+.filter-label { font-size: 24rpx; font-weight: 500; color: #526177; }
 .picker-box {
   display: flex; align-items: center; justify-content: space-between;
-  background: #fff; border: 1rpx solid #E0E7E5; border-radius: 8rpx;
+  background: #fff; border: 1rpx solid var(--mp-line); border-radius: 8rpx;
   padding: 16rpx 18rpx;
 }
-.picker-text { font-size: 26rpx; color: #1A1636; }
-.picker-arrow { font-size: 20rpx; color: #A09CB5; }
+.picker-text { font-size: 26rpx; color: var(--mp-ink); }
+.picker-arrow { font-size: 24rpx; color: var(--mp-muted); }
 
 .action-bar { display: flex; gap: 16rpx; }
 .btn-primary {
-  flex: 2; background: #1F4F55; color: #fff; border-radius: 8rpx;
+  flex: 2; background: var(--mp-primary); color: #fff; border-radius: 8rpx;
   padding: 18rpx 0; font-size: 28rpx; font-weight: 600; border: none;
 }
 .btn-primary::after { border: none; }
 .btn-outline {
-  flex: 1; background: #fff; color: #1F4F55; border: 1rpx solid #B9CCCA;
+  flex: 1; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE;
   border-radius: 8rpx; padding: 18rpx 0; font-size: 28rpx;
 }
 .btn-outline::after { border: none; }
 
 .card {
   background: #fff; border-radius: 10rpx; padding: 24rpx;
-  border: 1rpx solid #E0E7E5;
+  border: 1rpx solid var(--mp-line);
 }
-.card-title { font-size: 26rpx; font-weight: 600; color: #1A1636; display: block; margin-bottom: 14rpx; }
+.card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-bottom: 14rpx; }
 
 .loading-bar { text-align: center; padding: 32rpx; }
-.loading-text { color: #A09CB5; font-size: 26rpx; }
+.loading-text { color: var(--mp-muted); font-size: 26rpx; }
 
 .summary-row { padding: 14rpx 0; }
-.summary-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.summary-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .summary-info { display: flex; align-items: center; gap: 12rpx; }
-.summary-name { font-size: 26rpx; font-weight: 600; color: #1A1636; }
-.summary-date { font-size: 22rpx; color: #A09CB5; }
+.summary-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.summary-date { font-size: 24rpx; color: var(--mp-muted); }
 .summary-scores { display: flex; gap: 12rpx; margin-top: 10rpx; }
 .score-chip {
   flex: 1; text-align: center; padding: 10rpx 0;
-  border-radius: 8rpx; background: #F5F3EF;
+  border-radius: 8rpx; background: #F3F5F8;
 }
-.score-chip.avg { background: #E0F0E7; }
-.score-chip.max { background: #EEEDFD; }
-.score-chip.min { background: #F8E8B8; }
-.score-num { font-size: 28rpx; font-weight: 700; color: #1A1636; display: block; }
-.score-label { font-size: 18rpx; color: #6E6B83; display: block; margin-top: 2rpx; }
+.score-chip.avg { background: #EAF3EE; }
+.score-chip.max { background: var(--mp-soft); }
+.score-chip.min { background: #FBF1DF; }
+.score-num { font-size: 28rpx; font-weight: 700; color: var(--mp-ink); display: block; }
+.score-label { font-size: 18rpx; color: #526177; display: block; margin-top: 2rpx; }
 
 .score-row { padding: 16rpx 0; display: flex; align-items: center; justify-content: space-between; }
-.score-row.has-border { border-top: 2rpx solid #F0EFFC; }
+.score-entry { padding-bottom: 18rpx; }
+.score-entry.has-border { border-top: 2rpx solid var(--mp-soft); }
 .score-info { flex: 1; }
 .score-head { display: flex; align-items: center; gap: 10rpx; }
-.student-name { font-size: 26rpx; font-weight: 600; color: #1A1636; }
+.student-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
 .subject-tag {
-  font-size: 20rpx; color: #6B5CE7; background: #EEEDFD;
+  font-size: 24rpx; color: var(--mp-primary); background: var(--mp-soft);
   padding: 4rpx 10rpx; border-radius: 14rpx;
 }
-.score-meta { font-size: 22rpx; color: #A09CB5; display: block; margin-top: 4rpx; }
+.score-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 .score-right { text-align: right; }
-.score-value { font-size: 30rpx; font-weight: 700; color: #1F4F55; }
-.score-max { font-size: 22rpx; font-weight: 400; color: #A09CB5; }
-.rank-text { font-size: 20rpx; color: #D97706; display: block; margin-top: 4rpx; }
+.score-value { font-size: 30rpx; font-weight: 700; color: var(--mp-primary); }
+.score-max { font-size: 24rpx; font-weight: 400; color: var(--mp-muted); }
+.rank-text { font-size: 24rpx; color: #865C1E; display: block; margin-top: 4rpx; }
 </style>
