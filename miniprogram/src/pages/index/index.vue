@@ -58,7 +58,7 @@ import { computed } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
-const roleMap = { parent: '家长', student: '学生', teacher: '班主任', deyu_director: '德育主任', admin: '校长' }
+const roleMap = { parent: '家长', student: '学生', teacher: '班主任', deyu_director: '德育主任', admin: '校长', consultant: '咨询老师', subject_teacher: '任课老师' }
 const roleLabel = computed(() => roleMap[auth.role] || auth.role || '访客')
 
 const avatarColors = ['#6B5CE7', '#F5881F', '#16A34A', '#E74C6F', '#3B82F6']
@@ -74,6 +74,8 @@ const roleHint = computed(() => {
   if (auth.role === 'teacher') return '档案编辑、任务管理、打卡与督查'
   if (auth.role === 'deyu_director') return '审查方案、查看督查进度'
   if (auth.role === 'admin') return '系统统计、用户管理、全局档案'
+  if (auth.role === 'consultant') return '查看关联学生档案，了解学情动态'
+  if (auth.role === 'subject_teacher') return '查看所带班级档案，提交学科建议'
   return ''
 })
 
@@ -89,6 +91,8 @@ const allEntries = [
   { key: 'teacher_class', roles: ['teacher'], title: '班级管理', desc: '管理班级与学生信息', route: '/subTeacher/classManager/index' },
   { key: 'deyu_director', roles: ['deyu_director'], title: '审查中心', desc: '方案审查与督查进度', route: '/subTeacher/todo/index' },
   { key: 'admin', roles: ['admin'], title: '系统管理', desc: '统计、用户、邀请码', route: '/subTeacher/todo/index' },
+  { key: 'consultant', roles: ['consultant'], title: '关联学生', desc: '查看所负责学生的档案', route: '/subConsultant/caseList/index' },
+  { key: 'subject_teacher', roles: ['subject_teacher'], title: '我的课程档案', desc: '查看所带班级学生档案', route: '/subTeacher/caseList/index' },
 ]
 
 const visibleEntries = computed(() => {
@@ -208,6 +212,8 @@ function handleLogout() { auth.logout() }
 .mark-teacher { background: #427B87; }
 .mark-deyu_director { background: #B47D37; }
 .mark-admin { background: #7E5C58; }
+.mark-consultant { background: #8B5CF6; }
+.mark-subject_teacher { background: #0EA5E9; }
 .entry-body { flex: 1; }
 .entry-title { font-size: 29rpx; font-weight: 600; color: #203235; display: block; }
 .entry-desc { font-size: 23rpx; color: #6C7C7F; display: block; margin-top: 6rpx; }

@@ -155,6 +155,23 @@
         {
           "path": "classManager/addStudent",
           "style": { "navigationBarTitleText": "新建学生" }
+        },
+        {
+          "path": "subjectSuggestion/index",
+          "style": { "navigationBarTitleText": "学科建议" }
+        }
+      ]
+    },
+    {
+      "root": "subConsultant",
+      "pages": [
+        {
+          "path": "caseList/index",
+          "style": { "navigationBarTitleText": "关联学生" }
+        },
+        {
+          "path": "caseDetail/index",
+          "style": { "navigationBarTitleText": "档案详情" }
         }
       ]
     }

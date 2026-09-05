@@ -28,6 +28,10 @@ export const createCaseReview = (caseId, data) => http.post(`/student-cases/${ca
 // ---- 德育主任审查 ----
 export const deyuReview = (caseId, data) => http.post(`/student-cases/${caseId}/deyu-review`, data)
 
+// ---- 学科建议（任课老师） ----
+export const listSubjectSuggestions = (caseId) => http.get(`/student-cases/${caseId}/subject-suggestions`)
+export const createSubjectSuggestion = (caseId, data) => http.post(`/student-cases/${caseId}/subject-suggestions`, data)
+
 // ---- 管理员 ----
 export const getAdminStats = () => http.get('/admin/stats')
 export const listInviteCodes = (params = {}) => http.get('/admin/invite-codes', params)

@@ -80,7 +80,7 @@ function statusLabel(k) {
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (!['teacher', 'deyu_director', 'admin'].includes(auth.role)) {
+  if (!['teacher', 'deyu_director', 'admin', 'consultant', 'subject_teacher'].includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true
@@ -130,6 +130,10 @@ const navItems = computed(() => {
     items.push({ title: '系统管理', desc: '统计与配置', icon: '⚙️', action: goAdminStats })
     items.push({ title: '全部档案', desc: '全局档案查看', icon: '📚', action: goCaseList })
     items.push({ title: '德育审查', desc: '审查待审方案', icon: '🔍', action: goDeyuReview })
+  } else if (auth.role === 'consultant') {
+    items.push({ title: '关联学生', desc: '查看负责学生档案', icon: '👨‍🎓', action: () => uni.reLaunch({ url: '/subConsultant/caseList/index' }) })
+  } else if (auth.role === 'subject_teacher') {
+    items.push({ title: '学生档案', desc: '查看所带班级档案', icon: '📚', action: goCaseList })
   }
   return items
 })
@@ -138,12 +142,16 @@ const headTitle = computed(() => ({
   teacher: '班级工作台',
   deyu_director: '德育审查工作台',
   admin: '系统管理总览',
+  consultant: '咨询老师工作台',
+  subject_teacher: '任课老师工作台',
 }[auth.role] || '工作台'))
 
 const headDesc = computed(() => ({
   teacher: '聚合逾期任务与待复盘档案',
   deyu_director: '审查班主任提交的方案',
   admin: '系统统计与用户管理',
+  consultant: '查看关联学生档案',
+  subject_teacher: '查看所带班级学生档案',
 }[auth.role] || ''))
 
 onShow(() => { if (guardRole()) refresh() })
