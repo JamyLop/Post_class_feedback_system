@@ -457,3 +457,153 @@ def test_case_detail_includes_task_checkins(client, auth, db, seed_users):
     assert response.status_code == 200, response.text
     assert response.json()["task_checkins"][0]["task_id"] == task.id
     assert response.json()["task_checkins"][0]["completion_rate"] == 90
+
+
+def test_stage_review_requires_deyu_approval_before_publish(client, auth, db, seed_users):
+    """阶段复盘链路：复盘态可编辑下一阶段内容，已调整须送审，德育通过后才能发布。"""
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    _submit_and_approve(client, auth, case_id)
+    assert client.get(f"/api/student-cases/{case_id}", headers=auth("teacher1")).json()["status"] == "executing"
+
+    # 1. 发起阶段复盘
+    review = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "pending_review", "reason": "发起阶段复盘"},
+    )
+    assert review.status_code == 200, review.text
+
+    # 2. 复盘态可编辑下一阶段内容：总案、学科方案、任务
+    edit_overview = client.patch(
+        f"/api/student-cases/{case_id}",
+        headers=auth("teacher1"),
+        json={"overall_problem": "复盘：数学压轴薄弱，下阶段主攻导数"},
+    )
+    assert edit_overview.status_code == 200, edit_overview.text
+    edit_plan = client.put(
+        f"/api/student-cases/{case_id}/subject-plans/数学",
+        headers=auth("teacher1"),
+        json={
+            "subject": "数学",
+            "teacher_id": seed_users["teacher1"],
+            "problem_location": "导数综合薄弱",
+            "struggle_goal": "稳定110+",
+        },
+    )
+    assert edit_plan.status_code == 200, edit_plan.text
+    new_task = client.post(
+        f"/api/student-cases/{case_id}/tasks",
+        headers=auth("teacher1"),
+        json={
+            "subject": "数学",
+            "title": "导数每日一练",
+            "cadence": "daily",
+            "starts_on": str(date.today()),
+            "due_on": str(date.today() + timedelta(days=14)),
+        },
+    )
+    assert new_task.status_code == 200, new_task.text
+
+    # 3. 确认调整生成新版本
+    adjusted = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "adjusted", "reason": "阶段复盘已调整"},
+    )
+    assert adjusted.status_code == 200, adjusted.text
+    assert adjusted.json()["version"] == 2
+
+    # 4. 已调整不可直发执行，必须先送审
+    direct_publish = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "executing", "reason": "直接发布"},
+    )
+    assert direct_publish.status_code == 403
+
+    # 5. 已调整（待送审）锁定内容编辑
+    assert client.patch(
+        f"/api/student-cases/{case_id}",
+        headers=auth("teacher1"),
+        json={"overall_problem": "送审后偷改"},
+    ).status_code == 409
+    assert client.put(
+        f"/api/student-cases/{case_id}/subject-plans/数学",
+        headers=auth("teacher1"),
+        json={"subject": "数学", "teacher_id": seed_users["teacher1"]},
+    ).status_code == 409
+    assert client.post(
+        f"/api/student-cases/{case_id}/tasks",
+        headers=auth("teacher1"),
+        json={
+            "subject": "数学",
+            "title": "送审后加任务",
+            "cadence": "daily",
+            "starts_on": str(date.today()),
+            "due_on": str(date.today() + timedelta(days=7)),
+        },
+    ).status_code == 409
+
+    # 6. 提交德育审核，状态进入待确认，德育待办可见
+    submitted = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "pending_confirmation", "reason": "复盘调整完成，提交德育审核"},
+    )
+    assert submitted.status_code == 200, submitted.text
+    pending = client.get("/api/student-cases", params={"status": "pending_confirmation"}, headers=auth("deyu1"))
+    assert pending.status_code == 200, pending.text
+    assert case_id in [item["id"] for item in pending.json()]
+
+    # 7. 德育打回：字段不全 400，补全后退回班主任继续复盘
+    incomplete = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={"decision": "changes_requested", "problem": "目标不够具体"},
+    )
+    assert incomplete.status_code == 400
+    returned = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={
+            "decision": "changes_requested",
+            "subject": "数学",
+            "problem": "下阶段目标不够具体",
+            "corrective_action": "补充导数模块量化目标",
+            "correction_due_on": str(date.today() + timedelta(days=3)),
+        },
+    )
+    assert returned.status_code == 200, returned.text
+    assert returned.json()["workflow_status"] == "open"
+    assert client.get(f"/api/student-cases/{case_id}", headers=auth("teacher1")).json()["status"] == "revision_required"
+
+    # 8. 整改后重新送审，复盘退回意见自动标记为已重新提交
+    resubmitted = client.post(
+        f"/api/student-cases/{case_id}/transition",
+        headers=auth("teacher1"),
+        json={"target_status": "pending_confirmation", "reason": "已补充量化目标"},
+    )
+    assert resubmitted.status_code == 200, resubmitted.text
+    review_row = db.query(CaseReview).filter_by(student_case_id=case_id, decision="changes_requested").order_by(CaseReview.id.desc()).first()
+    assert review_row.workflow_status == "resubmitted"
+
+    # 9. 德育通过后自动发布进入执行，家长可见新版本
+    linked = client.post(
+        "/api/admin/guardian-links",
+        headers=auth("admin"),
+        json={"parent_id": seed_users["parent1"], "student_id": seed_users["student1"], "relationship": "father"},
+    )
+    assert linked.status_code == 200, linked.text
+    approved = client.post(
+        f"/api/student-cases/{case_id}/deyu-review",
+        headers=auth("deyu1"),
+        json={"decision": "approved", "corrective_action": "复盘调整同意发布"},
+    )
+    assert approved.status_code == 200, approved.text
+    detail = client.get(f"/api/student-cases/{case_id}", headers=auth("teacher1"))
+    assert detail.json()["status"] == "executing"
+    assert detail.json()["version"] == 2
+    parent_detail = client.get(f"/api/student-cases/{case_id}", headers=auth("parent1"))
+    assert parent_detail.status_code == 200, parent_detail.text
+    assert parent_detail.json()["version"] == 2

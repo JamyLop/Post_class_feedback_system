@@ -4,7 +4,7 @@
       <div>
         <div class="scope-line"><span>高三试点</span><span>任务提醒 · 每日记录</span></div>
         <h1>任务提醒中心</h1>
-        <p>汇总所带班级的学生任务安排与执行情况：逾期任务、今日到期、今日未打卡，并在此完成阶段任务的每日记录，记录自动折算积分。</p>
+        <p>汇总所带班级的学生任务安排与执行情况：待整改档案、逾期任务、今日到期、今日未打卡，并在此完成阶段任务的每日记录，记录自动折算积分。</p>
       </div>
       <div class="head-actions">
         <el-button type="primary" :disabled="!batchRows.length" @click="batchVisible = true"><el-icon><EditPen /></el-icon>每日记录（{{ batchRows.length }}）</el-button>
@@ -20,6 +20,7 @@
         <span class="date-tag">{{ data.date }} · 数据截至今日</span>
       </div>
       <div class="count-row">
+        <div class="count-card is-danger"><strong>{{ data.counts.needs_revision || 0 }}</strong><span>待整改档案</span></div>
         <div class="count-card is-danger"><strong>{{ data.counts.overdue || 0 }}</strong><span>逾期任务</span></div>
         <div class="count-card is-warning"><strong>{{ data.counts.due_today || 0 }}</strong><span>今日到期</span></div>
         <div class="count-card is-info"><strong>{{ data.counts.unlogged_today || 0 }}</strong><span>今日未打卡</span></div>
@@ -29,6 +30,14 @@
 
     <section class="list-surface">
       <el-tabs v-model="activeTab">
+        <el-tab-pane :label="`待整改档案（${data.needs_revision.length}）`" name="revision">
+          <el-table :data="data.needs_revision" empty-text="暂无待整改档案">
+            <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name }}</strong><div class="sub">{{ row.class_name }}</div></template></el-table-column>
+            <el-table-column label="退回问题" min-width="220" show-overflow-tooltip><template #default="{ row }">{{ row.problem || '-' }}<div class="sub">V{{ row.version }}阶段 · 整改要求：{{ row.corrective_action || '-' }}</div></template></el-table-column>
+            <el-table-column prop="correction_due_on" label="整改截止" width="120" />
+            <el-table-column label="操作" width="120" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase(row)">去整改</el-button></template></el-table-column>
+          </el-table>
+        </el-tab-pane>
         <el-tab-pane :label="`逾期任务（${data.overdue.length}）`" name="overdue">
           <el-table :data="data.overdue" empty-text="暂无逾期任务">
             <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name }}</strong><div class="sub">{{ row.class_name }}</div></template></el-table-column>
@@ -93,9 +102,9 @@ const router = useRouter()
 const classes = ref([])
 const loading = ref(false)
 const saving = ref(false)
-const activeTab = ref('overdue')
+const activeTab = ref('revision')
 const filters = ref({ class_id: null })
-const data = ref({ date: '', overdue: [], due_today: [], unlogged_today: [], counts: {} })
+const data = ref({ date: '', overdue: [], due_today: [], unlogged_today: [], needs_revision: [], counts: {} })
 const batchVisible = ref(false)
 const logDate = ref(new Date().toISOString().slice(0, 10))
 const batchRows = ref([])

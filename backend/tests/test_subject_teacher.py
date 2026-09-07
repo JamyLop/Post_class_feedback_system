@@ -181,6 +181,12 @@ def test_subject_teacher_register_with_invite(client, auth, db, seed_users):
     )
     assert r.status_code == 200, r.text
     code = r.json()["code"]
+    cap = client.get("/api/auth/captcha")
+    assert cap.status_code == 200, cap.text
+    captcha_id = cap.json()["captcha_id"]
+    from app.services import captcha_service
+
+    captcha_code, _exp = captcha_service._store[captcha_id]
     r = client.post(
         "/api/auth/register",
         json={
@@ -190,6 +196,8 @@ def test_subject_teacher_register_with_invite(client, auth, db, seed_users):
             "role": "subject_teacher",
             "subject": "数学",
             "invite_code": code,
+            "captcha_id": captcha_id,
+            "captcha_code": captcha_code,
         },
     )
     assert r.status_code == 200, r.text

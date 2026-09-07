@@ -96,10 +96,21 @@ def seed_users(db, _clean_tables):
     return created
 
 
+def _captcha_fields(client):
+    """测试辅助：拉取验证码并从服务端内存读出正确答案。"""
+    r = client.get("/api/auth/captcha")
+    assert r.status_code == 200, r.text
+    captcha_id = r.json()["captcha_id"]
+    from app.services import captcha_service
+
+    code, _exp = captcha_service._store[captcha_id]
+    return {"captcha_id": captcha_id, "captcha_code": code}
+
+
 def login(client, username, password="test123456"):
     r = client.post(
         "/api/auth/login",
-        json={"username": username, "password": password},
+        json={"username": username, "password": password, **_captcha_fields(client)},
     )
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}

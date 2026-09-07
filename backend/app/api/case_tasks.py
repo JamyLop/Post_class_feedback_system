@@ -9,7 +9,7 @@ from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.case_points import CaseStageCompletion
 from app.models.class_ import Class, ClassTeacher
-from app.models.student_case import CaseTask, StudentCase, TaskCheckin
+from app.models.student_case import CASE_STATUS_REVISION_REQUIRED, CaseTask, StudentCase, TaskCheckin, CaseReview
 from app.models.user import (
     ROLE_ADMIN,
     ROLE_DEYU_DIRECTOR,
@@ -19,6 +19,7 @@ from app.models.user import (
 from app.schemas.case_points import (
     BatchCheckinCreate,
     ReminderTaskItem,
+    RevisionCaseItem,
     StageCompletionOut,
     TaskRemindersOut,
 )
@@ -70,7 +71,7 @@ def task_reminders(
     """班主任工作台待办：逾期任务 / 今日到期 / 今日未打卡（含学生任务安排与执行提醒）。"""
     managed = _managed_class_ids(db, user)
     if not managed:
-        return TaskRemindersOut(date=date.today(), counts={"overdue": 0, "due_today": 0, "unlogged_today": 0})
+        return TaskRemindersOut(date=date.today(), counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
     if class_id is not None:
         if class_id not in managed:
             raise HTTPException(status_code=403, detail="无权查看该班级任务提醒")
@@ -80,7 +81,7 @@ def task_reminders(
     today = date.today()
     cases = db.query(StudentCase).filter(StudentCase.class_id.in_(class_ids)).all()
     if not cases:
-        return TaskRemindersOut(date=today, counts={"overdue": 0, "due_today": 0, "unlogged_today": 0})
+        return TaskRemindersOut(date=today, counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
     case_by_id = {c.id: c for c in cases}
     tasks = (
         db.query(CaseTask)
@@ -131,12 +132,48 @@ def task_reminders(
         # 执行提醒：今日应执行（已开始且未到期）但尚未每日记录
         if task.starts_on <= today <= task.due_on and task.id not in logged_today:
             unlogged.append(item(task))
+
+    # 待整改档案：德育退回（status=revision_required），属于档案维度而非任务维度
+    needs_revision: list[RevisionCaseItem] = []
+    revision_cases = [c for c in cases if c.status == CASE_STATUS_REVISION_REQUIRED]
+    if revision_cases:
+        revision_ids = [c.id for c in revision_cases]
+        reviews = (
+            db.query(CaseReview)
+            .filter(
+                CaseReview.student_case_id.in_(revision_ids),
+                CaseReview.review_level == "deyu",
+                CaseReview.decision == "changes_requested",
+            )
+            .order_by(CaseReview.reviewed_at.desc())
+            .all()
+        )
+        latest_by_case: dict[int, CaseReview] = {}
+        for r in reviews:
+            if r.student_case_id not in latest_by_case:
+                latest_by_case[r.student_case_id] = r
+        for case in revision_cases:
+            r = latest_by_case.get(case.id)
+            needs_revision.append(
+                RevisionCaseItem(
+                    case_id=case.id,
+                    student_id=case.student_id,
+                    student_name=student_names.get(case.student_id),
+                    class_id=case.class_id,
+                    class_name=class_names.get(case.class_id),
+                    version=case.version or 1,
+                    problem=(r.problem if r else "") or "",
+                    corrective_action=(r.corrective_action if r else "") or "",
+                    correction_due_on=(r.correction_due_on if r else None),
+                )
+            )
     return TaskRemindersOut(
         date=today,
         overdue=overdue,
         due_today=due_today,
         unlogged_today=unlogged,
-        counts={"overdue": len(overdue), "due_today": len(due_today), "unlogged_today": len(unlogged)},
+        needs_revision=needs_revision,
+        counts={"overdue": len(overdue), "due_today": len(due_today), "unlogged_today": len(unlogged), "needs_revision": len(needs_revision)},
     )
 
 

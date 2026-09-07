@@ -14,6 +14,16 @@ def _create_invite(db, code, role="student", admin_id=None, expires_at=None):
     return invite.id
 
 
+def _captcha_fields(client):
+    r = client.get("/api/auth/captcha")
+    assert r.status_code == 200, r.text
+    captcha_id = r.json()["captcha_id"]
+    from app.services import captcha_service
+
+    code, _exp = captcha_service._store[captcha_id]
+    return {"captcha_id": captcha_id, "captcha_code": code}
+
+
 def _register(client, username, role="student", code="ABCD1234", password="test123456"):
     return client.post(
         "/api/auth/register",
@@ -23,6 +33,7 @@ def _register(client, username, role="student", code="ABCD1234", password="test1
             "name": "新同学",
             "role": role,
             "invite_code": code,
+            **_captcha_fields(client),
         },
     )
 
@@ -92,9 +103,35 @@ def test_registered_user_can_login(client, db, seed_users):
     _register(client, "loginuser", code="LOGIN001")
     r = client.post(
         "/api/auth/login",
-        json={"username": "loginuser", "password": "test123456"},
+        json={"username": "loginuser", "password": "test123456", **_captcha_fields(client)},
     )
     assert r.status_code == 200, r.text
+
+
+def test_login_requires_captcha(client, seed_users):
+    r = client.post(
+        "/api/auth/login",
+        json={"username": "student1", "password": "test123456"},
+    )
+    assert r.status_code == 400
+    assert "验证码" in r.text
+
+
+def test_login_rejects_wrong_captcha(client, seed_users):
+    r = client.get("/api/auth/captcha")
+    assert r.status_code == 200, r.text
+    captcha_id = r.json()["captcha_id"]
+    r = client.post(
+        "/api/auth/login",
+        json={
+            "username": "student1",
+            "password": "test123456",
+            "captcha_id": captcha_id,
+            "captcha_code": "WRONG",
+        },
+    )
+    assert r.status_code == 400
+    assert "验证码" in r.text
 
 
 def test_invite_code_requires_admin(client, auth, seed_users):

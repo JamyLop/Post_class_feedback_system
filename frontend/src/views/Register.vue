@@ -51,6 +51,21 @@
           </el-form-item>
         </div>
 
+        <el-form-item label="验证码">
+          <div class="captcha-row">
+            <el-input v-model="form.captcha_code" placeholder="输入右侧验证码" clearable maxlength="8" />
+            <img
+              v-if="captcha.image"
+              :src="captcha.image"
+              class="captcha-img"
+              alt="验证码"
+              title="看不清？点击刷新"
+              @click="fetchCaptcha"
+            />
+            <el-link v-else type="primary" :underline="false" @click="fetchCaptcha">获取验证码</el-link>
+          </div>
+        </el-form-item>
+
         <el-button type="primary" :loading="loading" class="submit-btn" @click="onSubmit">完成注册</el-button>
 
         <div class="card-foot">
@@ -63,10 +78,10 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { register as registerApi } from '../api/auth'
+import { getCaptcha, register as registerApi } from '../api/auth'
 
 const router = useRouter()
 const loading = ref(false)
@@ -78,7 +93,22 @@ const form = reactive({
   password: '',
   confirm: '',
   subject: '',
+  captcha_code: '',
 })
+const captcha = reactive({ id: '', image: '' })
+
+async function fetchCaptcha() {
+  try {
+    const data = await getCaptcha()
+    captcha.id = data.captcha_id
+    captcha.image = data.image
+    form.captcha_code = ''
+  } catch (e) {
+    /* 拦截器已提示 */
+  }
+}
+
+onMounted(fetchCaptcha)
 
 const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
 
@@ -95,6 +125,10 @@ async function onSubmit() {
     ElMessage.warning('两次输入的密码不一致')
     return
   }
+  if (!form.captcha_code) {
+    ElMessage.warning('请输入验证码')
+    return
+  }
   loading.value = true
   try {
     const payload = {
@@ -103,6 +137,8 @@ async function onSubmit() {
       username: form.username.trim(),
       name: form.name.trim(),
       password: form.password,
+      captcha_id: captcha.id,
+      captcha_code: form.captcha_code.trim(),
     }
     if (form.role === 'subject_teacher') {
       payload.subject = form.subject
@@ -111,7 +147,8 @@ async function onSubmit() {
     ElMessage.success('注册成功，请登录')
     router.push('/login')
   } catch (e) {
-    /* 拦截器已提示 */
+    /* 验证码一次性消费，失败后自动刷新 */
+    fetchCaptcha()
   } finally {
     loading.value = false
   }
@@ -208,6 +245,26 @@ async function onSubmit() {
   width: 100%;
   margin-top: 4px;
   height: 40px;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.captcha-row .el-input {
+  flex: 1;
+}
+
+.captcha-img {
+  width: 120px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid #e6e8eb;
+  cursor: pointer;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .card-foot {

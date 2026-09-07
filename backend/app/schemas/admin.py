@@ -11,6 +11,8 @@ class RegisterRequest(BaseModel):
     role: str
     invite_code: str = Field(min_length=1, max_length=16)
     subject: Optional[str] = Field(default=None, max_length=32)
+    captcha_id: str = ""
+    captcha_code: str = ""
 
 
 class InviteCodeCreate(BaseModel):

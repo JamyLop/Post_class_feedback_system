@@ -18,6 +18,20 @@
         <el-form-item label="密码">
           <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" />
         </el-form-item>
+        <el-form-item label="验证码">
+          <div class="captcha-row">
+            <el-input v-model="form.captcha_code" placeholder="输入右侧验证码" clearable maxlength="8" />
+            <img
+              v-if="captcha.image"
+              :src="captcha.image"
+              class="captcha-img"
+              alt="验证码"
+              title="看不清？点击刷新"
+              @click="fetchCaptcha"
+            />
+            <el-link v-else type="primary" :underline="false" @click="fetchCaptcha">获取验证码</el-link>
+          </div>
+        </el-form-item>
 
         <el-button type="primary" :loading="loading" class="login-btn" @click="onSubmit">登录</el-button>
 
@@ -32,28 +46,48 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
+import { getCaptcha } from '../api/auth'
 import { homeForRole } from '../router/roleHome'
 
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
-const form = reactive({ username: '', password: '' })
+const form = reactive({ username: '', password: '', captcha_code: '' })
+const captcha = reactive({ id: '', image: '' })
+
+async function fetchCaptcha() {
+  try {
+    const data = await getCaptcha()
+    captcha.id = data.captcha_id
+    captcha.image = data.image
+    form.captcha_code = ''
+  } catch (e) {
+    /* 拦截器已提示 */
+  }
+}
+
+onMounted(fetchCaptcha)
 
 async function onSubmit() {
   if (!form.username || !form.password) {
     ElMessage.warning('请输入用户名和密码')
     return
   }
+  if (!form.captcha_code) {
+    ElMessage.warning('请输入验证码')
+    return
+  }
   loading.value = true
   try {
-    const user = await auth.login(form.username, form.password)
+    const user = await auth.login(form.username, form.password, captcha.id, form.captcha_code)
     router.push(homeForRole(user.role))
   } catch (e) {
-    /* 拦截器已提示 */
+    /* 验证码一次性消费，失败后自动刷新 */
+    fetchCaptcha()
   } finally {
     loading.value = false
   }
@@ -147,6 +181,26 @@ async function onSubmit() {
   margin-top: 6px;
   height: 40px;
   font-size: 14px;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.captcha-row .el-input {
+  flex: 1;
+}
+
+.captcha-img {
+  width: 120px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid #e6e8eb;
+  cursor: pointer;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .card-foot {

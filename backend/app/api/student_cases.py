@@ -17,6 +17,7 @@ from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.student_case import (
     CASE_STATUSES,
+    CASE_STATUS_ADJUSTED,
     CASE_STATUS_PENDING_CONFIRMATION,
     CASE_STATUS_REVISION_REQUIRED,
     CaseCycle,
@@ -615,8 +616,9 @@ def update_student_case(
     case = require_case_access(db, case_id, user, write=True)
     require_case_manager(db, case, user)
     changes = body.model_dump(exclude_none=True, exclude={"change_reason"})
-    if case.status not in {"draft", "revision_required"} and changes:
-        # 执行中的正式内容不得无痕覆盖；调整前先走复盘状态机。
+    if case.status not in {"draft", "revision_required", "pending_review"} and changes:
+        # 执行中的正式内容不得无痕覆盖；阶段复盘态允许编辑下一阶段内容，
+        # 已调整待送审(adjusted)与送审中锁定，调整前先走复盘状态机。
         raise HTTPException(status_code=409, detail="执行中的总案须先进入阶段复盘并生成新版本")
     for field, value in changes.items():
         setattr(case, field, value)
@@ -709,6 +711,9 @@ def change_case_status(
     require_case_manager(db, case, user)
     if case.status == CASE_STATUS_PENDING_CONFIRMATION and body.target_status == "executing":
         raise HTTPException(status_code=403, detail="方案须由德育主任审查通过后才能进入执行")
+    if case.status == CASE_STATUS_ADJUSTED and body.target_status == "executing":
+        # 阶段复盘调整须经德育主任审核通过后才能发布进入执行，班主任不可直发。
+        raise HTTPException(status_code=403, detail="复盘调整须经德育主任审核通过后才能发布，请先提交德育审核")
     if case.status == CASE_STATUS_REVISION_REQUIRED and body.target_status == CASE_STATUS_PENDING_CONFIRMATION:
         returned_review = (
             db.query(CaseReview)
@@ -763,7 +768,7 @@ def upsert_subject_plan(
         raise HTTPException(status_code=400, detail="路径学科与请求内容不一致")
     case = require_case_access(db, case_id, user, write=True, subject=subject)
     require_case_manager(db, case, user)
-    if case.status not in {"draft", "revision_required", "adjusted"}:
+    if case.status not in {"draft", "revision_required", "pending_review"}:
         raise HTTPException(status_code=409, detail="当前状态不能修改学科方案")
     plan = db.query(SubjectPlan).filter_by(student_case_id=case_id, subject=subject).first()
     if plan is None:
@@ -825,6 +830,8 @@ def create_goal(
 ):
     case = require_case_access(db, case_id, user, write=True, subject=body.subject)
     require_case_manager(db, case, user)
+    if case.status in {CASE_STATUS_PENDING_CONFIRMATION, CASE_STATUS_ADJUSTED}:
+        raise HTTPException(status_code=409, detail="德育审查/复盘送审期间不能新增目标，请先撤回或等待审查意见")
     goal = CaseGoal(student_case_id=case_id, **body.model_dump())
     db.add(goal)
     db.flush()
@@ -843,7 +850,7 @@ def create_task(
 ):
     case = require_case_access(db, case_id, user, write=True, subject=body.subject)
     require_case_manager(db, case, user)
-    if case.status == CASE_STATUS_PENDING_CONFIRMATION:
+    if case.status in {CASE_STATUS_PENDING_CONFIRMATION, CASE_STATUS_ADJUSTED}:
         raise HTTPException(status_code=409, detail="德育审查期间不能修改任务，请先撤回或等待审查意见")
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能新增任务")
@@ -873,7 +880,7 @@ def update_task(
         raise HTTPException(status_code=404, detail="任务不存在")
     case = require_case_access(db, case_id, user, write=True, subject=body.subject)
     require_case_manager(db, case, user)
-    if case.status == CASE_STATUS_PENDING_CONFIRMATION:
+    if case.status in {CASE_STATUS_PENDING_CONFIRMATION, CASE_STATUS_ADJUSTED}:
         raise HTTPException(status_code=409, detail="德育审查期间不能修改任务，请先撤回或等待审查意见")
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能修改任务")

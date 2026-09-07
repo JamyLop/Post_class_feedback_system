@@ -42,11 +42,24 @@ class ReminderTaskItem(BaseModel):
     logged_today: bool = False
 
 
+class RevisionCaseItem(BaseModel):
+    case_id: int
+    student_id: int
+    student_name: str | None = None
+    class_id: int
+    class_name: str | None = None
+    version: int = 1
+    problem: str = ""
+    corrective_action: str = ""
+    correction_due_on: date | None = None
+
+
 class TaskRemindersOut(BaseModel):
     date: date
     overdue: list[ReminderTaskItem] = []
     due_today: list[ReminderTaskItem] = []
     unlogged_today: list[ReminderTaskItem] = []
+    needs_revision: list[RevisionCaseItem] = []
     counts: dict[str, int] = {}
 
 

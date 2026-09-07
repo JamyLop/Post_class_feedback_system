@@ -98,9 +98,9 @@ async function refresh() {
     ])
     progress.value = p || {}
     const arr = Array.isArray(list) ? list : []
-    const priority = { revision_required:0, pending_confirmation:1, draft:2, pending_review:3 }
+    const priority = { revision_required:0, pending_confirmation:1, draft:2, pending_review:3, adjusted:4 }
     pendingCases.value = arr
-      .filter(c => ['revision_required','pending_confirmation','draft','pending_review'].includes(c.status))
+      .filter(c => ['revision_required','pending_confirmation','draft','pending_review','adjusted'].includes(c.status))
       .sort((a,b) => (priority[a.status]??9)-(priority[b.status]??9) || new Date(b.updated_at)-new Date(a.updated_at))
       .slice(0,10)
   } catch (_) { error.value = '暂时无法读取工作进展，请检查网络后重试。' } finally { loading.value = false }

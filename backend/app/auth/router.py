@@ -24,6 +24,7 @@ from app.models.user_external_identity import UserExternalIdentity
 from app.schemas.admin import RegisterRequest
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
 from app.schemas.wx_auth import ChildBrief, WxBindRequest, WxLoginRequest
+from app.services import captcha_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -69,9 +70,29 @@ def _consume_jti(jti: str) -> None:
         _consumed_bind_jtis.update(items[5000:])
 
 
+def _check_captcha(captcha_id: str | None, captcha_code: str | None) -> None:
+    """登录/注册共用：缺失或错误均 400，且错误时提示刷新。"""
+    if not (captcha_id or "").strip() or not (captcha_code or "").strip():
+        raise HTTPException(status_code=400, detail="请输入验证码")
+    if not captcha_service.verify_captcha(captcha_id, captcha_code):
+        raise HTTPException(status_code=400, detail="验证码错误或已过期，请刷新后重试")
+
+
+@router.get("/captcha")
+def get_captcha():
+    """获取图形验证码：返回 captcha_id + base64 图片，前端登录/注册时回传 id 与用户输入。"""
+    captcha_id, _code, image_b64 = captcha_service.create_captcha()
+    return {
+        "captcha_id": captcha_id,
+        "image": f"data:image/png;base64,{image_b64}",
+        "expires_in": captcha_service.EXPIRE_SECONDS,
+    }
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    """账号密码登录，签发 JWT。"""
+    """账号密码 + 图形验证码登录，签发 JWT。"""
+    _check_captcha(body.captcha_id, body.captcha_code)
     user = db.query(User).filter(User.username == body.username).first()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
@@ -327,7 +348,8 @@ def me_children(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    """公开注册：班主任、德育主任、咨询老师、任课老师、学生或家长必须使用对应角色的邀请码。"""
+    """公开注册：邀请码 + 图形验证码，班主任、德育主任、咨询老师、任课老师、学生或家长必须使用对应角色的邀请码。"""
+    _check_captcha(body.captcha_id, body.captcha_code)
     if body.role not in (ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
         raise HTTPException(status_code=400, detail="仅支持注册班主任、德育主任、咨询老师、任课老师、学生或家长账号")
     if db.query(User).filter(User.username == body.username).first():

@@ -34,12 +34,12 @@
             </template>
             <el-button v-if="detail.status === 'executing'" type="primary" :loading="submitting" @click="doTransition('pending_review', '发起阶段复盘', '进入复盘后将整理过程与督查记录，是否继续？', '发起阶段复盘')">发起阶段复盘</el-button>
             <template v-if="detail.status === 'pending_review'">
-              <el-button type="primary" :loading="submitting" @click="doTransition('adjusted', '确认已调整', '确认调整将生成新版本并保留历史快照，是否继续？', '阶段复盘已调整')">确认已调整</el-button>
+              <el-button type="primary" :loading="submitting" @click="doTransition('adjusted', '确认已调整', '确认调整将生成新版本并保留历史快照，之后须提交德育审核通过后才能发布，是否继续？', '阶段复盘已调整')">确认已调整</el-button>
               <el-button :loading="submitting" @click="handleArchive">归档</el-button>
             </template>
             <template v-if="detail.status === 'adjusted'">
-              <el-button type="primary" :loading="submitting" @click="doTransition('executing', '重新进入执行', '将已调整方案重新进入执行，是否继续？', '再次进入执行')">重新进入执行</el-button>
-              <el-button :loading="submitting" @click="doTransition('pending_review', '再次发起复盘', '再次进入复盘以继续跟踪，是否继续？', '再次发起复盘')">再次发起复盘</el-button>
+              <el-button type="primary" :loading="submitting" @click="doTransition('pending_confirmation', '提交德育审核', '提交后内容将锁定，等待德育主任审核，通过后自动发布进入执行，是否继续？', '阶段复盘调整完成，提交德育审核')">提交德育审核</el-button>
+              <el-button :loading="submitting" @click="doTransition('pending_review', '撤回继续复盘', '将退回复盘状态继续编辑下一阶段内容，是否继续？', '撤回继续复盘')">撤回继续复盘</el-button>
               <el-button :loading="submitting" @click="handleArchive">归档</el-button>
             </template>
           </template>
@@ -49,6 +49,8 @@
               <el-button type="primary" :loading="submitting" @click="openDeyuDialog('approved')">审查通过</el-button>
             </template>
             <span v-else-if="detail.status === 'revision_required'" class="archived-tip">已退回班主任整改</span>
+            <span v-else-if="detail.status === 'pending_review'" class="archived-tip">班主任阶段复盘中</span>
+            <span v-else-if="detail.status === 'adjusted'" class="archived-tip">复盘已调整，待班主任提交德育审核</span>
             <span v-else-if="detail.status === 'executing'" class="archived-tip">已通过，进入执行</span>
             <span v-else-if="detail.status === 'archived'" class="archived-tip">已归档</span>
             <span v-else class="archived-tip">{{ labels[detail.status] || detail.status }}</span>
@@ -694,8 +696,8 @@ const statusCopy = {
   pending_confirmation: { title: '等待德育主任审查', desc: '已提交德育审查，等待德育主任审核；通过后家长可见正式方案，总览将锁定。' },
   revision_required: { title: '德育已退回，需班主任整改', desc: '德育主任已退回并给出整改要求，请按要求完善后重新提交审查。' },
   executing: { title: '方案正在执行中', desc: '德育已通过，家长已可见当前版本。请通过任务与执行记录跟踪进展，必要时发起阶段复盘。' },
-  pending_review: { title: '已进入阶段复盘', desc: '请完成督查复盘记录，确认调整后将生成新版本，归档则结束本周期。' },
-  adjusted: { title: '复盘已调整（已生成新版本）', desc: '已按复盘结论调整并保留生涯学案。可重新进入执行或再次复盘。' },
+  pending_review: { title: '已进入阶段复盘', desc: '请在复盘态完成下一阶段内容编辑，确认调整后将生成新版本，再提交德育审核，通过后自动发布。归档则结束本周期。' },
+  adjusted: { title: '复盘已调整（已生成新版本）', desc: '新版本内容已锁定。请提交德育审核，通过后自动发布进入执行；需继续修改可撤回至复盘。' },
   archived: { title: '已归档', desc: '本档案已归档，内容只读保留，生涯学案仍可查看。' },
 }
 const stateTitle = computed(() => {
@@ -745,9 +747,9 @@ const subjectOptions = computed(() => {
 })
 const selectedPlan = computed(() => detail.value?.subject_plans?.find((item) => item.subject === selectedSubject.value))
 const availableSubjects = computed(() => subjectOrder.filter((item) => !subjectOptions.value.includes(item)))
-const canEditPlan = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'adjusted'].includes(detail.value?.status) && !editingProfile.value && !editingOverview.value && !editingTask.value)
-const canEditOverview = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'pending_confirmation'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingTask.value)
-const canEditTasks = computed(() => detail.value?.can_manage && !['pending_confirmation', 'archived'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingOverview.value)
+const canEditPlan = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.value?.status) && !editingProfile.value && !editingOverview.value && !editingTask.value)
+const canEditOverview = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingTask.value)
+const canEditTasks = computed(() => detail.value?.can_manage && !['pending_confirmation', 'adjusted', 'archived'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingOverview.value)
 const canCreateReview = computed(() => {
   if (!detail.value) return false
   return auth.role === 'admin'

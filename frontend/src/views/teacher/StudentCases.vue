@@ -222,7 +222,7 @@ const cycleOptions = computed(() => {
 const filteredRows = computed(() => {
   let result = rows.value
   if (workFilter.value === 'todo') {
-    result = result.filter((row) => ['draft', 'revision_required', 'pending_review'].includes(row.status))
+    result = result.filter((row) => ['draft', 'revision_required', 'pending_review', 'adjusted'].includes(row.status))
   }
   if (workFilter.value === 'executing') {
     result = result.filter((row) => ['executing', 'adjusted'].includes(row.status))
