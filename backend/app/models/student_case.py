@@ -238,6 +238,8 @@ class TaskCheckin(Base):
     checked_in_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # 打卡附件：[{object_name, filename, content_type, size}]
+    attachments: Mapped[Any] = mapped_column(JSON, default=list)
 
 
 class CaseReview(Base):

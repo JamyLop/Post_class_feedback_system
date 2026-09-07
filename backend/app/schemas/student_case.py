@@ -199,6 +199,14 @@ class TaskCheckinCreate(BaseModel):
     log_date: date | None = None
 
 
+class CheckinAttachmentOut(BaseModel):
+    object_name: str
+    filename: str
+    content_type: str
+    size: int
+    url: str
+
+
 class TaskCheckinOut(TaskCheckinCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -206,6 +214,7 @@ class TaskCheckinOut(TaskCheckinCreate):
     student_id: int
     earned_points: float = 0.0
     checked_in_at: datetime
+    attachments: list[CheckinAttachmentOut] = []
 
 
 class CaseReviewCreate(BaseModel):

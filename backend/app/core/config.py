@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     local_storage_dir: str = "local_storage"
     max_upload_bytes: int = 10 * 1024 * 1024
 
+    oss_access_key_id: str = ""
+    oss_access_key_secret: str = ""
+    oss_endpoint: str = "oss-cn-beling.aliyuncs.com"
+    oss_bucket: str = "xueshengyian"
+
     llm_provider: str = "mock"
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""

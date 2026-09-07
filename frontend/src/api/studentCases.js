@@ -19,6 +19,14 @@ export const createSubjectSuggestion = (caseId, data) => http.post(`/student-cas
 export const createCaseTask = (caseId, data) => http.post(`/student-cases/${caseId}/tasks`, data)
 export const updateCaseTask = (caseId, taskId, data) => http.put(`/student-cases/${caseId}/tasks/${taskId}`, data)
 export const checkinCaseTask = (taskId, data) => http.post(`/student-cases/tasks/${taskId}/checkins`, data)
+export const uploadCheckinAttachment = (checkinId, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return http.post(`/student-cases/task-checkins/${checkinId}/attachments`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+export const listCheckinAttachments = (checkinId) => http.get(`/student-cases/task-checkins/${checkinId}/attachments`)
 export const getTaskReminders = (params = {}) => http.get('/student-cases/tasks/reminders', { params })
 export const batchCheckinTasks = (data) => http.post('/student-cases/tasks/batch-checkin', data)
 export const listStageCompletions = (caseId) => http.get(`/student-cases/${caseId}/stage-completions`)

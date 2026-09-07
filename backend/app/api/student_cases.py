@@ -5,13 +5,14 @@ from urllib.parse import quote
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
@@ -1036,3 +1037,101 @@ def decide_deyu_review(
     db.commit()
     db.refresh(review)
     return review
+
+
+# ---------------------------------------------------------------------------
+# 打卡附件上传
+# ---------------------------------------------------------------------------
+
+ALLOWED_ATTACHMENT_TYPES = {"image"}
+ALLOWED_ATTACHMENT_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+def _validate_attachment(data: bytes, content_type: str) -> None:
+    """校验打卡附件：大小 + 文件类型。"""
+    if len(data) > settings.max_upload_bytes:
+        limit_mb = settings.max_upload_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"附件不能超过 {limit_mb} MB")
+    if content_type not in ALLOWED_ATTACHMENT_MIMES:
+        raise HTTPException(status_code=400, detail="仅支持 PNG、JPEG、GIF 或 WebP 图片")
+    image_signatures = (
+        data.startswith(b"\x89PNG\r\n\x1a\n"),
+        data.startswith(b"\xff\xd8\xff"),
+        data.startswith((b"GIF87a", b"GIF89a")),
+        len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP",
+    )
+    if not any(image_signatures):
+        raise HTTPException(status_code=400, detail="文件内容与声明的图片类型不匹配")
+
+
+@router.post("/task-checkins/{checkin_id}/attachments")
+def upload_checkin_attachment(
+    checkin_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(_head_teacher),
+):
+    """为打卡记录上传照片附件（仅班主任可操作）。"""
+    checkin = db.get(TaskCheckin, checkin_id)
+    if checkin is None:
+        raise HTTPException(status_code=404, detail="打卡记录不存在")
+    task = db.get(CaseTask, checkin.task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="关联任务不存在")
+    case = require_case_access(db, task.student_case_id, user, write=True, subject=task.subject)
+    require_case_manager(db, case, user)
+    # 读取并校验文件
+    data = file.file.read(settings.max_upload_bytes + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="上传文件为空")
+    content_type = file.content_type or "application/octet-stream"
+    _validate_attachment(data, content_type)
+    # 上传到存储
+    ext = ".png"
+    if "jpeg" in content_type:
+        ext = ".jpg"
+    elif "gif" in content_type:
+        ext = ".gif"
+    elif "webp" in content_type:
+        ext = ".webp"
+    from app.storage import upload_bytes, presigned_url
+
+    object_name = upload_bytes(data, content_type, ext)
+    # 追加到打卡附件列表
+    attachments = list(checkin.attachments or [])
+    attachment = {
+        "object_name": object_name,
+        "filename": file.filename or f"photo{ext}",
+        "content_type": content_type,
+        "size": len(data),
+    }
+    attachments.append(attachment)
+    checkin.attachments = attachments
+    db.flush()
+    audit(db, user.id, "checkin.attach", "task_checkin", checkin.id, case.id, {"filename": attachment["filename"]})
+    db.commit()
+    # 返回带 URL 的附件信息
+    attachment["url"] = presigned_url(object_name)
+    return attachment
+
+
+@router.get("/task-checkins/{checkin_id}/attachments")
+def list_checkin_attachments(
+    checkin_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """查看打卡记录的附件列表。"""
+    checkin = db.get(TaskCheckin, checkin_id)
+    if checkin is None:
+        raise HTTPException(status_code=404, detail="打卡记录不存在")
+    task = db.get(CaseTask, checkin.task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="关联任务不存在")
+    require_case_access(db, task.student_case_id, user, write=False, subject=task.subject)
+    from app.storage import presigned_url
+
+    attachments = list(checkin.attachments or [])
+    for att in attachments:
+        att["url"] = presigned_url(att.get("object_name", ""))
+    return attachments

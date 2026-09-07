@@ -447,12 +447,15 @@
                     <div class="expected-points">预计得分：<strong>{{ expectedCheckinPoints }}</strong></div>
                   </div>
                   <el-form-item label="班主任记录"><el-input v-model="checkinForm.self_check" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="完整记录学生实际执行情况、发现的问题和后续要求" /></el-form-item>
+                  <el-form-item label="上传照片"><el-upload drag :auto-upload="false" :on-change="handleCheckinFileChange" :file-list="checkinFileList" accept="image/*" :limit="5"><el-icon><Upload /></el-icon><div class="el-upload__text">拖拽或<em>点击上传</em>照片（最多5张）</div></el-upload></el-form-item>
                   <div class="task-form-actions"><el-button type="primary" :loading="savingCheckin" @click="saveCheckin">保存执行记录</el-button></div>
                 </el-form>
                 <div v-if="checkinsFor(selectedSubject).length" class="checkin-list">
                   <article v-for="checkin in checkinsFor(selectedSubject)" :key="checkin.id" class="checkin-row">
                     <div class="completion-rate"><strong>{{ checkin.completion_rate }}%</strong><span>完成度</span></div>
-                    <div><strong>{{ taskTitle(checkin.task_id) }}</strong><p>{{ checkin.self_check || '班主任未填写补充说明' }}</p><time>{{ formatDateTime(checkin.checked_in_at) }} · 记录{{ checkin.log_date || '-' }} · 得 {{ checkin.earned_points ?? '-' }} 分</time></div>
+                    <div><strong>{{ taskTitle(checkin.task_id) }}</strong><p>{{ checkin.self_check || '班主任未填写补充说明' }}</p><time>{{ formatDateTime(checkin.checked_in_at) }} · 记录{{ checkin.log_date || '-' }} · 得 {{ checkin.earned_points ?? '-' }} 分</time>
+                      <div v-if="checkin.attachments?.length" class="checkin-attachments"><el-image v-for="(att, idx) in checkin.attachments" :key="idx" :src="att.url" :preview-src-list="checkin.attachments.map(a => a.url)" fit="cover" class="checkin-thumb" /></div>
+                    </div>
                   </article>
                 </div>
                 <div v-else class="inline-empty"><p>该学科尚无执行记录，班主任核实任务执行情况后在此登记。</p></div>
@@ -623,7 +626,7 @@
 <script setup>
 import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, TrendCharts, View, WarningFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, TrendCharts, Upload, View, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, exportStudentCase, getStudentCase, listCaseVersions, listStageCompletions, rebuildStageCompletion, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
@@ -675,6 +678,7 @@ const taskForm = ref(createEmptyTaskForm())
 const overviewForm = ref(createEmptyOverviewForm())
 const profileForm = ref(createEmptyProfileForm())
 const checkinForm = ref({ task_id: null, completion_rate: 0, self_check: '', log_date: '' })
+const checkinFileList = ref([])
 const stageCompletions = ref([])
 const expectedCheckinPoints = computed(() => {
   const task = detail.value?.tasks?.find((item) => item.id === checkinForm.value.task_id)
@@ -1344,15 +1348,32 @@ async function saveCheckin() {
       self_check: checkinForm.value.self_check,
       log_date: checkinForm.value.log_date || undefined,
     })
+    // 上传附件
+    if (checkinFileList.value.length) {
+      const { uploadCheckinAttachment } = await import('../../api/studentCases')
+      for (const file of checkinFileList.value) {
+        try {
+          const att = await uploadCheckinAttachment(saved.id, file.raw)
+          saved.attachments = [...(saved.attachments || []), att]
+        } catch (e) {
+          console.error('附件上传失败', e)
+        }
+      }
+    }
     detail.value.task_checkins.unshift(saved)
     const task = detail.value.tasks.find((item) => item.id === saved.task_id)
     if (task) task.status = saved.completion_rate === 100 ? 'completed' : saved.completion_rate > 0 ? 'in_progress' : 'pending'
     checkinForm.value = { task_id: null, completion_rate: 0, self_check: '', log_date: '' }
+    checkinFileList.value = []
     ElMessage.success(`执行记录已保存，得 ${saved.earned_points ?? 0} 分`)
     await loadStages()
   } finally {
     savingCheckin.value = false
   }
+}
+
+function handleCheckinFileChange(file, fileList) {
+  checkinFileList.value = fileList.slice(-5)
 }
 
 function subjectStatusText(subject) {
@@ -1726,6 +1747,8 @@ onMounted(load)
 .version-timeline { margin: 0; }
 .version-item.is-selected { border-color: var(--brand); background: var(--brand-soft); }
 .version-detail { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 14px; }
+.checkin-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.checkin-thumb { width: 64px; height: 64px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
 .version-detail header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .version-detail header strong { font-size: 14px; }
 .version-detail header small { color: var(--ink-muted); font-size: 11.5px; }

@@ -1,4 +1,4 @@
-"""存储统一入口：按配置分发到本地磁盘或 MinIO。"""
+"""存储统一入口：按配置分发到本地磁盘、MinIO 或阿里云 OSS。"""
 
 from __future__ import annotations
 
@@ -8,18 +8,21 @@ from fastapi.responses import RedirectResponse
 from app.core.config import settings
 from app.storage.local import LocalStorage
 from app.storage.minio import MinioStorage
+from app.storage.aliyun_oss import AliyunOSSStorage
 
-_backend: LocalStorage | MinioStorage | None = None
+_backend: LocalStorage | MinioStorage | AliyunOSSStorage | None = None
 
 
 def _get():
     """懒加载单例存储后端。"""
     global _backend
     if _backend is None:
-        if settings.storage_backend == "local":
-            _backend = LocalStorage()
-        else:
+        if settings.storage_backend == "oss":
+            _backend = AliyunOSSStorage()
+        elif settings.storage_backend == "minio":
             _backend = MinioStorage()
+        else:
+            _backend = LocalStorage()
     return _backend
 
 
@@ -39,7 +42,7 @@ def download_bytes(object_name: str) -> bytes:
 
 
 def serve_file(object_name: str):
-    """响应文件内容：本地直接返回流，MinIO 重定向到预签名 URL。"""
+    """响应文件内容：本地直接返回流，MinIO/阿里云 OSS 重定向到预签名 URL。"""
     backend = _get()
     if isinstance(backend, LocalStorage):
         return backend.file_response(object_name)
