@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.class_ import Class, ClassStudent, StudentConsultant
-from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.core.security import hash_password
 
 from app.schemas.class_ import (
@@ -27,11 +27,15 @@ _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
 
 
 def _check_class_owner(db: Session, class_id: int, user: User) -> Class:
-    """校验班级存在且当前用户有权操作（教师仅限自己的班级，任课老师仅限所带学科班级）。"""
+    """校验班级存在且当前用户有权操作（教师仅限自己的班级，任课老师仅限所带学科班级）。
+
+    德育主任为全局督查角色，允许只读单个班级及学生名单；写接口另有
+    _manager（仅 admin/teacher）把关，因此在此放行不会扩大写权限。
+    """
     cls = db.get(Class, class_id)
     if cls is None:
         raise HTTPException(status_code=404, detail="班级不存在")
-    if user.role == ROLE_ADMIN:
+    if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         return cls
     if cls.teacher_id == user.id:
         return cls

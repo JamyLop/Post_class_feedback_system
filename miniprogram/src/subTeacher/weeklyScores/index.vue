@@ -31,7 +31,7 @@
     <!-- 操作栏：德育主任/咨询老师仅只读查看，不展示录入入口 -->
     <view class="action-bar">
       <button v-if="canWrite" class="btn-primary" @click="goCreate">录入成绩</button>
-      <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
+      <button class="btn-outline" @click="onRefresh" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
     <!-- 班级汇总统计 -->
@@ -129,6 +129,7 @@ async function loadClasses() {
     classList.value = await listClasses()
   } catch (e) {
     classList.value = []
+    uni.showToast({ title: '班级加载失败，请点击刷新重试', icon: 'none' })
   }
 }
 
@@ -158,13 +159,19 @@ function applyEvaluation(updated) {
 }
 
 function onClassChange(e) {
-  classIndex.value = e.detail.value
+  classIndex.value = Number(e.detail.value)
   loadData()
 }
 
 function onSubjectChange(e) {
-  subjectIndex.value = e.detail.value
+  subjectIndex.value = Number(e.detail.value)
   loadData()
+}
+
+async function onRefresh() {
+  // 班级为空时（德育主任曾反馈无法选择班级）先重拉班级，再查成绩，避免卡死空列表
+  if (!classList.value.length) await loadClasses()
+  await loadData()
 }
 
 function goCreate() {
@@ -188,25 +195,27 @@ onShow(() => {
 .p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
 .filter-bar { display: flex; gap: 16rpx; }
-.filter-item { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
+.filter-item { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .filter-label { font-size: 24rpx; font-weight: 500; color: #526177; }
 .picker-box {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 8rpx;
   background: #fff; border: 1rpx solid var(--mp-line); border-radius: 8rpx;
-  padding: 16rpx 18rpx;
+  padding: 16rpx 18rpx; min-width: 0;
 }
-.picker-text { font-size: 26rpx; color: var(--mp-ink); }
-.picker-arrow { font-size: 24rpx; color: var(--mp-muted); }
+.picker-text { flex: 1; min-width: 0; font-size: 26rpx; color: var(--mp-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-arrow { flex-shrink: 0; font-size: 24rpx; color: var(--mp-muted); }
 
 .action-bar { display: flex; gap: 16rpx; }
 .btn-primary {
-  flex: 2; background: var(--mp-primary); color: #fff; border-radius: 8rpx;
-  padding: 18rpx 0; font-size: 28rpx; font-weight: 600; border: none;
+  flex: 2; min-width: 0; width: 100%; box-sizing: border-box; background: var(--mp-primary); color: #fff; border-radius: 8rpx;
+  padding: 18rpx 8rpx; font-size: 28rpx; font-weight: 600; border: none; line-height: 1.5; min-height: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .btn-primary::after { border: none; }
 .btn-outline {
-  flex: 1; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE;
-  border-radius: 8rpx; padding: 18rpx 0; font-size: 28rpx;
+  flex: 1; min-width: 0; width: 100%; box-sizing: border-box; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE;
+  border-radius: 8rpx; padding: 18rpx 8rpx; font-size: 28rpx; line-height: 1.5; min-height: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .btn-outline::after { border: none; }
 
@@ -235,18 +244,18 @@ onShow(() => {
 .score-num { font-size: 28rpx; font-weight: 700; color: var(--mp-ink); display: block; }
 .score-label { font-size: 18rpx; color: #526177; display: block; margin-top: 2rpx; }
 
-.score-row { padding: 16rpx 0; display: flex; align-items: center; justify-content: space-between; }
+.score-row { padding: 16rpx 0; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
 .score-entry { padding-bottom: 18rpx; }
 .score-entry.has-border { border-top: 2rpx solid var(--mp-soft); }
-.score-info { flex: 1; }
-.score-head { display: flex; align-items: center; gap: 10rpx; }
-.student-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.score-info { flex: 1; min-width: 0; }
+.score-head { display: flex; align-items: center; gap: 10rpx; min-width: 0; }
+.student-name { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .subject-tag {
   font-size: 24rpx; color: var(--mp-primary); background: var(--mp-soft);
-  padding: 4rpx 10rpx; border-radius: 14rpx;
+  padding: 4rpx 10rpx; border-radius: 14rpx; flex-shrink: 0;
 }
-.score-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
-.score-right { text-align: right; }
+.score-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.score-right { text-align: right; flex-shrink: 0; }
 .score-value { font-size: 30rpx; font-weight: 700; color: var(--mp-primary); }
 .score-max { font-size: 24rpx; font-weight: 400; color: var(--mp-muted); }
 .rank-text { font-size: 24rpx; color: #865C1E; display: block; margin-top: 4rpx; }

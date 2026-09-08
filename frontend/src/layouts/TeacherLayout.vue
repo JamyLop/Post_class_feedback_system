@@ -69,7 +69,7 @@ const menuItems = computed(() => {
   const role = auth.role
   const allItems = [
     { index: '/teacher/student-cases', icon: 'Files', title: '学生档案', roles: ['admin', 'teacher', 'deyu_director'] },
-    { index: '/teacher/weekly-scores', icon: 'DataAnalysis', title: '周测成绩', roles: ['admin', 'teacher'] },
+    { index: '/teacher/weekly-scores', icon: 'DataAnalysis', title: '周测成绩', roles: ['admin', 'teacher', 'deyu_director'] },
     { index: '/teacher/task-reminders', icon: 'Bell', title: '任务提醒', roles: ['admin', 'teacher'] },
     { index: '/teacher/points-reports', icon: 'TrendCharts', title: '积分周月报', roles: ['admin', 'teacher', 'deyu_director'] },
     { index: '/teacher/monthly-reports', icon: 'Notebook', title: '月度评定', roles: ['admin', 'teacher'] },

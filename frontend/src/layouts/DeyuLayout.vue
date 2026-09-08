@@ -20,6 +20,10 @@
             <el-icon><TrendCharts /></el-icon>
             <span>积分周月报</span>
           </el-menu-item>
+          <el-menu-item index="/teacher/weekly-scores">
+            <el-icon><DataAnalysis /></el-icon>
+            <span>周测成绩（查阅）</span>
+          </el-menu-item>
           <el-menu-item index="/teacher/student-cases">
             <el-icon><Files /></el-icon>
             <span>学生档案（查阅）</span>
@@ -66,7 +70,7 @@
 </template>
 
 <script setup>
-import { Check, Files, TrendCharts } from '@element-plus/icons-vue'
+import { Check, DataAnalysis, Files, TrendCharts } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 

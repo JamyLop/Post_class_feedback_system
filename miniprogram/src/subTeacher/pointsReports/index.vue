@@ -34,7 +34,7 @@
       </view>
       <view class="action-bar">
         <button class="btn-primary" :loading="building" :disabled="building || !selectedClassId" @click="build">一键生成本班报表</button>
-        <button class="btn-outline" :loading="loading" :disabled="loading" @click="loadData">刷新</button>
+        <button class="btn-outline" :loading="loading" :disabled="loading" @click="onRefresh">刷新</button>
       </view>
     </view>
 
@@ -140,6 +140,21 @@ function onTypeChange(e) {
   loadData()
 }
 
+async function reloadClasses() {
+  try {
+    classList.value = await listClasses()
+  } catch (_) {
+    classList.value = []
+    uni.showToast({ title: '班级加载失败，请点击刷新重试', icon: 'none' })
+  }
+}
+
+async function onRefresh() {
+  // 班级为空时先重拉班级，再查报表，避免picker长期只有“选择班级”一项
+  if (!classList.value.length) await reloadClasses()
+  await loadData()
+}
+
 async function loadData() {
   if (!selectedClassId.value) { rows.value = []; return }
   loading.value = true
@@ -180,11 +195,7 @@ async function build() {
 
 onShow(async () => {
   if (!guardRole()) return
-  try {
-    classList.value = await listClasses()
-  } catch (_) {
-    classList.value = []
-  }
+  await reloadClasses()
   if (!periodLabel.value) periodLabel.value = currentWeekLabel()
   if (classList.value.length && classIndex.value === 0) {
     const g3 = classList.value.findIndex(c => c.grade === '高三')
@@ -199,18 +210,19 @@ onShow(async () => {
 .h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
 .p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; line-height: 1.6; }
 .filter-bar { display: flex; gap: 16rpx; }
-.filter-item { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
+.filter-item { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .filter-label { font-size: 24rpx; font-weight: 500; color: #526177; }
-.picker-box { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1rpx solid var(--mp-line); border-radius: 8rpx; padding: 16rpx 18rpx; }
-.picker-text { font-size: 26rpx; color: var(--mp-ink); }
-.picker-arrow { font-size: 24rpx; color: var(--mp-muted); }
+.picker-box { display: flex; align-items: center; justify-content: space-between; gap: 8rpx; background: #fff; border: 1rpx solid var(--mp-line); border-radius: 8rpx; padding: 16rpx 18rpx; min-width: 0; }
+.picker-text { flex: 1; min-width: 0; font-size: 26rpx; color: var(--mp-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-arrow { flex-shrink: 0; font-size: 24rpx; color: var(--mp-muted); }
 .card { background: #fff; border-radius: 10rpx; padding: 24rpx; border: 1rpx solid var(--mp-line); display: flex; flex-direction: column; gap: 16rpx; }
 .card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; }
-.text-input { background: #F7F8FA; border: 1rpx solid var(--mp-line); border-radius: 8rpx; padding: 16rpx 18rpx; font-size: 26rpx; }
+.field { display: flex; flex-direction: column; gap: 8rpx; min-width: 0; }
+.text-input { background: #F7F8FA; border: 1rpx solid var(--mp-line); border-radius: 8rpx; padding: 16rpx 18rpx; font-size: 26rpx; min-height: 72rpx; line-height: 1.5; box-sizing: border-box; width: 100%; }
 .action-bar { display: flex; gap: 16rpx; }
-.btn-primary { flex: 2; background: var(--mp-primary); color: #fff; border-radius: 8rpx; padding: 18rpx 0; font-size: 28rpx; font-weight: 600; border: none; }
+.btn-primary { flex: 2; min-width: 0; width: 100%; box-sizing: border-box; background: var(--mp-primary); color: #fff; border-radius: 8rpx; padding: 18rpx 8rpx; font-size: 28rpx; font-weight: 600; border: none; line-height: 1.5; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn-primary::after { border: none; }
-.btn-outline { flex: 1; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE; border-radius: 8rpx; padding: 18rpx 0; font-size: 28rpx; }
+.btn-outline { flex: 1; min-width: 0; width: 100%; box-sizing: border-box; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE; border-radius: 8rpx; padding: 18rpx 8rpx; font-size: 28rpx; line-height: 1.5; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn-outline::after { border: none; }
 .summary-text { font-size: 26rpx; color: var(--mp-ink); display: block; }
 .summary-text.muted { color: var(--mp-muted); font-size: 24rpx; }
@@ -219,10 +231,10 @@ onShow(async () => {
 .report-row { display: flex; align-items: center; gap: 16rpx; padding: 14rpx 0; }
 .report-row.has-border { border-top: 2rpx solid var(--mp-soft); }
 .report-info { flex: 1; min-width: 0; }
-.report-head { display: flex; align-items: center; gap: 10rpx; }
-.student-name { font-size: 27rpx; font-weight: 600; color: var(--mp-ink); }
-.period-tag { font-size: 22rpx; color: var(--mp-muted); background: #F3F5F8; padding: 4rpx 12rpx; border-radius: 12rpx; }
-.report-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
+.report-head { display: flex; align-items: center; gap: 10rpx; min-width: 0; }
+.student-name { font-size: 27rpx; font-weight: 600; color: var(--mp-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.period-tag { flex-shrink: 0; font-size: 22rpx; color: var(--mp-muted); background: #F3F5F8; padding: 4rpx 12rpx; border-radius: 12rpx; }
+.report-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .progress-track { height: 10rpx; background: #EDF1F7; border-radius: 6rpx; margin-top: 10rpx; overflow: hidden; }
 .progress-fill { height: 100%; background: var(--mp-primary); border-radius: 6rpx; }
 .report-score { text-align: right; flex-shrink: 0; }
