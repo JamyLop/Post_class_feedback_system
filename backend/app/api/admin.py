@@ -8,14 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import require_roles
 from app.core.database import get_db
-from app.models.assignment import Assignment
 from app.models.class_ import Class, ClassTeacher, StudentGuardian, StudentConsultant
 from app.models.invite import (
     INVITE_STATUS_ACTIVE,
     INVITE_STATUS_DISABLED,
     InviteCode,
 )
-from app.models.submission import Submission
 from app.models.user import (
     ROLE_ADMIN,
     ROLE_CONSULTANT,
@@ -27,7 +25,6 @@ from app.models.user import (
     ROLES,
     User,
 )
-from sqlalchemy.exc import ProgrammingError
 
 from app.schemas.admin import (
     AdminStats,
@@ -48,28 +45,6 @@ _admin_only = require_roles([ROLE_ADMIN])
 _CODE_CHARS = string.ascii_uppercase + string.digits
 
 
-def _safe_count(db: Session, model, fallback_model=None) -> int:
-    """安全计数：兼容历史迁移已删除的 legacy 表（assignments/submissions 等）。
-
-    若目标表不存在（ProgrammingError UndefinedTable），回滚事务并尝试 fallback 模型；
-    否则返回 0，避免 500 导致校级概览页不可用。详见迁移 g1h2i3j4k5l6。
-    """
-    try:
-        return db.query(model).count()
-    except ProgrammingError:
-        db.rollback()
-        if fallback_model is not None:
-            try:
-                return db.query(fallback_model).count()
-            except Exception:
-                db.rollback()
-                return 0
-        return 0
-    except Exception:
-        db.rollback()
-        return 0
-
-
 def _generate_code(length: int = 8) -> str:
     """生成随机大写字母+数字邀请码。"""
     return "".join(secrets.choice(_CODE_CHARS) for _ in range(length))
@@ -81,12 +56,7 @@ def admin_stats(db: Session = Depends(get_db), admin: User = Depends(_admin_only
     counts = {}
     for role in ROLES:
         counts[role] = db.query(User).filter(User.role == role).count()
-    # assignments / submissions 表已在 g1h2i3j4k5l6 中下线（被 student_case 体系替代），
-    # 生产库查询会触发 UndefinedTable；用 _safe_count 兜底，避免 500。
-    # 为保持前端契约，仍返回 assignment_count / submission_count，但底层回退到新域对象。
     from app.models.student_case import StudentCase
-
-    from app.models.weekly_score import WeeklyTestScore
 
     return AdminStats(
         user_count=sum(counts.values()),
@@ -97,10 +67,8 @@ def admin_stats(db: Session = Depends(get_db), admin: User = Depends(_admin_only
         deyu_director_count=counts.get(ROLE_DEYU_DIRECTOR, 0),
         consultant_count=counts.get(ROLE_CONSULTANT, 0),
         subject_teacher_count=counts.get(ROLE_SUBJECT_TEACHER, 0),
-        class_count=_safe_count(db, Class),
-        assignment_count=_safe_count(db, Assignment, fallback_model=StudentCase),
-        submission_count=_safe_count(db, Submission, fallback_model=WeeklyTestScore),
-        case_count=_safe_count(db, StudentCase),
+        class_count=db.query(Class).count(),
+        case_count=db.query(StudentCase).count(),
     )
 
 
@@ -323,23 +291,8 @@ def delete_user(
     if target.id == admin.id:
         raise HTTPException(status_code=400, detail="不能删除当前登录账号")
 
-    def _exists(query):
-        try:
-            return query.first()
-        except ProgrammingError:
-            db.rollback()
-            return None
-        except Exception:
-            db.rollback()
-            return None
-
-    has_submissions = (
-        _exists(db.query(Submission).filter(Submission.student_id == user_id))
-        if target.role == ROLE_STUDENT
-        else None
-    )
     has_classes = (
-        _exists(db.query(Class).filter(Class.teacher_id == user_id))
+        db.query(Class).filter(Class.teacher_id == user_id).first()
         if target.role == ROLE_TEACHER
         else None
     )
@@ -350,8 +303,6 @@ def delete_user(
         )
         .first()
     )
-    if has_submissions is not None:
-        raise HTTPException(status_code=409, detail="该学生存在提交记录，请改用禁用")
     if has_classes is not None:
         raise HTTPException(status_code=409, detail="该教师名下存在班级，请改用禁用")
     if has_invites is not None:

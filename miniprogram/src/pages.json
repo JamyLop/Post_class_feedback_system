@@ -41,18 +41,6 @@
       "style": {
         "navigationBarTitleText": "学情分析"
       }
-    },
-    {
-      "path": "pages/student/assignments/index",
-      "style": {
-        "navigationBarTitleText": "我的作业"
-      }
-    },
-    {
-      "path": "pages/student/assignmentDetail/index",
-      "style": {
-        "navigationBarTitleText": "作业详情"
-      }
     }
   ],
   "subPackages": [

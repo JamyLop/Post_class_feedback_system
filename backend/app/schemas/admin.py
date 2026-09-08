@@ -43,10 +43,6 @@ class AdminStats(BaseModel):
     consultant_count: int = 0
     subject_teacher_count: int = 0
     class_count: int
-    # 兼容旧前端，仍保留但前端已不再展示；底层已回退到 StudentCase / WeeklyTestScore
-    assignment_count: int = 0
-    submission_count: int = 0
-    # 新增：一生一案看板所需
     case_count: int = 0
 
 

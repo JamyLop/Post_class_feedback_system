@@ -9,17 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     admin,
-    analytics,
-    assignments,
     case_tasks,
     classes,
-    feedback,
-    grading,
-    knowledge,
     monthly_reports,
     points_reports,
-    questions,
-    submissions,
     student_cases,
     users,
     weekly_scores,
@@ -73,13 +66,6 @@ app.add_middleware(
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(classes.router, prefix=settings.api_prefix)
-app.include_router(knowledge.router, prefix=settings.api_prefix)
-app.include_router(questions.router, prefix=settings.api_prefix)
-app.include_router(assignments.router, prefix=settings.api_prefix)
-app.include_router(submissions.router, prefix=settings.api_prefix)
-app.include_router(grading.router, prefix=settings.api_prefix)
-app.include_router(analytics.router, prefix=settings.api_prefix)
-app.include_router(feedback.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
 app.include_router(case_tasks.router, prefix=settings.api_prefix)
 app.include_router(student_cases.router, prefix=settings.api_prefix)

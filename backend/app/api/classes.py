@@ -149,19 +149,13 @@ def delete_class(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
-    """仅删除没有档案、作业或反馈数据的班级，避免级联丢失教学记录。"""
-    from app.models.assignment import Assignment
-    from app.models.feedback import FeedbackReport
+    """仅删除没有学生档案的班级，避免级联丢失档案记录。"""
     from app.models.student_case import StudentCase
 
     cls = _check_class_owner(db, class_id, user)
     blockers = []
     if db.query(StudentCase.id).filter_by(class_id=class_id).first():
         blockers.append("学生档案")
-    if db.query(Assignment.id).filter_by(class_id=class_id).first():
-        blockers.append("作业")
-    if db.query(FeedbackReport.id).filter_by(class_id=class_id).first():
-        blockers.append("反馈记录")
     if blockers:
         raise HTTPException(
             status_code=409,

@@ -76,7 +76,8 @@
 import WorkspaceLink from '../../../components/WorkspaceLink.vue'
 import WeeklyScoreEvaluations from '../../../components/WeeklyScoreEvaluations.vue'
 import { ref, onMounted, watch } from 'vue'
-import { listWeeklyScores, getWeeklyTrend, listMonthlyReports } from '../../../api/assignments'
+import { listWeeklyScores, getWeeklyTrend } from '../../../api/weeklyScores'
+import { listMonthlyReports } from '../../../api/monthlyReports'
 import { http } from '../../../utils/request'
 import EmptyState from '../../../components/EmptyState.vue'
 

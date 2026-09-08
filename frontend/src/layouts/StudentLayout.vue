@@ -12,18 +12,6 @@
       <el-scrollbar class="nav-scroll">
         <div class="nav-label">我的学业</div>
         <el-menu :default-active="$route.path" router>
-          <el-menu-item index="/student/assignments">
-            <el-icon><Document /></el-icon>
-            <span>我的作业</span>
-          </el-menu-item>
-          <el-menu-item index="/student/my-analytics">
-            <el-icon><TrendCharts /></el-icon>
-            <span>我的学情</span>
-          </el-menu-item>
-          <el-menu-item index="/student/my-feedback">
-            <el-icon><ChatDotRound /></el-icon>
-            <span>课后反馈</span>
-          </el-menu-item>
           <el-menu-item index="/student/my-weekly-scores">
             <el-icon><DataAnalysis /></el-icon>
             <span>周测成绩</span>
@@ -65,7 +53,7 @@
 </template>
 
 <script setup>
-import { ChatDotRound, DataAnalysis, Document, Notebook, TrendCharts } from '@element-plus/icons-vue'
+import { DataAnalysis, Notebook } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 

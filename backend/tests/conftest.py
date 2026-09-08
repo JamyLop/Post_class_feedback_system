@@ -1,4 +1,4 @@
-"""pytest 全局配置：隔离的 tests schema + Celery eager 模式。
+"""pytest 全局配置：隔离的 tests schema。
 
 测试使用同一 PostgreSQL 的独立 schema `tests`，与开发库 `public` 隔离。
 """
@@ -8,8 +8,6 @@ import os
 os.environ["DATABASE_URL"] = (
     "postgresql+psycopg://pfs:pfs@localhost:5432/pfs?options=-csearch_path%3Dtests"
 )
-os.environ["LLM_PROVIDER"] = "mock"
-os.environ["OCR_PROVIDER"] = "mock"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -17,7 +15,6 @@ from sqlalchemy import create_engine, text  # noqa: E402
 
 from app.core.database import Base, SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
-from app.tasks.celery_app import celery_app  # noqa: E402
 
 TEST_URL = os.environ["DATABASE_URL"]
 
@@ -44,8 +41,6 @@ def _clean_tables(_engine):
 
 @pytest.fixture()
 def client():
-    celery_app.conf.task_always_eager = True
-    celery_app.conf.task_eager_propagates = True
     with TestClient(app) as c:
         yield c
 
@@ -59,9 +54,8 @@ def db():
 
 @pytest.fixture()
 def seed_users(db, _clean_tables):
-    """基线账号：admin / teacher1 / teacher2 / student1 / student2 与一个知识点。"""
+    """基线账号：admin / teacher1 / teacher2 / student1 / student2。"""
     from app.core.security import hash_password
-    from app.models.knowledge import KnowledgePoint
     from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 
     users = [
@@ -85,14 +79,7 @@ def seed_users(db, _clean_tables):
         db.add(u)
         db.flush()
         created[username] = u.id
-    kp = KnowledgePoint(
-        subject="数学", grade="初二", chapter="方程与函数",
-        name="求根公式", code="test_kp_001",
-    )
-    db.add(kp)
-    db.flush()
     db.commit()
-    created["kp"] = kp.id
     return created
 
 
