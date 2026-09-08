@@ -20,6 +20,7 @@
             <el-radio-button value="deyu_director">德育主任</el-radio-button>
             <el-radio-button value="consultant">咨询老师</el-radio-button>
             <el-radio-button value="parent">家长</el-radio-button>
+            <el-radio-button value="admin">管理员</el-radio-button>
           </el-radio-group>
         </el-form-item>
 

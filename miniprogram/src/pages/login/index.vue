@@ -28,6 +28,20 @@
           <text class="field-label">密码</text>
           <input v-model="form.password" password placeholder="请输入密码" class="input" />
         </view>
+        <view class="field">
+          <text class="field-label">验证码</text>
+          <view class="captcha-row">
+            <input v-model="form.captcha_code" placeholder="输入右侧验证码" class="input captcha-input" maxlength="8" />
+            <image
+              v-if="captcha.image"
+              :src="captcha.image"
+              class="captcha-img"
+              mode="aspectFill"
+              @click="fetchCaptcha"
+            />
+            <text v-else class="captcha-link" @click="fetchCaptcha">获取验证码</text>
+          </view>
+        </view>
       </view>
       <button class="btn-primary" :loading="pwdLoading" :disabled="pwdLoading" @click="handlePasswordLogin">登录</button>
       <view class="register-row">
@@ -41,24 +55,41 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { getCaptcha } from '../../api/auth'
 
 const auth = useAuthStore()
 const pwdLoading = ref(false)
-const form = reactive({ username: '', password: '' })
+const form = reactive({ username: '', password: '', captcha_code: '' })
+const captcha = reactive({ id: '', image: '' })
+
+async function fetchCaptcha() {
+  try {
+    const data = await getCaptcha()
+    captcha.id = data.captcha_id
+    captcha.image = data.image
+    form.captcha_code = ''
+  } catch (e) {
+    // 错误已由 request 拦截器处理
+  }
+}
+
+onMounted(fetchCaptcha)
 
 function routeByRole() { return '/pages/index/index' }
 
 async function handlePasswordLogin() {
   if (pwdLoading.value) return
   if (!form.username || !form.password) return uni.showToast({ title: '请填写用户名和密码', icon: 'none' })
+  if (!form.captcha_code) return uni.showToast({ title: '请输入验证码', icon: 'none' })
   pwdLoading.value = true
   try {
-    const user = await auth.login(form.username, form.password)
+    const user = await auth.login(form.username, form.password, captcha.id, form.captcha_code)
     uni.reLaunch({ url: routeByRole(user.role) })
   } catch (e) {
-    // 错误已由 request 拦截器处理
+    // 验证码一次性消费，失败后自动刷新
+    fetchCaptcha()
   } finally {
     pwdLoading.value = false
   }

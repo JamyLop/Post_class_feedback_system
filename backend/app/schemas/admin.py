@@ -18,6 +18,7 @@ class RegisterRequest(BaseModel):
 class InviteCodeCreate(BaseModel):
     role: str
     expires_at: Optional[datetime] = None
+    max_uses: int = Field(default=1, ge=1, le=10000)
 
 
 class InviteCodeOut(BaseModel):
@@ -28,6 +29,8 @@ class InviteCodeOut(BaseModel):
     role: str
     status: str
     expires_at: Optional[datetime] = None
+    max_uses: int = 1
+    used_count: int = 0
     used_by: Optional[int] = None
     used_at: Optional[datetime] = None
     created_at: datetime

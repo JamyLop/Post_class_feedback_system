@@ -70,8 +70,33 @@
           </view>
         </view>
         <view class="field">
-          <text class="field-label">学年</text>
-          <input v-model="form.school_year" placeholder="如：2026-2027" class="input" />
+          <text class="field-label">学年 <text class="required">*</text></text>
+          <picker :range="schoolYearOptions" :value="schoolYearIndex" @change="onSchoolYearChange">
+            <view class="input picker-input">
+              <text>{{ form.school_year || '请选择学年' }}</text>
+              <text class="picker-arrow">⌄</text>
+            </view>
+          </picker>
+        </view>
+        <view class="field">
+          <text class="field-label">学年开始日期 <text class="required">*</text></text>
+          <picker mode="date" :value="form.school_year_starts_on" @change="onStartsOnChange">
+            <view class="input picker-input">
+              <text>{{ form.school_year_starts_on || '请选择开始日期' }}</text>
+              <text class="picker-arrow">⌄</text>
+            </view>
+          </picker>
+          <text class="form-help">学生总案的阶段任务时间轴将从该日期开始计算。</text>
+        </view>
+        <view class="field">
+          <text class="field-label">学年结束日期 <text class="required">*</text></text>
+          <picker mode="date" :value="form.school_year_ends_on" @change="onEndsOnChange">
+            <view class="input picker-input">
+              <text>{{ form.school_year_ends_on || '请选择结束日期' }}</text>
+              <text class="picker-arrow">⌄</text>
+            </view>
+          </picker>
+          <text class="form-help">结束时间需晚于开始时间，默认为次年07-31。</text>
         </view>
       </view>
     </view>
@@ -99,14 +124,52 @@ const gradeMap = {
 const typeOptions = ['全年班', '短期班', '集训班', '1V1']
 const shortTypeOptions = ['暑假班', '寒假班']
 
+function currentSchoolYear() {
+  const today = new Date()
+  const start = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1
+  return `${start}-${start + 1}`
+}
+function defaultStartDate(schoolYear) {
+  const startYear = Number.parseInt(String(schoolYear).split('-')[0], 10)
+  return `${Number.isNaN(startYear) ? new Date().getFullYear() : startYear}-08-01`
+}
+function defaultEndDate(schoolYear) {
+  const parts = String(schoolYear).split('-')
+  const endYear = Number.parseInt(parts[1], 10) || Number.parseInt(parts[0], 10) + 1
+  return `${endYear}-07-31`
+}
+const initialSchoolYear = currentSchoolYear()
+
 const form = reactive({
   name: '',
   education_stage: '高中',
   grade: '高三',
   class_type: '全年班',
   short_term_type: null,
-  school_year: '2026-2027',
+  school_year: initialSchoolYear,
+  school_year_starts_on: defaultStartDate(initialSchoolYear),
+  school_year_ends_on: defaultEndDate(initialSchoolYear),
 })
+
+const schoolYearOptions = Array.from({ length: 81 }, (_, i) => {
+  const start = 2020 + i
+  return `${start}-${start + 1}`
+})
+const schoolYearIndex = computed(() => Math.max(0, schoolYearOptions.indexOf(form.school_year)))
+
+function onSchoolYearChange(e) {
+  const year = schoolYearOptions[Number(e.detail.value)]
+  if (!year) return
+  form.school_year = year
+  form.school_year_starts_on = defaultStartDate(year)
+  form.school_year_ends_on = defaultEndDate(year)
+}
+function onStartsOnChange(e) {
+  form.school_year_starts_on = e.detail.value
+}
+function onEndsOnChange(e) {
+  form.school_year_ends_on = e.detail.value
+}
 
 const gradeOptions = computed(() => gradeMap[form.education_stage] || [])
 
@@ -131,6 +194,14 @@ function validate() {
     uni.showToast({ title: '请选择短期类型', icon: 'none' })
     return false
   }
+  if (!form.school_year || !form.school_year_starts_on || !form.school_year_ends_on) {
+    uni.showToast({ title: '请完整填写学年与起止日期', icon: 'none' })
+    return false
+  }
+  if (form.school_year_ends_on <= form.school_year_starts_on) {
+    uni.showToast({ title: '结束时间必须晚于开始时间', icon: 'none' })
+    return false
+  }
   return true
 }
 
@@ -144,7 +215,9 @@ async function handleSubmit() {
       grade: form.grade,
       class_type: form.class_type,
       short_term_type: form.short_term_type,
-      school_year: form.school_year || '2026-2027',
+      school_year: form.school_year,
+      school_year_starts_on: form.school_year_starts_on,
+      school_year_ends_on: form.school_year_ends_on,
     })
     uni.showToast({ title: '创建成功', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 1500)
@@ -175,6 +248,9 @@ async function handleSubmit() {
   border: 1rpx solid #C6D0DE; border-radius: 8rpx;
   padding: 18rpx 22rpx; font-size: 28rpx; background: #fff;
 }
+.picker-input { display: flex; align-items: center; justify-content: space-between; }
+.picker-arrow { color: var(--mp-muted); }
+.form-help { font-size: 22rpx; color: var(--mp-muted); line-height: 1.5; }
 
 .radio-group { display: flex; flex-wrap: wrap; gap: 12rpx; }
 .radio-item {

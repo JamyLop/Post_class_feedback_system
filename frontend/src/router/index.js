@@ -54,7 +54,7 @@ const routes = [
       { path: 'teacher/weekly-scores', component: () => import('../views/teacher/WeeklyScores.vue'), meta: { roles: ['admin', 'teacher'] } },
       { path: 'teacher/monthly-reports', component: () => import('../views/teacher/MonthlyReports.vue'), meta: { roles: ['admin', 'teacher'] } },
       { path: 'teacher/task-reminders', component: () => import('../views/teacher/TaskReminders.vue'), meta: { roles: ['teacher'] } },
-      { path: 'teacher/points-reports', component: () => import('../views/teacher/PointsReports.vue'), meta: { roles: ['admin', 'teacher'] } },
+      { path: 'teacher/points-reports', component: () => import('../views/teacher/PointsReports.vue'), meta: { roles: ['admin', 'teacher', 'deyu_director'] } },
     ],
   },
   {

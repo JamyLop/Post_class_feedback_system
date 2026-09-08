@@ -147,6 +147,10 @@
         {
           "path": "subjectSuggestion/index",
           "style": { "navigationBarTitleText": "学科建议" }
+        },
+        {
+          "path": "pointsReports/index",
+          "style": { "navigationBarTitleText": "积分周月报" }
         }
       ]
     },

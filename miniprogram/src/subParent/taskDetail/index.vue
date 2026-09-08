@@ -23,6 +23,12 @@
         <text class="card-title">执行记录 · {{ checkins.length }} 条</text>
         <view v-if="checkins.length">
           <Timeline :items="timelineItems" />
+          <view v-if="checkinsWithPhotos.length" class="photo-section">
+            <view v-for="c in checkinsWithPhotos" :key="c.id" class="photo-row">
+              <text class="photo-title">{{ c.completion_rate }}% · {{ formatCheckinTime(c.checked_in_at) }} · 打卡照片</text>
+              <CheckinAttachments :checkin-id="c.id" :attachments="c.attachments" />
+            </view>
+          </view>
         </view>
         <EmptyState v-else title="暂无执行记录" desc="班主任尚未录入打卡" />
       </view>
@@ -35,6 +41,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { getStudentCase } from '../../api/studentCases'
+import CheckinAttachments from '../../components/CheckinAttachments.vue'
 import Timeline from '../../components/Timeline.vue'
 import EmptyState from '../../components/EmptyState.vue'
 
@@ -55,6 +62,8 @@ const timelineItems = computed(() => checkins.value.map(c => ({
   desc: c.self_check || '—',
   time: c.checked_in_at?.slice(0,16).replace('T',' '),
 })))
+function formatCheckinTime(value) { return value?.slice(0, 16).replace('T', ' ') || '' }
+const checkinsWithPhotos = computed(() => checkins.value.filter(c => c.attachments?.length))
 
 async function load() {
   loading.value = true
@@ -117,4 +126,7 @@ onMounted(load)
   box-shadow: none;
 }
 .card-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); display: block; margin-bottom: 16rpx; }
+.photo-section { margin-top: 16rpx; display: flex; flex-direction: column; gap: 12rpx; }
+.photo-row { background: #F7F8FA; border-radius: 12rpx; padding: 14rpx; }
+.photo-title { font-size: 22rpx; color: #526177; display: block; margin-bottom: 4rpx; }
 </style>

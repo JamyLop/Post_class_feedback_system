@@ -53,6 +53,7 @@
               <view class="invite-info">
                 <text class="invite-code">{{ c.code }}</text>
                 <text class="invite-meta">{{ roleLabel(c.role) }} · {{ (c.created_at||'').slice(0,10) }}</text>
+                <text class="invite-meta">已用 {{ c.used_count ?? 0 }}/{{ c.max_uses ?? 1 }} · {{ formatExpire(c.expires_at) }}</text>
               </view>
               <text v-if="c.status==='active'" class="danger-link" @click="disableCode(c)">停用</text>
               <text v-else class="disabled-text">已停用</text>
@@ -67,6 +68,23 @@
               </view>
             </picker>
             <button class="btn-primary-sm" :loading="creatingInvite" :disabled="creatingInvite" @click="createCode">生成</button>
+          </view>
+          <view class="invite-opts">
+            <view class="opt-row">
+              <text class="opt-label">使用次数</text>
+              <view class="stepper">
+                <text class="step-btn" @click="decMaxUses">−</text>
+                <text class="step-num">{{ newInviteMaxUses }}</text>
+                <text class="step-btn" @click="incMaxUses">＋</text>
+              </view>
+            </view>
+            <view class="opt-row">
+              <text class="opt-label">有效期至</text>
+              <picker mode="date" :value="newInviteExpireDate" @change="onExpireDateChange">
+                <view class="filter-btn"><text class="filter-text">{{ newInviteExpireDate || '永久有效' }}</text><text class="filter-arrow">›</text></view>
+              </picker>
+              <text v-if="newInviteExpireDate" class="clear-link" @click="newInviteExpireDate=''">清除</text>
+            </view>
           </view>
         </template>
       </view>
@@ -151,11 +169,13 @@ const users = ref([])
 const keyword = ref('')
 const selectedRole = ref('student')
 const roleOptions = [
-  { value: 'student', label: '学生' },
-  { value: 'teacher', label: '教师' },
+  { value: 'admin', label: '管理员' },
+  { value: 'teacher', label: '班主任' },
   { value: 'deyu_director', label: '德育主任' },
+  { value: 'consultant', label: '咨询老师' },
+  { value: 'subject_teacher', label: '任课老师' },
+  { value: 'student', label: '学生' },
   { value: 'parent', label: '家长' },
-  { value: 'admin', label: '校长' },
 ]
 const currentRoleLabel = computed(() => roleOptions.find(r => r.value === selectedRole.value)?.label || '')
 function roleLabel(v) { return roleOptions.find(r => r.value === v)?.label || v }
@@ -213,8 +233,18 @@ const loadingInvite = ref(false)
 const inviteCodes = ref([])
 const creatingInvite = ref(false)
 const newInviteRole = ref('teacher')
-const inviteRoleOptions = roleOptions.filter(r => r.value !== 'admin')
+const newInviteMaxUses = ref(1)
+const newInviteExpireDate = ref('')
+const inviteRoleOptions = roleOptions
 const inviteRoleLabel = computed(() => inviteRoleOptions.find(r => r.value === newInviteRole.value)?.label || '')
+function incMaxUses() { if (newInviteMaxUses.value < 10000) newInviteMaxUses.value += 1 }
+function decMaxUses() { if (newInviteMaxUses.value > 1) newInviteMaxUses.value -= 1 }
+function onExpireDateChange(e) { newInviteExpireDate.value = e.detail.value || '' }
+function formatExpire(val) {
+  if (!val) return '永久有效'
+  const expired = new Date(val) < new Date()
+  return `${String(val).slice(0, 10)}${expired ? '（已过期）' : ''}`
+}
 
 async function loadInvite() {
   loadingInvite.value = true
@@ -225,7 +255,11 @@ async function loadInvite() {
 async function createCode() {
   creatingInvite.value = true
   try {
-    await createInviteCode({ role: newInviteRole.value })
+    const payload = { role: newInviteRole.value, max_uses: newInviteMaxUses.value || 1 }
+    if (newInviteExpireDate.value) {
+      payload.expires_at = new Date(`${newInviteExpireDate.value}T23:59:59`).toISOString()
+    }
+    await createInviteCode(payload)
     uni.showToast({ title: '已生成', icon: 'success' })
     loadInvite()
   } catch (e) { uni.showToast({ title: e.message || '生成失败', icon: 'none' }) } finally { creatingInvite.value = false }
@@ -317,6 +351,14 @@ onShow(() => {
 .empty-text { text-align: center; color: var(--mp-muted); padding: 48rpx 24rpx; font-size: 24rpx; }
 .create-row { display: flex; gap: 12rpx; align-items: center; }
 .create-row > picker { flex: 1; min-width: 0; }
+.invite-opts { display: flex; flex-direction: column; gap: 12rpx; background: #F7F8FA; border-radius: 12rpx; padding: 16rpx; }
+.opt-row { display: flex; align-items: center; gap: 12rpx; }
+.opt-label { font-size: 24rpx; color: var(--mp-muted); flex-shrink: 0; }
+.opt-row > picker { flex: 1; min-width: 0; }
+.stepper { display: flex; align-items: center; gap: 16rpx; }
+.step-btn { width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; background: #fff; border: 2rpx solid var(--mp-line); border-radius: 10rpx; font-size: 32rpx; color: var(--mp-ink); }
+.step-num { font-size: 28rpx; font-weight: 700; color: var(--mp-ink); min-width: 60rpx; text-align: center; }
+.clear-link { font-size: 24rpx; color: var(--mp-muted); flex-shrink: 0; }
 .tab-panel > .btn-outline { box-sizing: border-box; width: 100%; margin: 0; }
 
 .btn-primary-sm {

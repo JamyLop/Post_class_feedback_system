@@ -69,6 +69,12 @@
           <view v-if="detail.task_checkins.length" class="checkin-section">
             <text class="section-h">执行记录（最近10条）</text>
             <Timeline :items="checkinItems" />
+            <view v-if="checkinsWithPhotos.length" class="photo-section">
+              <view v-for="c in checkinsWithPhotos" :key="c.id" class="photo-row">
+                <text class="photo-title">{{ taskTitle(c.task_id) }} · {{ formatCheckinTime(c.checked_in_at) }} · 打卡照片</text>
+                <CheckinAttachments :checkin-id="c.id" :attachments="c.attachments" />
+              </view>
+            </view>
           </view>
         </view>
       </view>
@@ -83,6 +89,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
+import CheckinAttachments from '../../components/CheckinAttachments.vue'
 import Timeline from '../../components/Timeline.vue'
 import EmptyState from '../../components/EmptyState.vue'
 
@@ -109,6 +116,8 @@ const stateDesc = computed(() => statusCopy[detail.value?.status]?.[1] || '')
 
 function taskStatus(v) { return { pending:'待执行', in_progress:'执行中', completed:'已完成', cancelled:'已取消' }[v] || v }
 function taskTitle(id) { return detail.value?.tasks.find(t => t.id === id)?.title || '任务' }
+function formatCheckinTime(value) { return value?.slice(0, 16).replace('T', ' ') || '' }
+const checkinsWithPhotos = computed(() => (detail.value?.task_checkins || []).filter(c => c.attachments?.length).slice(0, 10))
 
 const checkinItems = computed(() => (detail.value?.task_checkins || []).slice(0, 10).map(c => ({
   title: `${c.completion_rate}% · ${taskTitle(c.task_id)}`,
@@ -195,6 +204,9 @@ onShow(() => load())
 .task-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
 .task-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .checkin-section { margin-top: 12rpx; }
+.photo-section { margin-top: 16rpx; display: flex; flex-direction: column; gap: 14rpx; }
+.photo-row { background: #F7F8FA; border-radius: 12rpx; padding: 14rpx; }
+.photo-title { font-size: 22rpx; color: #526177; display: block; margin-bottom: 4rpx; }
 </style>
 
 <style scoped src="../../styles/details.css"></style>

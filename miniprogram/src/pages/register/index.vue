@@ -53,6 +53,20 @@
           <text class="field-label">确认密码 <text class="required">*</text></text>
           <input v-model="form.confirmPassword" password placeholder="请再次输入密码" class="input" />
         </view>
+        <view class="field">
+          <text class="field-label">验证码 <text class="required">*</text></text>
+          <view class="captcha-row">
+            <input v-model="form.captcha_code" placeholder="输入右侧验证码" class="input captcha-input" maxlength="8" />
+            <image
+              v-if="captcha.image"
+              :src="captcha.image"
+              class="captcha-img"
+              mode="aspectFill"
+              @click="fetchCaptcha"
+            />
+            <text v-else class="captcha-link" @click="fetchCaptcha">获取验证码</text>
+          </view>
+        </view>
       </view>
       <button class="btn-primary" :loading="loading" :disabled="loading" @click="handleRegister">注册</button>
       <view class="login-row">
@@ -66,17 +80,33 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { getCaptcha } from '../../api/auth'
 
 const auth = useAuthStore()
 const loading = ref(false)
+const captcha = reactive({ id: '', image: '' })
+
+async function fetchCaptcha() {
+  try {
+    const data = await getCaptcha()
+    captcha.id = data.captcha_id
+    captcha.image = data.image
+    form.captcha_code = ''
+  } catch (e) {
+    // 错误已由 request 拦截器处理
+  }
+}
+
+onMounted(fetchCaptcha)
 
 const roleOptions = [
   { label: '学生', value: 'student' },
   { label: '家长', value: 'parent' },
   { label: '班主任', value: 'teacher' },
   { label: '德育主任', value: 'deyu_director' },
+  { label: '管理员', value: 'admin' },
 ]
 
 const form = reactive({
@@ -86,6 +116,7 @@ const form = reactive({
   name: '',
   password: '',
   confirmPassword: '',
+  captcha_code: '',
 })
 
 function validate() {
@@ -113,6 +144,10 @@ function validate() {
     uni.showToast({ title: '两次密码不一致', icon: 'none' })
     return false
   }
+  if (!form.captcha_code.trim()) {
+    uni.showToast({ title: '请输入验证码', icon: 'none' })
+    return false
+  }
   return true
 }
 
@@ -126,6 +161,8 @@ async function handleRegister() {
       username: form.username.trim(),
       name: form.name.trim(),
       password: form.password,
+      captcha_id: captcha.id,
+      captcha_code: form.captcha_code.trim(),
     })
     uni.showModal({
       title: '注册成功',
@@ -141,7 +178,8 @@ async function handleRegister() {
       }
     })
   } catch (e) {
-    // 错误已由 request 拦截器处理
+    // 验证码一次性消费，失败后自动刷新；错误已由 request 拦截器处理
+    fetchCaptcha()
   } finally {
     loading.value = false
   }

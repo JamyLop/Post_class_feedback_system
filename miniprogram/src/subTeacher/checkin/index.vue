@@ -35,8 +35,24 @@
             <text class="label">班主任记录</text>
             <textarea v-model="form.self_check" placeholder="实际执行情况、问题与要求" class="textarea" />
           </view>
+
+          <view class="field">
+            <text class="label">打卡照片（最多 {{ MAX_PHOTOS }} 张）</text>
+            <view class="photo-grid">
+              <view v-for="(p, idx) in photos" :key="idx" class="photo-cell">
+                <image :src="p.path" class="photo-thumb" mode="aspectFill" @click="previewPhotos(idx)" />
+                <text class="photo-remove" @click.stop="removePhoto(idx)">×</text>
+              </view>
+              <view v-if="photos.length < MAX_PHOTOS" class="photo-add" @click="choosePhotos">
+                <text class="photo-add-icon">+</text>
+                <text class="photo-add-text">拍照/选图</text>
+              </view>
+            </view>
+            <text v-if="uploading" class="upload-hint">正在上传照片 {{ uploadDone }}/{{ photos.length }}…</text>
+            <text v-else-if="!photos.length" class="upload-hint">仅支持 PNG / JPEG / GIF / WebP，单张不超过 10MB</text>
+          </view>
         </view>
-        <button class="btn-primary" :loading="submitting" :disabled="submitting" @click="submit">提交打卡</button>
+        <button class="btn-primary" :loading="submitting" :disabled="submitting || uploading" @click="submit">提交打卡</button>
         <text class="hint">完成度 100% 自动标记任务完成</text>
       </template>
     </template>
@@ -47,10 +63,16 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getStudentCase, checkinCaseTask } from '../../api/studentCases'
+import { getStudentCase, checkinCaseTask, uploadCheckinAttachment } from '../../api/studentCases'
 
 const loadingCase = ref(false)
 const submitting = ref(false)
+const uploading = ref(false)
+const uploadDone = ref(0)
+// 与 Web 端保持一致：一次打卡最多 5 张；后端另限制单张 10MB 内图片
+const MAX_PHOTOS = 5
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024
+const photos = ref([])
 const detail = ref(null)
 const selectedTaskId = ref(null)
 const form = reactive({ completion_rate: 80, self_check: '' })
@@ -91,12 +113,75 @@ async function submit() {
   if (!selectedTaskId.value) return uni.showToast({ title: '请选择任务', icon: 'none' })
   submitting.value = true
   try {
-    await checkinCaseTask(selectedTaskId.value, { completion_rate: Number(form.completion_rate), self_check: form.self_check })
-    uni.showToast({ title: '打卡成功', icon: 'success' })
+    // 先落打卡记录，再逐张上传照片；照片失败不回滚打卡（与 Web 端一致）
+    const saved = await checkinCaseTask(selectedTaskId.value, { completion_rate: Number(form.completion_rate), self_check: form.self_check })
+    let okCount = 0
+    let failCount = 0
+    if (photos.value.length && saved?.id) {
+      uploading.value = true
+      uploadDone.value = 0
+      for (const p of photos.value) {
+        try {
+          await uploadCheckinAttachment(saved.id, p.path, { showError: false })
+          okCount += 1
+        } catch (e) {
+          console.warn('[checkin] 照片上传失败', e?.message || e)
+          failCount += 1
+        } finally {
+          uploadDone.value += 1
+        }
+      }
+      uploading.value = false
+    }
+    if (failCount) {
+      uni.showToast({ title: `打卡成功，但${failCount}张照片上传失败`, icon: 'none' })
+    } else if (okCount) {
+      uni.showToast({ title: `打卡成功，照片${okCount}张`, icon: 'success' })
+    } else {
+      uni.showToast({ title: '打卡成功', icon: 'success' })
+    }
     setTimeout(() => uni.navigateBack(), 1500)
   } catch (e) {
     uni.showToast({ title: e.message || '打卡失败', icon: 'none' })
   } finally { submitting.value = false }
+}
+
+function choosePhotos() {
+  const remain = MAX_PHOTOS - photos.value.length
+  if (remain <= 0) {
+    uni.showToast({ title: `最多${MAX_PHOTOS}张照片`, icon: 'none' })
+    return
+  }
+  uni.chooseImage({
+    count: remain,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success(res) {
+      for (const file of res.tempFiles || []) {
+        if (file.size > MAX_PHOTO_BYTES) {
+          uni.showToast({ title: '单张照片不能超过 10MB', icon: 'none' })
+          continue
+        }
+        if (photos.value.length >= MAX_PHOTOS) break
+        photos.value.push({ path: file.path, size: file.size })
+      }
+    },
+    fail(err) {
+      // 用户取消选择不提示
+      if (!String(err?.errMsg || '').includes('cancel')) {
+        uni.showToast({ title: '选择照片失败', icon: 'none' })
+      }
+    },
+  })
+}
+
+function removePhoto(idx) {
+  photos.value.splice(idx, 1)
+}
+
+function previewPhotos(idx) {
+  const urls = photos.value.map(p => p.path)
+  if (urls.length) uni.previewImage({ urls, current: urls[idx] || urls[0] })
 }
 
 onShow(() => load())
@@ -139,6 +224,23 @@ onShow(() => load())
   border: 2rpx solid var(--mp-line); border-radius: 14rpx;
   padding: 18rpx 20rpx; font-size: 26rpx; min-height: 160rpx; background: #fff;
 }
+
+.photo-grid { display: flex; flex-wrap: wrap; gap: 14rpx; }
+.photo-cell { position: relative; width: 160rpx; height: 160rpx; }
+.photo-thumb { width: 160rpx; height: 160rpx; border-radius: 12rpx; background: #EDF1F7; }
+.photo-remove {
+  position: absolute; top: -14rpx; right: -14rpx; width: 40rpx; height: 40rpx;
+  border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff;
+  font-size: 30rpx; line-height: 40rpx; text-align: center;
+}
+.photo-add {
+  width: 160rpx; height: 160rpx; border-radius: 12rpx;
+  border: 2rpx dashed #C6D0DE; background: #F7F8FA;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6rpx;
+}
+.photo-add-icon { font-size: 52rpx; color: #98A4B5; line-height: 1; }
+.photo-add-text { font-size: 22rpx; color: #98A4B5; }
+.upload-hint { font-size: 22rpx; color: var(--mp-muted); }
 
 .btn-primary {
   background: var(--mp-primary);

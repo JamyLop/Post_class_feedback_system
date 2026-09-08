@@ -154,12 +154,24 @@ def test_points_stage_and_reports(client, auth, db, seed_users):
     assert month.status_code == 200, month.text
     assert len(month.json()) == 2
 
-    # 学生只能看自己的报表
+    # 积分仅班主任/德育主任/管理员可见：学生、家长均 403
     mine = client.get("/api/points-reports", headers=auth("student1"))
-    assert mine.status_code == 200, mine.text
-    assert {row["student_id"] for row in mine.json()} == {seed_users["student1"]}
+    assert mine.status_code == 403, mine.text
+    parent = client.get("/api/points-reports", headers=auth("parent1"))
+    assert parent.status_code == 403, parent.text
+
+    # 德育主任可查看全量报表、可生成
+    deyu_list = client.get("/api/points-reports", headers=auth("deyu1"))
+    assert deyu_list.status_code == 200, deyu_list.text
+    assert len(deyu_list.json()) >= 2
+    deyu_build = client.post(
+        "/api/points-reports/build",
+        headers=auth("deyu1"),
+        json={"class_id": class_id, "period_type": "weekly", "period_label": current_week_label()},
+    )
+    assert deyu_build.status_code == 200, deyu_build.text
 
     # 非班主任无所管班级：返回空待办
     empty = client.get("/api/student-cases/tasks/reminders", headers=auth("teacher2"))
     assert empty.status_code == 200, empty.text
-    assert empty.json()["counts"] == {"overdue": 0, "due_today": 0, "unlogged_today": 0}
+    assert empty.json()["counts"] == {"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0}

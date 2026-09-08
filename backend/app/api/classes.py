@@ -61,9 +61,19 @@ def list_classes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """班级列表：admin 全部、教师自己的、任课老师所带学科班级、学生所在班级。"""
-    if user.role == ROLE_ADMIN:
+    """班级列表：admin/德育主任全部、教师自己的、任课老师所带学科班级、咨询老师关联学生所在班级、学生所在班级。"""
+    from app.models.user import ROLE_DEYU_DIRECTOR
+
+    if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         return db.query(Class).order_by(Class.id.desc()).all()
+    if user.role == ROLE_CONSULTANT:
+        student_ids = [r.student_id for r in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()]
+        if not student_ids:
+            return []
+        class_ids = [r.class_id for r in db.query(ClassStudent).filter(ClassStudent.student_id.in_(student_ids)).all()]
+        if not class_ids:
+            return []
+        return db.query(Class).filter(Class.id.in_(set(class_ids))).order_by(Class.id.desc()).all()
     if user.role in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
         from app.models.class_ import ClassTeacher
 

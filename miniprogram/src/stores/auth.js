@@ -19,8 +19,8 @@ export const useAuthStore = defineStore('auth', {
         this.user = raw ? JSON.parse(raw) : null
       } catch (_) {}
     },
-    async login(username, password) {
-      const data = await http.post('/auth/login', { username, password })
+    async login(username, password, captcha_id = '', captcha_code = '') {
+      const data = await http.post('/auth/login', { username, password, captcha_id, captcha_code })
       this.token = data.access_token
       this.user = data.user
       uni.setStorageSync('token', data.access_token)

@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
-from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
+from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentConsultant, StudentGuardian
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.models.weekly_score import WeeklyTestScore, WeeklyScoreEvaluation
 from app.schemas.weekly_score import (
     ClassWeeklySummary,
@@ -71,8 +71,15 @@ def _verify_membership(db: Session, student_id: int, class_id: int):
 
 
 def _filter_scope(query, db: Session, user: User):
-    if user.role == ROLE_ADMIN:
+    if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
+        # 德育主任与校长同为全局督查角色，可查看全校周测。
         return query
+    if user.role == ROLE_CONSULTANT:
+        # 咨询老师仅可见自己关联学生的周测。
+        student_ids = [r.student_id for r in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()]
+        if not student_ids:
+            return query.filter(WeeklyTestScore.id == -1)
+        return query.filter(WeeklyTestScore.student_id.in_(student_ids))
     if user.role == ROLE_SUBJECT_TEACHER:
         # 任课账号仅能读取自己任教班级的对应学科，所有周测读取接口共用此边界。
         relations = db.query(ClassTeacher).filter_by(teacher_id=user.id).all()

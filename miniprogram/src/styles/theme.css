@@ -1,0 +1,47 @@
+/* 商务界面基础：品牌色只用于操作与选中态，状态色保留独立语义。 */
+page {
+  --mp-bg: #F3F5F8;
+  --mp-surface: #FFFFFF;
+  --mp-ink: #182337;
+  --mp-body: #37465B;
+  --mp-muted: #617086;
+  --mp-primary: #253D61;
+  --mp-soft: #EDF1F7;
+  --mp-line: #DFE5ED;
+  --mp-success: #286349;
+  --mp-warning: #865C1E;
+  --mp-danger: #A33E39;
+  background: var(--mp-bg);
+  color: var(--mp-ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+view, text, button, input, textarea { box-sizing: border-box; }
+.page { padding-bottom: calc(40rpx + env(safe-area-inset-bottom)); }
+button { margin: 0; line-height: 1.45; transition: opacity 160ms ease-out, background-color 160ms ease-out; }
+button::after { border: none; }
+button[disabled] { opacity: .55; }
+button:active { opacity: .78; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #42618A; outline-offset: 2px; }
+.input-placeholder, .textarea-placeholder { color: #617086; }
+.tap-active { background-color: #EDF1F7; }
+/* 原生输入框需要明确高度，避免文字被默认高度及内边距挤压。 */
+.page input.input { height: 92rpx; min-height: 92rpx; }
+.page textarea.textarea { width: 100%; min-height: 200rpx; line-height: 1.7; }
+.page .btn-primary, .page .btn-outline, .page .btn-submit, .page .btn-save { min-height: 88rpx; display: flex; align-items: center; justify-content: center; }
+.page .filters > picker { flex: 1; min-width: 0; }
+.page .filter-item { min-width: 0; }
+.page .case-info, .page .student-info, .page .child-info, .page .row-info, .page .tl-body { min-width: 0; }
+.page .title-row, .page .card-head, .page .plan-head { flex-wrap: wrap; }
+.page .section-body, .page .dd, .page .content-text, .page .case-meta, .page .summary, .page .meta { overflow-wrap: anywhere; }
+.page .modal { max-height: 85vh; overflow-y: auto; padding-bottom: calc(28rpx + env(safe-area-inset-bottom)); }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
+
+/* #ifdef H5 */
+uni-page-body { min-height: calc(100vh - 44px); background: var(--mp-bg); }
+.page uni-button { margin: 0; line-height: 1.45; box-sizing: border-box; }
+.page uni-button::after { border: none; }
+uni-button[disabled] { opacity: .55; }
+uni-input, uni-textarea { box-sizing: border-box; }
+/* #endif */

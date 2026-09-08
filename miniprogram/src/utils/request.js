@@ -6,6 +6,15 @@
  */
 const BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
 
+// 供 uploadFile / downloadFile 等需自行拼 URL 的场景复用（含鉴权附件上传下载）
+export function getApiBase() {
+  return BASE_URL
+}
+
+export function getApiHost() {
+  return BASE_URL.replace(/\/api\/?$/, '')
+}
+
 // 真机 localhost 检测：mp 平台上 localhost 指向手机自身，必然不可达
 function isPhysicalDevice() {
   try {

@@ -68,6 +68,12 @@
           <view v-if="detail.task_checkins.length" class="checkin-section">
             <text class="section-h">执行记录</text>
             <Timeline :items="checkinItems" />
+            <view v-if="checkinsWithPhotos.length" class="photo-section">
+              <view v-for="c in checkinsWithPhotos" :key="c.id" class="photo-row">
+                <text class="photo-title">{{ taskTitle(c.task_id) }} · {{ formatCheckinTime(c.checked_in_at) }} · 打卡照片</text>
+                <CheckinAttachments :checkin-id="c.id" :attachments="c.attachments" />
+              </view>
+            </view>
           </view>
         </view>
 
@@ -86,6 +92,7 @@ import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { getStudentCase } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
+import CheckinAttachments from '../../components/CheckinAttachments.vue'
 import Timeline from '../../components/Timeline.vue'
 import EmptyState from '../../components/EmptyState.vue'
 
@@ -124,6 +131,8 @@ const reviewItems = computed(() => (detail.value?.reviews || []).map((r) => ({
 
 function levelLabel(v) { return { school:'校级督查', principal:'校长督察', deyu:'德育督查', head_teacher:'班主任督查', subject:'学科督查'}[v] || v }
 function taskTitle(id) { return detail.value?.tasks.find((t)=>t.id===id)?.title || '任务' }
+function formatCheckinTime(value) { return value?.slice(0, 16).replace('T', ' ') || '' }
+const checkinsWithPhotos = computed(() => (detail.value?.task_checkins || []).filter(c => c.attachments?.length).slice(0, 20))
 function openTask(taskId) {
   if (!detail.value) return
   uni.navigateTo({ url: `/subParent/taskDetail/index?caseId=${detail.value.id}&taskId=${taskId}` })
@@ -208,6 +217,9 @@ onMounted(load)
 .task-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .task-link { font-size: 24rpx; color: var(--mp-primary); display: block; margin-top: 8rpx; }
 .checkin-section { margin-top: 12rpx; }
+.photo-section { margin-top: 14rpx; display: flex; flex-direction: column; gap: 12rpx; }
+.photo-row { background: #F7F8FA; border-radius: 12rpx; padding: 14rpx; }
+.photo-title { font-size: 22rpx; color: #526177; display: block; margin-bottom: 4rpx; }
 </style>
 
 <style scoped src="../../styles/details.css"></style>

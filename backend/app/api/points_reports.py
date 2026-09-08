@@ -3,11 +3,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.auth.deps import get_current_user, require_roles
+from app.auth.deps import require_roles
 from app.core.database import get_db
 from app.models.case_points import StudentPointsReport
-from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
-from app.models.user import ROLE_ADMIN, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
+from app.models.class_ import Class, ClassStudent, ClassTeacher
+from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, User
 from app.schemas.case_points import PointsReportBuildIn, PointsReportOut
 from app.services.case_points_service import (
     build_points_reports,
@@ -17,7 +17,9 @@ from app.services.case_points_service import (
 )
 
 router = APIRouter(prefix="/points-reports", tags=["points-reports"])
-_manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
+# 积分仅班主任/德育主任/管理员可见可建：学生、家长、咨询、任课老师均 403。
+_viewer = require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_DEYU_DIRECTOR])
+_manager = require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_DEYU_DIRECTOR])
 
 
 def _teacher_class_ids(db: Session, user: User) -> set[int]:
@@ -27,20 +29,13 @@ def _teacher_class_ids(db: Session, user: User) -> set[int]:
 
 
 def _scope_filter(query, db: Session, user: User):
-    if user.role == ROLE_ADMIN:
+    if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         return query
     if user.role == ROLE_TEACHER:
         allowed = _teacher_class_ids(db, user)
         if not allowed:
             return query.filter(StudentPointsReport.id == -1)
         return query.filter(StudentPointsReport.class_id.in_(allowed))
-    if user.role == ROLE_STUDENT:
-        return query.filter(StudentPointsReport.student_id == user.id)
-    if user.role == ROLE_PARENT:
-        student_ids = [r.student_id for r in db.query(StudentGuardian).filter_by(parent_id=user.id).all()]
-        if not student_ids:
-            return query.filter(StudentPointsReport.id == -1)
-        return query.filter(StudentPointsReport.student_id.in_(student_ids))
     return query.filter(StudentPointsReport.id == -1)
 
 
@@ -50,7 +45,7 @@ def list_reports(
     period_type: str | None = Query(default=None),
     period_label: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(_viewer),
 ):
     q = db.query(StudentPointsReport)
     q = _scope_filter(q, db, user)
@@ -72,7 +67,7 @@ def build_reports(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
-    """班主任一键生成本班某周/某月积分报表（幂等：重复生成会覆盖更新）。"""
+    """班主任/德育主任一键生成某班某周/某月积分报表（幂等：重复生成会覆盖更新）。"""
     if user.role == ROLE_TEACHER and body.class_id not in _teacher_class_ids(db, user):
         raise HTTPException(status_code=403, detail="无权生成该班级积分报表")
     if db.get(Class, body.class_id) is None:

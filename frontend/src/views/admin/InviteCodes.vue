@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">注册邀请码管理</h1>
-        <p class="header-desc">生成、分发并管控各类角色账户的一次性注册邀请码，防止未授权用户自行创建账户。</p>
+        <p class="header-desc">生成、分发并管控各类角色账户的注册邀请码，可设置每个码的使用次数（默认1次），防止未授权用户自行创建账户。</p>
       </div>
       <el-button type="primary" @click="openCreate">
         <el-icon><Plus /></el-icon>生成新邀请码
@@ -14,6 +14,7 @@
       <div class="filter-bar">
         <el-radio-group v-model="role" @change="load">
           <el-radio-button value="">全部角色</el-radio-button>
+          <el-radio-button value="admin">管理员</el-radio-button>
           <el-radio-button value="student">学生</el-radio-button>
           <el-radio-button value="teacher">班主任</el-radio-button>
           <el-radio-button value="subject_teacher">任课老师</el-radio-button>
@@ -38,6 +39,11 @@
         <el-table-column prop="status" label="当前状态" width="100">
           <template #default="{ row }">
             <el-tag size="small" :type="statusType(row.status)" effect="plain">{{ statusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="已用/可用" width="110">
+          <template #default="{ row }">
+            <span>{{ row.used_count ?? 0 }} / {{ row.max_uses ?? 1 }}</span>
           </template>
         </el-table-column>
         <el-table-column label="有效期至" min-width="170">
@@ -68,6 +74,7 @@
       <el-form label-width="80px">
         <el-form-item label="角色">
           <el-radio-group v-model="form.role">
+            <el-radio value="admin">管理员</el-radio>
             <el-radio value="student">学生</el-radio>
             <el-radio value="teacher">班主任</el-radio>
             <el-radio value="subject_teacher">任课老师</el-radio>
@@ -83,6 +90,10 @@
             placeholder="留空则永久有效"
             style="width: 100%"
           />
+        </el-form-item>
+        <el-form-item label="使用次数">
+          <el-input-number v-model="form.max_uses" :min="1" :max="10000" style="width: 100%" />
+          <span class="form-tip">该邀请码最多可注册几个账号，默认1次</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -103,10 +114,10 @@ const codes = ref([])
 const role = ref('')
 const loading = ref(false)
 const dialogVisible = ref(false)
-const form = reactive({ role: 'student', expires_at: null })
+const form = reactive({ role: 'student', expires_at: null, max_uses: 1 })
 
 function roleLabel(r) {
-  return { teacher: '班主任', subject_teacher: '任课老师', deyu_director: '德育主任', consultant: '咨询老师', student: '学生', parent: '家长' }[r] || r
+  return { admin: '管理员', teacher: '班主任', subject_teacher: '任课老师', deyu_director: '德育主任', consultant: '咨询老师', student: '学生', parent: '家长' }[r] || r
 }
 function statusLabel(s) {
   return { active: '可用', used: '已使用', disabled: '已停用' }[s] || s
@@ -141,12 +152,14 @@ async function load() {
 function openCreate() {
   form.role = 'student'
   form.expires_at = null
+  form.max_uses = 1
   dialogVisible.value = true
 }
 
 async function onCreate() {
   await createInviteCode({
     role: form.role,
+    max_uses: form.max_uses || 1,
     ...(form.expires_at ? { expires_at: form.expires_at.toISOString() } : {}),
   })
   ElMessage.success('生成成功')
@@ -231,5 +244,11 @@ onMounted(load)
 
 .expired-text {
   color: #ef4444;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
 }
 </style>

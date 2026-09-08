@@ -5,9 +5,10 @@ from datetime import datetime, timedelta, timezone
 from app.models.invite import InviteCode
 
 
-def _create_invite(db, code, role="student", admin_id=None, expires_at=None):
+def _create_invite(db, code, role="student", admin_id=None, expires_at=None, max_uses=1):
     invite = InviteCode(
-        code=code, role=role, created_by=admin_id or 0, expires_at=expires_at
+        code=code, role=role, created_by=admin_id or 0, expires_at=expires_at,
+        max_uses=max_uses, used_count=0,
     )
     db.add(invite)
     db.commit()
@@ -63,6 +64,16 @@ def test_register_rejects_admin_role(client, db, seed_users):
     assert r.status_code == 400
 
 
+def test_admin_invite_allows_admin_register(client, db, seed_users, auth):
+    admin = auth("admin")
+    r = client.post("/api/admin/invite-codes", json={"role": "admin"}, headers=admin)
+    assert r.status_code == 200, r.text
+    code = r.json()["code"]
+    r = _register(client, "newadmin", role="admin", code=code)
+    assert r.status_code == 200, r.text
+    assert r.json()["role"] == "admin"
+
+
 def test_register_without_invite(client, db, seed_users):
     r = _register(client, "noinvite", code="NOPE0001")
     assert r.status_code == 400
@@ -79,6 +90,37 @@ def test_register_rejects_used_invite(client, db, seed_users):
     assert _register(client, "student_a", code="USED0001").status_code == 200
     r = _register(client, "student_b", code="USED0001")
     assert r.status_code == 400
+
+
+def test_register_multi_use_invite(client, db, seed_users):
+    """max_uses=3 的邀请码可用 3 次，第 4 次拒绝；用满后 status 置为 used。"""
+    _create_invite(db, "MULTI001", role="student", admin_id=seed_users["admin"], max_uses=3)
+    assert _register(client, "multi_a", code="MULTI001").status_code == 200
+    db.expire_all()
+    invite = db.query(InviteCode).filter(InviteCode.code == "MULTI001").first()
+    assert invite.used_count == 1
+    assert invite.status == "active"
+    assert _register(client, "multi_b", code="MULTI001").status_code == 200
+    assert _register(client, "multi_c", code="MULTI001").status_code == 200
+    db.expire_all()
+    invite = db.query(InviteCode).filter(InviteCode.code == "MULTI001").first()
+    assert invite.used_count == 3
+    assert invite.status == "used"
+    assert _register(client, "multi_d", code="MULTI001").status_code == 400
+
+
+def test_admin_create_invite_with_max_uses(client, auth, seed_users):
+    admin = auth("admin")
+    r = client.post("/api/admin/invite-codes", json={"role": "student", "max_uses": 5}, headers=admin)
+    assert r.status_code == 200, r.text
+    assert r.json()["max_uses"] == 5
+    assert r.json()["used_count"] == 0
+    # 非法值拒绝
+    assert client.post("/api/admin/invite-codes", json={"role": "student", "max_uses": 0}, headers=admin).status_code == 422
+    # 缺省为 1（一次性，兼容老行为）
+    r = client.post("/api/admin/invite-codes", json={"role": "student"}, headers=admin)
+    assert r.status_code == 200, r.text
+    assert r.json()["max_uses"] == 1
 
 
 def test_register_rejects_expired_invite(client, db, seed_users):
@@ -192,13 +234,33 @@ def test_admin_cannot_delete_self(client, auth, seed_users):
     assert r.status_code == 400
 
 
-def test_admin_cannot_delete_user_with_submissions(client, auth, seed_users):
-    from tests.helpers import default_answers, setup_teacher_assignment, submit_text
+def test_admin_cannot_delete_user_with_case_data(client, auth, seed_users, db):
+    """有关联业务数据（学生总案）的学生/老师删除应返回 409 而不是 500。"""
+    from datetime import date
 
-    aid, qids = setup_teacher_assignment(
-        client, auth, seed_users["kp"], student_ids=[seed_users["student1"]]
+    from app.models.class_ import Class
+    from app.models.student_case import CaseCycle, StudentCase
+
+    cyc = CaseCycle(
+        name="2026届", grade="高三", school_year="2026",
+        starts_on=date(2026, 8, 1), ends_on=date(2027, 7, 31),
     )
-    submit_text(client, auth, aid, default_answers(qids), student="student1")
+    db.add(cyc)
+    db.commit()
+    cls = Class(name="高三1班", grade="高三", teacher_id=seed_users["teacher1"])
+    db.add(cls)
+    db.commit()
+    db.add(StudentCase(
+        cycle_id=cyc.id, student_id=seed_users["student1"],
+        class_id=cls.id, owner_teacher_id=seed_users["teacher1"],
+    ))
+    db.commit()
 
-    r = client.delete(f"/api/admin/users/{seed_users['student1']}", headers=auth("admin"))
-    assert r.status_code == 409
+    admin = auth("admin")
+    r = client.delete(f"/api/admin/users/{seed_users['student1']}", headers=admin)
+    assert r.status_code == 409, r.text
+    r = client.delete(f"/api/admin/users/{seed_users['teacher1']}", headers=admin)
+    assert r.status_code == 409, r.text
+    # 无关联数据的学生仍可删除
+    r = client.delete(f"/api/admin/users/{seed_users['student2']}", headers=admin)
+    assert r.status_code == 200, r.text

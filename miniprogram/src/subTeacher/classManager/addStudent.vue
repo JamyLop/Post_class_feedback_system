@@ -6,6 +6,10 @@
       <text class="p">在 {{ className }} 中添加学生</text>
     </view>
 
+    <view class="hint-card">
+      <text class="hint-text">仅需录入学生信息，学生学号由后端按学段、入学信息、班级和位号自动生成</text>
+    </view>
+
     <view class="card">
       <text class="card-title">学生信息</text>
       <view class="form">
@@ -21,7 +25,7 @@
               :key="g"
               class="radio-item"
               :class="{ active: form.gender === g }"
-              @click="form.gender = g"
+              @click="form.gender = form.gender === g ? '' : g"
             >
               <text class="radio-label">{{ g }}</text>
             </view>
@@ -29,38 +33,47 @@
         </view>
         <view class="field">
           <text class="field-label">民族</text>
-          <input v-model="form.ethnicity" placeholder="如：汉族" class="input" />
+          <input v-model="form.ethnicity" placeholder="例如：汉族" class="input" />
         </view>
         <view class="field">
-          <text class="field-label">生源学校</text>
-          <input v-model="form.source_school" placeholder="如：XX中学" class="input" />
-        </view>
-      </view>
-    </view>
-
-    <view class="card">
-      <text class="card-title">家长信息</text>
-      <view class="form">
-        <view class="field">
-          <text class="field-label">家长姓名</text>
-          <input v-model="form.parent_name" placeholder="请输入家长姓名" class="input" />
+          <text class="field-label">年级</text>
+          <input v-model="form.grade" placeholder="例如：高三" class="input" />
         </view>
         <view class="field">
-          <text class="field-label">家长手机号 <text class="required">*</text></text>
-          <input v-model="form.parent_phone" type="number" placeholder="11位手机号（必填）" class="input" />
+          <text class="field-label">生源地学校</text>
+          <input v-model="form.source_school" placeholder="填写学生原就读学校" class="input" />
         </view>
         <view class="field">
-          <text class="field-label">与学生关系</text>
-          <view class="radio-group">
-            <view
-              v-for="r in relationshipOptions"
-              :key="r"
-              class="radio-item"
-              :class="{ active: form.parent_relationship === r }"
-              @click="form.parent_relationship = r"
-            >
-              <text class="radio-label">{{ r }}</text>
+          <text class="field-label">了解渠道</text>
+          <input v-model="form.channel" placeholder="选填，例如：转介绍 / 线上咨询" class="input" />
+        </view>
+        <view class="field">
+          <text class="field-label">咨询老师（选填）</text>
+          <picker :range="consultantOptions" range-key="label" :value="consultantIndex" @change="onConsultantChange">
+            <view class="input picker-input">
+              <text>{{ consultantLabel }}</text>
+              <text class="picker-arrow">⌄</text>
             </view>
+          </picker>
+        </view>
+        <view class="field-row">
+          <view class="field half">
+            <text class="field-label">入学月份 <text class="required">*</text></text>
+            <picker :range="monthOptions" :value="monthIndex" @change="onMonthChange">
+              <view class="input picker-input">
+                <text>{{ form.enrollment_month }} 月</text>
+                <text class="picker-arrow">⌄</text>
+              </view>
+            </picker>
+          </view>
+          <view class="field half">
+            <text class="field-label">班级位号 <text class="required">*</text></text>
+            <picker :range="seatOptions" :value="seatIndex" @change="onSeatChange">
+              <view class="input picker-input">
+                <text>{{ form.seat_number }} 号</text>
+                <text class="picker-arrow">⌄</text>
+              </view>
+            </picker>
           </view>
         </view>
       </view>
@@ -68,12 +81,11 @@
 
     <view class="hint-card">
       <text class="hint-text">* 学生账号将自动生成，初始密码为 123456</text>
-      <text class="hint-text">* 家长手机号将自动注册为家长账号，初始密码 88888888</text>
     </view>
 
     <view class="submit-bar">
       <button class="btn-submit" :loading="submitting" :disabled="submitting" @click="handleSubmit">
-        {{ submitting ? '创建中...' : '创建并入班' }}
+        {{ submitting ? '创建中...' : '新建并加入班级' }}
       </button>
     </view>
   </view>
@@ -81,43 +93,93 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { createAndEnrollStudent } from '../../api/classes'
+import { createAndEnrollStudent, getClass, listUsers } from '../../api/classes'
 
 const classId = ref(null)
 const className = ref('')
 const submitting = ref(false)
+const loadingMeta = ref(false)
 
 const genderOptions = ['男', '女']
-const relationshipOptions = ['父亲', '母亲', '其他']
 
 const form = reactive({
   name: '',
   gender: '',
   ethnicity: '',
+  grade: '',
   source_school: '',
-  parent_name: '',
-  parent_phone: '',
-  parent_relationship: '父亲',
+  channel: '',
+  consultant_id: null,
+  enrollment_month: 7,
+  seat_number: 1,
 })
+
+const consultantOptions = ref([{ id: null, label: '不选择' }])
+const consultantIndex = computed(() => {
+  const idx = consultantOptions.value.findIndex((c) => c.id === form.consultant_id)
+  return idx >= 0 ? idx : 0
+})
+const consultantLabel = computed(() => consultantOptions.value[consultantIndex.value]?.label || '不选择')
+
+const monthOptions = Array.from({ length: 12 }, (_, i) => `${i + 1}月`)
+const monthIndex = computed(() => (form.enrollment_month || 7) - 1)
+const seatOptions = Array.from({ length: 99 }, (_, i) => `${i + 1}号`)
+const seatIndex = computed(() => (form.seat_number || 1) - 1)
+
+function onConsultantChange(e) {
+  const item = consultantOptions.value[Number(e.detail.value)]
+  form.consultant_id = item?.id || null
+}
+function onMonthChange(e) {
+  form.enrollment_month = Number(e.detail.value) + 1
+}
+function onSeatChange(e) {
+  form.seat_number = Number(e.detail.value) + 1
+}
 
 onLoad((options) => {
   classId.value = Number(options.classId)
   className.value = decodeURIComponent(options.className || '')
 })
 
+onMounted(loadMeta)
+
+async function loadMeta() {
+  loadingMeta.value = true
+  try {
+    // 预填年级默认值（与网页端一致：跟随班级年级）
+    try {
+      if (classId.value) {
+        const cls = await getClass(classId.value)
+        if (cls?.grade && !form.grade) form.grade = cls.grade
+      }
+    } catch (_) {}
+    // 咨询老师选填：班主任可只读查询 teacher / consultant 名单
+    try {
+      const [teachers, consultants] = await Promise.all([
+        listUsers('teacher', '').catch(() => []),
+        listUsers('consultant', '').catch(() => []),
+      ])
+      const all = [...(teachers || []), ...(consultants || [])]
+      consultantOptions.value = [
+        { id: null, label: '不选择' },
+        ...all.map((u) => ({ id: u.id, label: `${u.name}（${u.username}）` })),
+      ]
+    } catch (_) {}
+  } finally {
+    loadingMeta.value = false
+  }
+}
+
 function validate() {
   if (!form.name.trim()) {
-    uni.showToast({ title: '请输入学生姓名', icon: 'none' })
+    uni.showToast({ title: '请填写学生姓名', icon: 'none' })
     return false
   }
-  if (!form.parent_phone.trim()) {
-    uni.showToast({ title: '请输入家长手机号', icon: 'none' })
-    return false
-  }
-  if (!/^1[3-9]\d{9}$/.test(form.parent_phone.trim())) {
-    uni.showToast({ title: '手机号格式不正确', icon: 'none' })
+  if (!form.enrollment_month || !form.seat_number) {
+    uni.showToast({ title: '请填写入学月份和班级位号', icon: 'none' })
     return false
   }
   return true
@@ -129,14 +191,16 @@ async function handleSubmit() {
   try {
     await createAndEnrollStudent(classId.value, {
       name: form.name.trim(),
-      gender: form.gender,
+      gender: form.gender || '',
       ethnicity: form.ethnicity.trim(),
+      grade: form.grade.trim(),
       source_school: form.source_school.trim(),
-      parent_name: form.parent_name.trim(),
-      parent_phone: form.parent_phone.trim(),
-      parent_relationship: form.parent_relationship,
+      channel: form.channel.trim(),
+      consultant_id: form.consultant_id || null,
+      enrollment_month: form.enrollment_month,
+      seat_number: form.seat_number,
     })
-    uni.showToast({ title: '创建成功', icon: 'success' })
+    uni.showToast({ title: '创建成功，账号已自动生成', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 1500)
   } catch (e) {
     // 错误已处理
@@ -159,12 +223,16 @@ async function handleSubmit() {
 
 .form { display: flex; flex-direction: column; gap: 16rpx; }
 .field { display: flex; flex-direction: column; gap: 6rpx; }
+.field-row { display: flex; gap: 16rpx; }
+.field-row .half { flex: 1; }
 .field-label { font-size: 24rpx; font-weight: 500; color: var(--mp-body); }
 .required { color: #A33E39; }
 .input {
   border: 1rpx solid #C6D0DE; border-radius: 8rpx;
   padding: 18rpx 22rpx; font-size: 28rpx; background: #fff;
 }
+.picker-input { display: flex; align-items: center; justify-content: space-between; }
+.picker-arrow { color: var(--mp-muted); }
 
 .radio-group { display: flex; flex-wrap: wrap; gap: 12rpx; }
 .radio-item {

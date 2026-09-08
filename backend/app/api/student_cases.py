@@ -102,6 +102,18 @@ def _mask_health_for_viewer(profile_data: dict, viewer_role: str) -> dict:
     return masked
 
 
+def _enrich_checkin_attachments(checkins: list[TaskCheckin]) -> list[TaskCheckin]:
+    """为打卡记录的附件补充预签名 URL，返回原始对象（属性已就地修改）。"""
+    from app.storage import presigned_url
+
+    for c in checkins:
+        if c.attachments:
+            for att in c.attachments:
+                if "url" not in att:
+                    att["url"] = presigned_url(att.get("object_name", ""))
+    return checkins
+
+
 def _detail(db: Session, case: StudentCase, user: User) -> dict:
     tasks = db.query(CaseTask).filter_by(student_case_id=case.id).order_by(CaseTask.due_on).all()
     task_ids = [task.id for task in tasks]
@@ -264,10 +276,12 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
         "goals": db.query(CaseGoal).filter_by(student_case_id=case.id).order_by(CaseGoal.id).all(),
         "tasks": tasks,
         "task_checkins": (
-            db.query(TaskCheckin)
-            .filter(TaskCheckin.task_id.in_(task_ids))
-            .order_by(TaskCheckin.checked_in_at.desc())
-            .all()
+            _enrich_checkin_attachments(
+                db.query(TaskCheckin)
+                .filter(TaskCheckin.task_id.in_(task_ids))
+                .order_by(TaskCheckin.checked_in_at.desc())
+                .all()
+            )
             if task_ids
             else []
         ),

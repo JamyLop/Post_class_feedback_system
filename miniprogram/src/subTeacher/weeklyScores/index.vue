@@ -28,9 +28,9 @@
       </view>
     </view>
 
-    <!-- 操作栏 -->
+    <!-- 操作栏：德育主任/咨询老师仅只读查看，不展示录入入口 -->
     <view class="action-bar">
-      <button v-if="auth.role !== 'subject_teacher'" class="btn-primary" @click="goCreate">录入成绩</button>
+      <button v-if="canWrite" class="btn-primary" @click="goCreate">录入成绩</button>
       <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
@@ -67,7 +67,7 @@
       <view v-if="loading" class="loading-bar">
         <text class="loading-text">加载中...</text>
       </view>
-      <EmptyState v-else-if="!scoreList.length" title="暂无成绩记录" desc="点击上方「录入成绩」添加" />
+      <EmptyState v-else-if="!scoreList.length" title="暂无成绩记录" :desc="canWrite ? '点击上方「录入成绩」添加' : '暂无可见的周测成绩'" />
       <view v-else class="score-list">
         <view v-for="(item, idx) in scoreList" :key="item.id" class="score-entry" :class="{ 'has-border': idx > 0 }">
           <view class="score-row">
@@ -113,9 +113,12 @@ const classNames = computed(() => ['全部班级', ...classList.value.map(c => c
 const selectedClassId = computed(() => classIndex.value > 0 ? classList.value[classIndex.value - 1]?.id : null)
 const selectedSubject = computed(() => subjectIndex.value > 0 ? subjectOptions[subjectIndex.value] : null)
 
+const canWrite = computed(() => ['teacher', 'admin'].includes(auth.role))
+
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (!['teacher', 'admin', 'subject_teacher'].includes(auth.role)) {
+  // 德育主任全局督查、咨询老师查看关联学生，后端按角色过滤 scope
+  if (!['teacher', 'admin', 'subject_teacher', 'deyu_director', 'consultant'].includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true

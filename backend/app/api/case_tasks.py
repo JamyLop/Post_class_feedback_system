@@ -66,18 +66,29 @@ def _class_names(db: Session, class_ids: set[int]) -> dict[int, str]:
 def task_reminders(
     class_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(get_current_user),
 ):
-    """班主任工作台待办：逾期任务 / 今日到期 / 今日未打卡（含学生任务安排与执行提醒）。"""
-    managed = _managed_class_ids(db, user)
-    if not managed:
-        return TaskRemindersOut(date=date.today(), counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
-    if class_id is not None:
-        if class_id not in managed:
-            raise HTTPException(status_code=403, detail="无权查看该班级任务提醒")
-        class_ids = {class_id}
+    """任务执行进度提醒：班主任看所带班级，德育主任/校长可全局督查（含逾期/今日到期/今日未打卡）。"""
+    if user.role not in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER):
+        raise HTTPException(status_code=403, detail="无权查看任务执行进度")
+    if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
+        # 督查角色：全局可见，可按班级筛选
+        if class_id is not None:
+            class_ids = {class_id}
+        else:
+            class_ids = {row.id for row in db.query(Class).all()}
+            if not class_ids:
+                return TaskRemindersOut(date=date.today(), counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
     else:
-        class_ids = managed
+        managed = _managed_class_ids(db, user)
+        if not managed:
+            return TaskRemindersOut(date=date.today(), counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
+        if class_id is not None:
+            if class_id not in managed:
+                raise HTTPException(status_code=403, detail="无权查看该班级任务提醒")
+            class_ids = {class_id}
+        else:
+            class_ids = managed
     today = date.today()
     cases = db.query(StudentCase).filter(StudentCase.class_id.in_(class_ids)).all()
     if not cases:

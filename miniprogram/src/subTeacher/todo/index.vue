@@ -114,6 +114,7 @@ function goDeyuReview() { uni.navigateTo({ url: '/subTeacher/deyuReview/index' }
 function goAdminStats() { uni.navigateTo({ url: '/subTeacher/adminStats/index' }) }
 function goWeeklyScores() { uni.navigateTo({ url: '/subTeacher/weeklyScores/index' }) }
 function goMonthlyReports() { uni.navigateTo({ url: '/subTeacher/monthlyReports/index' }) }
+function goPointsReports() { uni.navigateTo({ url: '/subTeacher/pointsReports/index' }) }
 function goClassManager() { uni.navigateTo({ url: '/subTeacher/classManager/index' }) }
 
 const navItems = computed(() => {
@@ -129,12 +130,15 @@ const navItems = computed(() => {
     items.push({ title: '德育审查', desc: '审查待审方案', action: goDeyuReview })
     items.push({ title: '全部档案', desc: '全局档案查看', action: goCaseList })
     items.push({ title: '档案进展', desc: '查看任务与督查记录', action: goCaseList })
+    items.push({ title: '任务执行进度', desc: '查看全校任务逾期与打卡', action: goPointsReports })
+    items.push({ title: '学生周测', desc: '查看全校周测成绩', action: goWeeklyScores })
   } else if (auth.role === 'admin') {
     items.push({ title: '系统管理', desc: '统计与配置', action: goAdminStats })
     items.push({ title: '全部档案', desc: '全局档案查看', action: goCaseList })
     items.push({ title: '班级管理', desc: '管理班级与学生', action: goClassManager })
   } else if (auth.role === 'consultant') {
     items.push({ title: '关联学生', desc: '查看负责学生档案', action: () => uni.reLaunch({ url: '/subConsultant/caseList/index' }) })
+    items.push({ title: '学生周测', desc: '查看负责学生周测成绩', action: goWeeklyScores })
   } else if (auth.role === 'subject_teacher') {
     items.push({ title: '学生档案', desc: '查看所带班级档案', action: goCaseList })
   }

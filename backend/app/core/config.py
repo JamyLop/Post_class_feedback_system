@@ -21,7 +21,7 @@ def _find_env_file() -> str:
 
 
 class Settings(BaseSettings):
-    """集中配置项：应用/数据库/Redis/存储/AI/OCR。"""
+    """集中配置项：应用、数据库与微信登录。"""
 
     model_config = SettingsConfigDict(
         env_file=_find_env_file(),
@@ -41,10 +41,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://pfs:pfs@localhost:5432/pfs"
 
-    redis_url: str = "redis://localhost:6379/0"
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/2"
-
+    # 打卡附件仍需兼容历史本地文件及当前 OSS 对象；缺少这些字段会让照片读取链路在运行时失败。
     storage_backend: str = "local"
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = "pfs"
@@ -58,20 +55,6 @@ class Settings(BaseSettings):
     oss_access_key_secret: str = ""
     oss_endpoint: str = "oss-cn-beijing.aliyuncs.com"
     oss_bucket: str = "xueshengyian"
-
-    llm_provider: str = "mock"
-    llm_base_url: str = "https://api.openai.com/v1"
-    llm_api_key: str = ""
-    llm_model: str = "gpt-4o-mini"
-    llm_timeout_seconds: int = 30
-    llm_max_retries: int = 1
-
-    ocr_provider: str = "mock"
-    ocr_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    ocr_api_key: str = ""
-    ocr_model: str = "qwen-vl-ocr"
-    ocr_timeout_seconds: int = 60
-    ocr_max_retries: int = 1
 
     wx_appid: str = ""
     wx_secret: str = ""

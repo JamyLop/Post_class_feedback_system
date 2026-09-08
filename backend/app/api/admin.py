@@ -4,6 +4,7 @@ import secrets
 import string
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_roles
@@ -78,9 +79,9 @@ def create_invite_code(
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
-    """创建邀请码：支持班主任、德育主任、咨询老师、任课老师、学生和家长，校长账号不开放自助注册。"""
-    if body.role not in ROLES or body.role == ROLE_ADMIN:
-        raise HTTPException(status_code=400, detail="邀请码角色必须是 teacher、deyu_director、consultant、subject_teacher、student 或 parent")
+    """创建邀请码：支持管理员、班主任、德育主任、咨询老师、任课老师、学生和家长。"""
+    if body.role not in ROLES:
+        raise HTTPException(status_code=400, detail="邀请码角色必须是 admin、teacher、deyu_director、consultant、subject_teacher、student 或 parent")
     code = _generate_code()
     # 保证生成的邀请码在库中唯一
     while db.query(InviteCode).filter(InviteCode.code == code).first():
@@ -91,6 +92,8 @@ def create_invite_code(
         status=INVITE_STATUS_ACTIVE,
         created_by=admin.id,
         expires_at=body.expires_at,
+        max_uses=body.max_uses,
+        used_count=0,
     )
     db.add(invite)
     db.commit()
@@ -308,6 +311,12 @@ def delete_user(
     if has_invites is not None:
         raise HTTPException(status_code=409, detail="存在关联的邀请码记录，请改用禁用")
 
-    db.delete(target)
-    db.commit()
+    # users.id 被总案、周测、月评、打卡等十余张业务表引用且多为 RESTRICT 外键，
+    # 无法在删除前逐表穷举；统一捕获外键冲突转为 409，避免直接抛 500。
+    try:
+        db.delete(target)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="该用户存在关联业务数据，请改用禁用")
     return {"ok": True}

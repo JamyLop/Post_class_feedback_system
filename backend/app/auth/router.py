@@ -19,7 +19,7 @@ from app.models.invite import (
     InviteCode,
 )
 from app.models.student_case import StudentCase
-from app.models.user import ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
+from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.models.user_external_identity import UserExternalIdentity
 from app.schemas.admin import RegisterRequest
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
@@ -76,6 +76,34 @@ def _check_captcha(captcha_id: str | None, captcha_code: str | None) -> None:
         raise HTTPException(status_code=400, detail="请输入验证码")
     if not captcha_service.verify_captcha(captcha_id, captcha_code):
         raise HTTPException(status_code=400, detail="验证码错误或已过期，请刷新后重试")
+
+
+def _validate_invite(invite: InviteCode | None, role: str) -> InviteCode:
+    """校验邀请码可用：存在、角色匹配、未停用、未过期、未用满次数。"""
+    if invite is None:
+        raise HTTPException(status_code=400, detail="邀请码不存在")
+    if invite.role != role:
+        raise HTTPException(status_code=400, detail="邀请码角色与所选角色不匹配")
+    max_uses = invite.max_uses or 1
+    used_count = invite.used_count or 0
+    if invite.status != INVITE_STATUS_ACTIVE or used_count >= max_uses:
+        raise HTTPException(status_code=400, detail="邀请码已被使用或停用")
+    if invite.expires_at is not None:
+        expires_at = invite.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="邀请码已过期")
+    return invite
+
+
+def _consume_invite(invite: InviteCode, user_id: int) -> None:
+    """核销一次：计数+1；用满 max_uses 后才置为 used。"""
+    invite.used_count = (invite.used_count or 0) + 1
+    invite.used_by = user_id
+    invite.used_at = datetime.now(timezone.utc)
+    if invite.used_count >= (invite.max_uses or 1):
+        invite.status = INVITE_STATUS_USED
 
 
 @router.get("/captcha")
@@ -183,8 +211,8 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
     if body.invite_code:
         if not body.username or not body.password or not body.role:
             raise HTTPException(status_code=400, detail="邀请码注册需提供 username/password/role")
-        if body.role not in (ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
-            raise HTTPException(status_code=400, detail="仅支持注册班主任、德育主任、咨询老师、任课老师、学生或家长账号")
+        if body.role not in (ROLE_ADMIN, ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
+            raise HTTPException(status_code=400, detail="仅支持注册管理员、班主任、德育主任、咨询老师、任课老师、学生或家长账号")
         if db.query(User).filter(User.username == body.username).first():
             raise HTTPException(status_code=409, detail="用户名已存在")
         invite = (
@@ -193,14 +221,7 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
             .with_for_update()
             .first()
         )
-        if invite is None:
-            raise HTTPException(status_code=400, detail="邀请码不存在")
-        if invite.role != body.role:
-            raise HTTPException(status_code=400, detail="邀请码角色与所选角色不匹配")
-        if invite.status != INVITE_STATUS_ACTIVE:
-            raise HTTPException(status_code=400, detail="邀请码已被使用或停用")
-        if invite.expires_at is not None and invite.expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="邀请码已过期")
+        _validate_invite(invite, body.role)
         user = User(
             username=body.username,
             password_hash=hash_password(body.password),
@@ -209,9 +230,7 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
         )
         db.add(user)
         db.flush()
-        invite.status = INVITE_STATUS_USED
-        invite.used_by = user.id
-        invite.used_at = datetime.now(timezone.utc)
+        _consume_invite(invite, user.id)
     else:
         # 分支二：绑定已有账号
         if not body.username or not body.password:
@@ -348,10 +367,10 @@ def me_children(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    """公开注册：邀请码 + 图形验证码，班主任、德育主任、咨询老师、任课老师、学生或家长必须使用对应角色的邀请码。"""
+    """公开注册：邀请码 + 图形验证码，管理员、班主任、德育主任、咨询老师、任课老师、学生或家长必须使用对应角色的邀请码。"""
     _check_captcha(body.captcha_id, body.captcha_code)
-    if body.role not in (ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
-        raise HTTPException(status_code=400, detail="仅支持注册班主任、德育主任、咨询老师、任课老师、学生或家长账号")
+    if body.role not in (ROLE_ADMIN, ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
+        raise HTTPException(status_code=400, detail="仅支持注册管理员、班主任、德育主任、咨询老师、任课老师、学生或家长账号")
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=409, detail="用户名已存在")
 
@@ -361,14 +380,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         .with_for_update()
         .first()
     )
-    if invite is None:
-        raise HTTPException(status_code=400, detail="邀请码不存在")
-    if invite.role != body.role:
-        raise HTTPException(status_code=400, detail="邀请码角色与所选角色不匹配")
-    if invite.status != INVITE_STATUS_ACTIVE:
-        raise HTTPException(status_code=400, detail="邀请码已被使用或停用")
-    if invite.expires_at is not None and invite.expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="邀请码已过期")
+    _validate_invite(invite, body.role)
 
     # 任课老师必须填写教授学科
     if body.role == ROLE_SUBJECT_TEACHER and not body.subject:
@@ -384,9 +396,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.flush()
 
-    invite.status = INVITE_STATUS_USED
-    invite.used_by = user.id
-    invite.used_at = datetime.now(timezone.utc)
+    _consume_invite(invite, user.id)
     db.commit()
     db.refresh(user)
     return user
