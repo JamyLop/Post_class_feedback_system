@@ -459,6 +459,50 @@ def test_case_detail_includes_task_checkins(client, auth, db, seed_users):
     assert response.json()["task_checkins"][0]["completion_rate"] == 90
 
 
+def test_checkin_attachment_is_read_through_case_authorization(client, auth, db, seed_users):
+    """打卡照片使用专用路由读取，不能误走仅作业提交可用的 storage 路由。"""
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    task = CaseTask(
+        student_case_id=case_id,
+        subject="数学",
+        title="每日训练",
+        cadence="daily",
+        starts_on=date.today(),
+        due_on=date.today() + timedelta(days=7),
+        created_by=seed_users["teacher1"],
+    )
+    db.add(task)
+    db.commit()
+
+    checkin = client.post(
+        f"/api/student-cases/tasks/{task.id}/checkins",
+        headers=auth("teacher1"),
+        json={"completion_rate": 80, "self_check": "已完成"},
+    )
+    assert checkin.status_code == 200, checkin.text
+    uploaded = client.post(
+        f"/api/student-cases/task-checkins/{checkin.json()['id']}/attachments",
+        headers=auth("teacher1"),
+        files={"file": ("proof.jpg", b"\xff\xd8\xffproof", "image/jpeg")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+
+    image = client.get(
+        f"/api/student-cases/task-checkins/{checkin.json()['id']}/attachments/0",
+        headers=auth("teacher1"),
+    )
+    assert image.status_code == 200, image.text
+    assert image.content == b"\xff\xd8\xffproof"
+    assert image.headers["content-type"] == "image/jpeg"
+
+    missing = client.get(
+        f"/api/student-cases/task-checkins/{checkin.json()['id']}/attachments/1",
+        headers=auth("teacher1"),
+    )
+    assert missing.status_code == 404
+
+
 def test_stage_review_requires_deyu_approval_before_publish(client, auth, db, seed_users):
     """阶段复盘链路：复盘态可编辑下一阶段内容，已调整须送审，德育通过后才能发布。"""
     class_id = _setup_high3(db, seed_users)

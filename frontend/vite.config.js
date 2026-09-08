@@ -5,7 +5,8 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   const envFrontend = loadEnv(mode, process.cwd(), '')
   const envRoot = loadEnv(mode, path.resolve(process.cwd(), '..'), '')
-  const backendPort = envFrontend.BACKEND_PORT || envRoot.BACKEND_PORT || 8000
+  // 允许本地调试临时切换后端端口，避免陈旧进程占用默认端口时代理仍指向旧代码。
+  const backendPort = process.env.BACKEND_PORT || envFrontend.BACKEND_PORT || envRoot.BACKEND_PORT || 8000
 
   return {
     plugins: [vue()],

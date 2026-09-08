@@ -6,7 +6,7 @@ from urllib.parse import quote
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -1135,3 +1135,41 @@ def list_checkin_attachments(
     for att in attachments:
         att["url"] = presigned_url(att.get("object_name", ""))
     return attachments
+
+
+@router.get("/task-checkins/{checkin_id}/attachments/{attachment_index}")
+def read_checkin_attachment(
+    checkin_id: int,
+    attachment_index: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """读取单张打卡照片；按打卡所属档案校验，不能借对象名跨档案访问。"""
+    checkin = db.get(TaskCheckin, checkin_id)
+    if checkin is None:
+        raise HTTPException(status_code=404, detail="打卡记录不存在")
+    task = db.get(CaseTask, checkin.task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="关联任务不存在")
+    require_case_access(db, task.student_case_id, user, write=False, subject=task.subject)
+    attachments = list(checkin.attachments or [])
+    if attachment_index < 0 or attachment_index >= len(attachments):
+        raise HTTPException(status_code=404, detail="附件不存在")
+    object_name = attachments[attachment_index].get("object_name", "")
+    if not object_name:
+        raise HTTPException(status_code=404, detail="附件缺少存储标识")
+    from app.storage import download_bytes
+
+    try:
+        # 读取为受控响应，而不是让前端跟随外部预签名重定向；这样浏览器始终走同一鉴权链路。
+        data = download_bytes(object_name)
+    except Exception as remote_error:
+        # 旧打卡照片曾写入本机存储，后续切换至 OSS 后远端可能没有历史对象。
+        # 仅在已通过档案权限校验后才回退到本地副本，避免丢失既有业务证据。
+        from app.storage.local import LocalStorage
+
+        try:
+            return LocalStorage().file_response(object_name)
+        except HTTPException:
+            raise HTTPException(status_code=404, detail="附件文件不存在") from remote_error
+    return Response(content=data, media_type=attachments[attachment_index].get("content_type") or "application/octet-stream")

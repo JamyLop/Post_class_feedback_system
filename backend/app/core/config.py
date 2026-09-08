@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     oss_access_key_id: str = ""
     oss_access_key_secret: str = ""
-    oss_endpoint: str = "oss-cn-beling.aliyuncs.com"
+    oss_endpoint: str = "oss-cn-beijing.aliyuncs.com"
     oss_bucket: str = "xueshengyian"
 
     llm_provider: str = "mock"

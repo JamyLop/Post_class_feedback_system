@@ -454,7 +454,7 @@
                   <article v-for="checkin in checkinsFor(selectedSubject)" :key="checkin.id" class="checkin-row">
                     <div class="completion-rate"><strong>{{ checkin.completion_rate }}%</strong><span>完成度</span></div>
                     <div><strong>{{ taskTitle(checkin.task_id) }}</strong><p>{{ checkin.self_check || '班主任未填写补充说明' }}</p><time>{{ formatDateTime(checkin.checked_in_at) }} · 记录{{ checkin.log_date || '-' }} · 得 {{ checkin.earned_points ?? '-' }} 分</time>
-                      <div v-if="checkin.attachments?.length" class="checkin-attachments"><el-image v-for="(att, idx) in checkin.attachments" :key="idx" :src="att.url" :preview-src-list="checkin.attachments.map(a => a.url)" fit="cover" class="checkin-thumb" /></div>
+                      <div v-if="checkin.attachments?.length" class="checkin-attachments"><SecureCheckinImage v-for="(att, index) in checkin.attachments" :key="`${checkin.id}-${att.object_name || index}`" :checkin-id="checkin.id" :attachment-index="index" :attachment="att" /></div>
                     </div>
                   </article>
                 </div>
@@ -632,6 +632,7 @@ import * as echarts from 'echarts'
 import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, exportStudentCase, getStudentCase, listCaseVersions, listStageCompletions, rebuildStageCompletion, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
+import SecureCheckinImage from '../../components/SecureCheckinImage.vue'
 import { listMonthlyReports } from '../../api/monthlyReports'
 import { useAuthStore } from '../../stores/auth'
 
@@ -1748,7 +1749,6 @@ onMounted(load)
 .version-item.is-selected { border-color: var(--brand); background: var(--brand-soft); }
 .version-detail { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 14px; }
 .checkin-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.checkin-thumb { width: 64px; height: 64px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
 .version-detail header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .version-detail header strong { font-size: 14px; }
 .version-detail header small { color: var(--ink-muted); font-size: 11.5px; }
