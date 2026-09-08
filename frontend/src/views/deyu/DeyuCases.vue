@@ -51,6 +51,23 @@
       </button>
     </div>
 
+    <section v-if="changeRequests.length" class="list-surface change-req-surface">
+      <div class="list-toolbar">
+        <div>
+          <h2>周任务修改申请</h2>
+          <span>共 {{ changeRequests.length }} 条待审批</span>
+        </div>
+        <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+      </div>
+      <el-table :data="changeRequests" empty-text="暂无待审批的修改申请">
+        <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name || `学生#${row.student_id}` }}</strong><div class="sub">{{ row.class_name }}</div></template></el-table-column>
+        <el-table-column label="任务" min-width="200" show-overflow-tooltip><template #default="{ row }">{{ row.task_title }}<div class="sub">{{ row.subject }} · 每周任务</div></template></el-table-column>
+        <el-table-column label="申请原因" min-width="220" show-overflow-tooltip><template #default="{ row }">{{ row.reason }}</template></el-table-column>
+        <el-table-column prop="reviewed_at" label="申请时间" width="170"><template #default="{ row }">{{ formatTime(row.reviewed_at) }}</template></el-table-column>
+        <el-table-column label="操作" width="120" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase({ id: row.case_id })">去处理</el-button></template></el-table-column>
+      </el-table>
+    </section>
+
     <section class="list-surface">
       <div class="list-toolbar">
         <div>
@@ -109,10 +126,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { getCaseProgress, listStudentCases } from '../../api/studentCases'
+import { getCaseProgress, listStudentCases, listTaskChangeRequests } from '../../api/studentCases'
 
 const router = useRouter()
 const rows = ref([])
+const changeRequests = ref([])
 const loading = ref(false)
 const status = ref('')
 const keyword = ref('')
@@ -164,9 +182,15 @@ async function load() {
   try {
     const params = status.value ? { status: status.value } : {}
     ;[rows.value, progress.value] = await Promise.all([listStudentCases(params), getCaseProgress()])
-  } finally {
-    loading.value = false
-  }
+    try {
+      changeRequests.value = await listTaskChangeRequests()
+    } catch { changeRequests.value = [] }
+  } finally { loading.value = false }
+}
+
+function formatTime(value) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
 onMounted(load)
@@ -331,6 +355,16 @@ onMounted(load)
   color: #64748b;
   font-size: 11.5px;
   margin-left: 8px;
+}
+
+.change-req-surface {
+  border-color: #fcd34d;
+}
+
+.sub {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .filters {

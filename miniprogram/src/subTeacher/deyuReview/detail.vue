@@ -33,6 +33,22 @@
         </view>
       </view>
 
+      <view class="card change-req-card">
+        <text class="section-h">周任务修改申请（{{ changeRequests.length }}）</text>
+        <view v-if="changeRequests.length">
+          <view v-for="(r, idx) in changeRequests" :key="r.id" class="change-req-row" :class="{ 'has-border': idx > 0 }">
+            <text class="req-title">{{ r.task_title }} · {{ r.subject }} · 每周任务</text>
+            <text class="req-reason">原因：{{ r.reason }}</text>
+            <text class="req-meta">{{ r.student_name || '' }} · {{ r.class_name || '' }} · {{ (r.reviewed_at||'').slice(0,16).replace('T',' ') }}</text>
+            <view class="req-actions">
+              <view class="req-btn reject" @click="decide(r, 'rejected')"><text>驳回</text></view>
+              <view class="req-btn approve" @click="decide(r, 'approved')"><text>同意并退回整改</text></view>
+            </view>
+          </view>
+        </view>
+        <view v-else class="empty-text">该档案暂无待审批的修改申请</view>
+      </view>
+
       <view class="card action-card">
         <text class="action-title">审查决定</text>
         <view class="decision-row">
@@ -82,7 +98,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getStudentCase, deyuReview } from '../../api/studentCases'
+import { getStudentCase, deyuReview, listTaskChangeRequests, decideTaskChange } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 
 const loading = ref(false)
@@ -90,6 +106,7 @@ const submitting = ref(false)
 const detail = ref(null)
 const decision = ref('approved')
 const form = reactive({ problem: '', corrective_action: '', correction_due_on: '' })
+const changeRequests = ref([])
 
 function getCaseId() {
   const pages = getCurrentPages()
@@ -101,9 +118,28 @@ async function load() {
   loading.value = true
   try {
     detail.value = await getStudentCase(getCaseId())
+    try {
+      const list = await listTaskChangeRequests()
+      changeRequests.value = (Array.isArray(list) ? list : []).filter(r => String(r.case_id) === String(getCaseId()))
+    } catch (_) { changeRequests.value = [] }
   } catch (e) {
     uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally { loading.value = false }
+}
+
+async function decide(row, decisionVal) {
+  const title = decisionVal === 'approved' ? '同意并退回整改' : '驳回申请'
+  uni.showModal({
+    title, content: decisionVal === 'approved' ? '同意后档案将退回整改，班主任可修改该任务' : '确认驳回？',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await decideTaskChange(row.id, { decision: decisionVal })
+        uni.showToast({ title: decisionVal === 'approved' ? '已同意并退回整改' : '已驳回', icon: 'success' })
+        load()
+      } catch (e) { uni.showToast({ title: e.message || '操作失败', icon: 'none' }) }
+    }
+  })
 }
 
 async function submit() {
@@ -197,4 +233,14 @@ onShow(() => load())
 .btn-submit::after { border: none; }
 .btn-approve { background: #286349; color: #fff; }
 .btn-reject { background: #A33E39; color: #fff; }
+.change-req-card { border: 2rpx solid #FCD34D; }
+.change-req-row { padding: 14rpx 0; display: flex; flex-direction: column; gap: 6rpx; }
+.change-req-row.has-border { border-top: 2rpx solid var(--mp-soft); }
+.req-title { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.req-reason { font-size: 24rpx; color: var(--mp-body); }
+.req-meta { font-size: 22rpx; color: var(--mp-muted); }
+.req-actions { display: flex; gap: 12rpx; margin-top: 6rpx; }
+.req-btn { padding: 10rpx 18rpx; border-radius: 10rpx; font-size: 24rpx; }
+.req-btn.approve { background: #286349; color: #fff; }
+.req-btn.reject { background: #fff; color: #A33E39; border: 1rpx solid #FECACA; }
 </style>

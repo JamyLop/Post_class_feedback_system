@@ -24,6 +24,9 @@ export const upsertSubjectPlan = (caseId, subject, data) => http.put(`/student-c
 export const createGoal = (caseId, data) => http.post(`/student-cases/${caseId}/goals`, data)
 export const createTask = (caseId, data) => http.post(`/student-cases/${caseId}/tasks`, data)
 export const updateTask = (caseId, taskId, data) => http.put(`/student-cases/${caseId}/tasks/${taskId}`, data)
+export const requestTaskChange = (caseId, taskId, data) => http.post(`/student-cases/${caseId}/tasks/${taskId}/change-request`, data)
+export const listTaskChangeRequests = (params = {}) => http.get('/student-cases/tasks/change-requests', params)
+export const decideTaskChange = (reviewId, data) => http.post(`/student-cases/reviews/${reviewId}/decide`, data)
 export const checkinCaseTask = (taskId, data) => http.post(`/student-cases/tasks/${taskId}/checkins`, data)
 
 // 打卡照片上传：multipart field `file`，仅班主任；后端限制 10MB 内 PNG/JPEG/GIF/WebP

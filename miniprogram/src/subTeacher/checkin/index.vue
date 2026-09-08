@@ -20,15 +20,12 @@
           <view v-if="selectedTask" class="task-preview">
             <text class="preview-subject">{{ selectedTask.subject || '综合' }}</text>
             <text class="preview-title">{{ selectedTask.title }}</text>
-            <text class="preview-meta">{{ selectedTask.starts_on }} 至 {{ selectedTask.due_on }}</text>
+            <text class="preview-meta">{{ selectedTask.starts_on }} 至 {{ selectedTask.due_on }} · {{ cadenceLabel(selectedTask.cadence) }}{{ selectedTask.cadence === 'weekly' && selectedTask.weekly_times ? ` · 每周${selectedTask.weekly_times}次` : '' }}</text>
           </view>
 
           <view class="field">
-            <text class="label">完成度</text>
-            <view class="rate-row">
-              <slider :value="form.completion_rate" :min="0" :max="100" step="5" @change="e => form.completion_rate = e.detail.value" class="slider" activeColor="#253D61" />
-              <text class="rate-num">{{ form.completion_rate }}%</text>
-            </view>
+            <text class="label">积分规则</text>
+            <text class="score-note">打卡即得 1 分（单科单日封顶1分、单科周封顶7分）</text>
           </view>
 
           <view class="field">
@@ -53,7 +50,7 @@
           </view>
         </view>
         <button class="btn-primary" :loading="submitting" :disabled="submitting || uploading" @click="submit">提交打卡</button>
-        <text class="hint">完成度 100% 自动标记任务完成</text>
+        <text class="hint">打卡即得 1 分，单科单日封顶1分、单科周封顶7分</text>
       </template>
     </template>
   </view>
@@ -75,7 +72,7 @@ const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 const photos = ref([])
 const detail = ref(null)
 const selectedTaskId = ref(null)
-const form = reactive({ completion_rate: 80, self_check: '' })
+const form = reactive({ self_check: '' })
 
 const tasks = computed(() => (detail.value?.tasks || []).map(t => ({
   ...t,
@@ -93,6 +90,10 @@ function getParams() {
 function onTaskChange(e) {
   const task = tasks.value[e.detail.value]
   selectedTaskId.value = task?.id || null
+}
+
+function cadenceLabel(v) {
+  return { daily: '日计划', weekly: '周计划', monthly: '月计划' }[v] || v || ''
 }
 
 async function load() {
@@ -114,7 +115,8 @@ async function submit() {
   submitting.value = true
   try {
     // 先落打卡记录，再逐张上传照片；照片失败不回滚打卡（与 Web 端一致）
-    const saved = await checkinCaseTask(selectedTaskId.value, { completion_rate: Number(form.completion_rate), self_check: form.self_check })
+    // 打卡即得满分 1 分：不再填写完成度，固定按 100% 提交
+    const saved = await checkinCaseTask(selectedTaskId.value, { completion_rate: 100, self_check: form.self_check })
     let okCount = 0
     let failCount = 0
     if (photos.value.length && saved?.id) {
@@ -218,6 +220,7 @@ onShow(() => load())
 .preview-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 
 .rate-row { display: flex; align-items: center; gap: 16rpx; }
+.score-note { font-size: 26rpx; color: var(--mp-muted); }
 .slider { flex: 1; }
 .rate-num { font-size: 32rpx; font-weight: 700; color: var(--mp-primary); min-width: 80rpx; text-align: right; }
 .textarea {

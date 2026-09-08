@@ -123,11 +123,12 @@ def task_reminders(
             subject=task.subject or "",
             title=task.title,
             cadence=task.cadence or "",
+            weekly_times=task.weekly_times,
             starts_on=task.starts_on,
             due_on=task.due_on,
             status=task.status,
             version=task.version or 1,
-            points=task.points or 0,
+            points=1,
             overdue_days=overdue_days,
             logged_today=task.id in logged_today,
         )

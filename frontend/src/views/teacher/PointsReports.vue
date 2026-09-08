@@ -4,7 +4,7 @@
       <div>
         <div class="scope-line"><span>高三试点</span><span>积分周报 · 月报</span></div>
         <h1>积分周报月报</h1>
-        <p>班主任完成阶段任务每日记录后，系统按“满分积分 × 完成度”从每名学生处累加积分，在此一键生成并查看班级周报、月报。</p>
+        <p>每天每任务满分 1 分按完成度折算，单科单日封顶 1 分、单科每周封顶 7 分；周任务按每周执行次数计入应得满分，在此一键生成并查看班级周报、月报。</p>
       </div>
       <div class="head-actions">
         <el-button type="primary" :loading="building" :disabled="!filters.class_id" @click="build"><el-icon><Plus /></el-icon>一键生成本班报表</el-button>

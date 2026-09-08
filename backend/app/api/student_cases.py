@@ -19,6 +19,7 @@ from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.student_case import (
     CASE_STATUSES,
     CASE_STATUS_ADJUSTED,
+    CASE_STATUS_DRAFT,
     CASE_STATUS_PENDING_CONFIRMATION,
     CASE_STATUS_REVISION_REQUIRED,
     CaseCycle,
@@ -46,6 +47,9 @@ from app.schemas.student_case import (
     CaseReviewCreate,
     CaseReviewOut,
     DeyuReviewDecision,
+    TaskChangeDecide,
+    TaskChangeRequestCreate,
+    TaskChangeRequestOut,
     CaseStudentProfileOut,
     CaseStudentProfileUpsert,
     CaseTaskCreate,
@@ -870,7 +874,11 @@ def create_task(
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能新增任务")
     # 阶段归属：任务创建时快照总案当前版本，阶段即版本
-    task = CaseTask(student_case_id=case_id, created_by=user.id, version=case.version, **body.model_dump())
+    payload = body.model_dump()
+    payload['points'] = 1
+    if body.cadence != 'weekly':
+        payload['weekly_times'] = None
+    task = CaseTask(student_case_id=case_id, created_by=user.id, version=case.version, **payload)
     db.add(task)
     db.flush()
     audit(db, user.id, "task.create", "case_task", task.id, case.id)
@@ -899,10 +907,14 @@ def update_task(
         raise HTTPException(status_code=409, detail="德育审查期间不能修改任务，请先撤回或等待审查意见")
     if case.status == "archived":
         raise HTTPException(status_code=409, detail="已归档方案不能修改任务")
-    for field, value in body.model_dump().items():
-        # points 有缺省值：未显式传入时保持原权重，避免编辑标题时重置积分
-        if field == "points" and "points" not in body.model_fields_set:
-            continue
+    # 周任务创建后锁定：仅草稿或德育退回整改状态可改，其余修改需向德育主任申请（退回整改后方可调整）。
+    if task.cadence == "weekly" and case.status not in {CASE_STATUS_DRAFT, CASE_STATUS_REVISION_REQUIRED}:
+        raise HTTPException(status_code=403, detail="周任务已锁定，如需调整请向德育主任申请（退回整改后可改）")
+    data = body.model_dump()
+    data['points'] = 1
+    if body.cadence != 'weekly':
+        data['weekly_times'] = None
+    for field, value in data.items():
         setattr(task, field, value)
     audit(db, user.id, "task.update", "case_task", task.id, case.id)
     from app.services.case_points_service import recompute_stage_completion as _recompute_task
@@ -1048,6 +1060,129 @@ def decide_deyu_review(
         },
     )
     transition_case(db, case, transition_target, user, transition_reason)
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.post("/{case_id}/tasks/{task_id}/change-request", response_model=CaseReviewOut)
+def request_task_change(
+    case_id: int,
+    task_id: int,
+    body: TaskChangeRequestCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(_head_teacher),
+):
+    """班主任申请修改已锁定的周任务：生成待德育审批的申请单，不直接改任务。"""
+    task = db.get(CaseTask, task_id)
+    if task is None or task.student_case_id != case_id:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    case = require_case_access(db, case_id, user, write=True, subject=task.subject)
+    require_case_manager(db, case, user)
+    if (task.cadence or "") != "weekly":
+        raise HTTPException(status_code=400, detail="仅周任务需要申请修改，日/月任务可直接编辑")
+    if case.status in {CASE_STATUS_DRAFT, CASE_STATUS_REVISION_REQUIRED}:
+        raise HTTPException(status_code=400, detail="当前可直接修改任务，无需申请")
+    existing = (
+        db.query(CaseReview)
+        .filter(CaseReview.task_id == task.id, CaseReview.workflow_status == "open")
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="该任务已有待审批的修改申请，请等待德育主任处理")
+    review = CaseReview(
+        student_case_id=case.id,
+        task_id=task.id,
+        review_level="head_teacher",
+        subject=task.subject or "",
+        reviewer_id=user.id,
+        problem=f"\u3010\u5468\u4efb\u52a1\u4fee\u6539\u7533\u8bf7\u3011{task.title}\uff08\u6bcf\u5468{task.weekly_times or '-'}\u6b21\uff09",
+        corrective_action=body.reason.strip(),
+        decision="",
+        workflow_status="open",
+        target_version=case.version,
+        visibility="shared",
+    )
+    db.add(review)
+    db.flush()
+    audit(
+        db, user.id, "task.change_request", "case_review", review.id, case.id,
+        {"task_id": task.id, "reason": body.reason.strip()},
+    )
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.get("/tasks/change-requests", response_model=list[TaskChangeRequestOut])
+def list_task_change_requests(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR])),
+):
+    """德育主任/管理员查看待审批的周任务修改申请。"""
+    rows = (
+        db.query(CaseReview)
+        .filter(CaseReview.task_id.isnot(None), CaseReview.workflow_status == "open")
+        .order_by(CaseReview.reviewed_at.desc())
+        .all()
+    )
+    result = []
+    for r in rows:
+        case = db.get(StudentCase, r.student_case_id)
+        task = db.get(CaseTask, r.task_id) if r.task_id else None
+        student = db.get(User, case.student_id) if case else None
+        cls = db.get(Class, case.class_id) if case else None
+        result.append(TaskChangeRequestOut(
+            id=r.id,
+            case_id=r.student_case_id,
+            student_id=case.student_id if case else None,
+            student_name=student.name if student else None,
+            class_id=case.class_id if case else None,
+            class_name=cls.name if cls else None,
+            task_id=r.task_id,
+            task_title=task.title if task else "",
+            subject=r.subject or "",
+            reason=r.corrective_action or "",
+            reviewer_id=r.reviewer_id,
+            reviewed_at=r.reviewed_at,
+        ))
+    return result
+
+
+@router.post("/reviews/{review_id}/decide", response_model=CaseReviewOut)
+def decide_task_change(
+    review_id: int,
+    body: TaskChangeDecide,
+    db: Session = Depends(get_db),
+    user: User = Depends(_deyu_director),
+):
+    """德育主任审批周任务修改申请：同意则档案退回整改（解锁任务），驳回则维持锁定。"""
+    review = db.get(CaseReview, review_id)
+    if review is None or review.task_id is None or review.workflow_status != "open":
+        raise HTTPException(status_code=404, detail="待审批的修改申请不存在")
+    require_case_access(db, review.student_case_id, user, write=False)
+    now = datetime.now(timezone.utc)
+    if body.comment.strip():
+        review.recheck_result = body.comment.strip()
+    if body.decision == "approved":
+        case = db.get(StudentCase, review.student_case_id)
+        if case is not None:
+            case.status = CASE_STATUS_REVISION_REQUIRED
+        review.decision = "approved"
+        review.workflow_status = "closed"
+        review.resolved_at = now
+        audit(
+            db, user.id, "task.change_approve", "case_review", review.id,
+            review.student_case_id, {"task_id": review.task_id},
+        )
+    else:
+        review.decision = "rejected"
+        review.workflow_status = "closed"
+        review.resolved_at = now
+        audit(
+            db, user.id, "task.change_reject", "case_review", review.id,
+            review.student_case_id, {"task_id": review.task_id},
+        )
     db.commit()
     db.refresh(review)
     return review

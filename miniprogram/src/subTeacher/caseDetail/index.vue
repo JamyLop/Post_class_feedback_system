@@ -88,7 +88,7 @@
               <text class="subject-tag">{{ task.subject || '综合' }}</text>
               <text class="task-title">{{ task.title }}</text>
             </view>
-            <text class="task-meta">{{ task.starts_on }} 至 {{ task.due_on }} · {{ taskStatus(task.status) }}</text>
+            <text class="task-meta">{{ task.starts_on }} 至 {{ task.due_on }} · {{ taskStatus(task.status) }} · {{ cadenceLabel(task.cadence) }}{{ task.cadence === 'weekly' && task.weekly_times ? ` · 每周${task.weekly_times}次` : '' }} · 1分/天</text>
           </view>
           <view v-if="detail.task_checkins.length" class="checkin-section">
             <text class="section-h">执行记录（最近10条）</text>
@@ -156,17 +156,25 @@ const availableSubjects = computed(() => {
 })
 
 const checkinItems = computed(() => (detail.value?.task_checkins || []).slice(0, 10).map(c => ({
-  title: `${c.completion_rate}% · ${taskTitle(c.task_id)}`,
+  title: `已打卡 · ${taskTitle(c.task_id)} · 得 ${c.earned_points ?? 1} 分`,
   desc: c.self_check || '—',
   time: c.checked_in_at?.slice(0, 16).replace('T', ' '),
 })))
-const reviewItems = computed(() => (detail.value?.reviews || []).map(r => ({
-  title: `${levelLabel(r.review_level)}${r.subject ? ' · '+r.subject : ''}`,
-  desc: `${r.problem || ''}${r.corrective_action ? '｜整改：'+r.corrective_action : ''}${r.recheck_result ? '｜复查：'+r.recheck_result : ''}`,
-  time: r.reviewed_at?.slice(0,16).replace('T',' '),
-})))
+const reviewItems = computed(() => (detail.value?.reviews || []).map(r => {
+  if (r.task_id) return {
+    title: `修改申请 · ${taskTitle(r.task_id)}${r.subject ? ' · '+r.subject : ''} · ${r.workflow_status === 'open' ? '待审批' : r.decision === 'approved' ? '已同意' : '已驳回'}`,
+    desc: `原因：${r.corrective_action || '—'}${r.recheck_result ? '｜意见：'+r.recheck_result : ''}｜标题：${r.problem || ''}`,
+    time: r.reviewed_at?.slice(0,16).replace('T',' '),
+  }
+  return {
+    title: `${levelLabel(r.review_level)}${r.subject ? ' · '+r.subject : ''}`,
+    desc: `${r.problem || ''}${r.corrective_action ? '｜整改：'+r.corrective_action : ''}${r.recheck_result ? '｜复查：'+r.recheck_result : ''}`,
+    time: r.reviewed_at?.slice(0,16).replace('T',' '),
+  }
+}))
 
 function taskStatus(v) { return { pending:'待执行', in_progress:'执行中', completed:'已完成', cancelled:'已取消' }[v] || v }
+function cadenceLabel(v) { return { daily:'日计划', weekly:'周计划', monthly:'月计划' }[v] || v }
 function levelLabel(v) { return { school:'校级督查', principal:'校长督察', deyu:'德育督查', head_teacher:'班主任督查', subject:'学科督查' }[v] || v }
 function taskTitle(id) { return detail.value?.tasks.find(t => t.id === id)?.title || '任务' }
 function formatCheckinTime(value) { return value?.slice(0, 16).replace('T', ' ') || '' }

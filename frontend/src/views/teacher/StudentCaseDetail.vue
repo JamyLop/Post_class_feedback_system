@@ -422,14 +422,15 @@
                     <el-form-item label="截止日期"><el-date-picker v-model="taskForm.due_on" type="date" value-format="YYYY-MM-DD" placeholder="选择截止日期" /></el-form-item>
                   </div>
                   <div class="task-form-grid task-points-grid">
-                    <el-form-item label="满分积分（权重）"><el-input-number v-model="taskForm.points" :min="1" :max="1000" :step="5" /><span class="points-hint">每日打卡按完成度折算得分</span></el-form-item>
+                    <el-form-item v-if="taskForm.cadence === 'weekly'" label="每周执行次数" required><el-input-number v-model="taskForm.weekly_times" :min="1" :max="7" :step="1" /><span class="points-hint">周计划必填：每周执行几次，每次打卡满分 1 分</span></el-form-item>
+                    <el-form-item v-else label="积分规则"><span class="points-hint">每天每任务满分 1 分按完成度折算，单科每周封顶 7 分</span></el-form-item>
                   </div>
                   <div class="task-form-actions"><el-button :disabled="savingTask" @click="cancelTaskEdit">取消</el-button><el-button type="primary" :loading="savingTask" @click="saveTask">保存任务</el-button></div>
                 </el-form>
                 <div v-if="tasksFor(selectedSubject).length" class="task-list">
                   <article v-for="task in tasksFor(selectedSubject)" :key="task.id" class="task-row">
                     <div><strong>{{ task.title }}</strong><p>{{ task.description || '暂无补充说明' }}</p></div>
-                    <div class="task-side"><div class="task-meta"><span>{{ cadenceLabel(task.cadence) }}</span><span>{{ formatShortDate(task.starts_on) }} 至 {{ formatShortDate(task.due_on) }}</span><span>{{ taskStatusLabel(task.status) }}</span><span>V{{ task.version || 1 }}阶段</span><span>{{ task.points || 0 }}分</span></div><el-button v-if="canEditTasks && !editingTask" link @click="startTaskEdit(task)">编辑任务</el-button></div>
+                    <div class="task-side"><div class="task-meta"><span>{{ cadenceLabel(task.cadence) }}</span><span v-if="task.cadence === 'weekly'">每周{{ task.weekly_times || '-' }}次</span><span>{{ formatShortDate(task.starts_on) }} 至 {{ formatShortDate(task.due_on) }}</span><span>{{ taskStatusLabel(task.status) }}</span><span>V{{ task.version || 1 }}阶段</span><span>1分/天·单科周封顶7分</span></div><el-button v-if="canEditTask(task)" link @click="startTaskEdit(task)">编辑任务</el-button><template v-else-if="task.cadence === 'weekly' && canEditTasks && !editingTask"><el-button v-if="openChangeRequestFor(task)" link disabled>已申请待审批</el-button><el-button v-else link type="warning" @click="openChangeRequestDialog(task)">申请修改</el-button></template></div>
                   </article>
                 </div>
                 <div v-else class="inline-empty"><p>该学科尚未安排日、周或月任务。</p></div>
@@ -438,13 +439,10 @@
               <section class="subject-section">
                 <div class="subject-section-heading"><div><el-icon><CircleCheck /></el-icon><h3>执行记录</h3></div><span>班主任核实并记录任务完成情况</span></div>
                 <el-form v-if="detail.can_manage && tasksFor(selectedSubject).length" label-position="top" class="checkin-form">
-                  <div class="checkin-form-grid">
-                    <el-form-item label="对应任务"><el-select v-model="checkinForm.task_id" placeholder="选择要记录的任务"><el-option v-for="task in tasksFor(selectedSubject)" :key="task.id" :label="task.title" :value="task.id" /></el-select></el-form-item>
-                    <el-form-item label="完成度"><el-input-number v-model="checkinForm.completion_rate" :min="0" :max="100" :step="10" /><span class="percent-suffix">%</span></el-form-item>
-                  </div>
+                  <el-form-item label="对应任务"><el-select v-model="checkinForm.task_id" placeholder="选择要记录的任务"><el-option v-for="task in tasksFor(selectedSubject)" :key="task.id" :label="task.title" :value="task.id" /></el-select></el-form-item>
                   <div class="checkin-form-grid checkin-date-grid">
                     <el-form-item label="记录日期"><el-date-picker v-model="checkinForm.log_date" type="date" value-format="YYYY-MM-DD" placeholder="缺省为当天" /></el-form-item>
-                    <div class="expected-points">预计得分：<strong>{{ expectedCheckinPoints }}</strong></div>
+                    <div class="expected-points">打卡即得<strong>1 分</strong>（单科单日封顶1分、单科周封顶7分）</div>
                   </div>
                   <el-form-item label="班主任记录"><el-input v-model="checkinForm.self_check" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="完整记录学生实际执行情况、发现的问题和后续要求" /></el-form-item>
                   <el-form-item label="上传照片"><el-upload drag :auto-upload="false" :on-change="handleCheckinFileChange" :file-list="checkinFileList" accept="image/*" :limit="5"><el-icon><Upload /></el-icon><div class="el-upload__text">拖拽或<em>点击上传</em>照片（最多5张）</div></el-upload></el-form-item>
@@ -452,7 +450,7 @@
                 </el-form>
                 <div v-if="checkinsFor(selectedSubject).length" class="checkin-list">
                   <article v-for="checkin in checkinsFor(selectedSubject)" :key="checkin.id" class="checkin-row">
-                    <div class="completion-rate"><strong>{{ checkin.completion_rate }}%</strong><span>完成度</span></div>
+                    <div class="completion-rate"><strong>1分</strong><span>已打卡</span></div>
                     <div><strong>{{ taskTitle(checkin.task_id) }}</strong><p>{{ checkin.self_check || '班主任未填写补充说明' }}</p><time>{{ formatDateTime(checkin.checked_in_at) }} · 记录{{ checkin.log_date || '-' }} · 得 {{ checkin.earned_points ?? '-' }} 分</time>
                       <div v-if="checkin.attachments?.length" class="checkin-attachments"><SecureCheckinImage v-for="(att, index) in checkin.attachments" :key="`${checkin.id}-${att.object_name || index}`" :checkin-id="checkin.id" :attachment-index="index" :attachment="att" /></div>
                     </div>
@@ -515,12 +513,13 @@
           </div>
           <el-timeline v-if="detail.reviews.length" class="review-timeline">
             <el-timeline-item v-for="review in detail.reviews" :key="review.id" :timestamp="formatDateTime(review.reviewed_at)">
-              <div class="review-item">
-                <div class="review-item-head"><span class="review-level" :class="`is-${review.review_level}`">{{ reviewLevelLabel(review.review_level) }}</span><span v-if="review.subject" class="review-subject">{{ review.subject }}</span><span v-if="review.correction_due_on" class="review-due">整改截止 {{ review.correction_due_on }}</span></div>
-                <p class="review-problem">{{ review.problem || '未填写具体问题' }}</p>
-                <p v-if="review.corrective_action" class="review-action">整改：{{ review.corrective_action }}</p>
-                <p v-if="review.recheck_result" class="review-recheck">复查：{{ review.recheck_result }}</p>
-              </div>
+                <div class="review-item">
+                  <div class="review-item-head"><span v-if="review.task_id" class="review-level is-task_change">修改申请</span><span v-else class="review-level" :class="`is-${review.review_level}`">{{ reviewLevelLabel(review.review_level) }}</span><span v-if="review.subject" class="review-subject">{{ review.subject }}</span><span v-if="review.task_id" class="review-subject">{{ taskTitle(review.task_id) }}</span><span v-if="review.correction_due_on" class="review-due">整改截止 {{ review.correction_due_on }}</span><el-tag v-if="review.task_id" :type="review.workflow_status === 'open' ? 'warning' : 'info'" size="small">{{ review.workflow_status === 'open' ? '待审批' : review.decision === 'approved' ? '已同意' : '已驳回' }}</el-tag></div>
+                  <p class="review-problem">{{ review.problem || '未填写具体问题' }}</p>
+                  <p v-if="review.corrective_action" class="review-action">{{ review.task_id ? '申请原因：' : '整改：' }}{{ review.corrective_action }}</p>
+                  <p v-if="review.recheck_result" class="review-recheck">{{ review.task_id ? '审批意见：' : '复查：' }}{{ review.recheck_result }}</p>
+                  <div v-if="review.task_id && review.workflow_status === 'open' && auth.role === 'deyu_director'" class="review-decide-actions"><el-button size="small" @click="decideChangeRequest(review, 'rejected')">驳回</el-button><el-button size="small" type="primary" @click="decideChangeRequest(review, 'approved')">同意并退回整改</el-button></div>
+                </div>
             </el-timeline-item>
           </el-timeline>
           <div v-else class="empty-panel"><h3>暂无督查记录</h3><p>方案进入执行阶段后，班主任记录过程，管理员提交校级督查。</p></div>
@@ -619,6 +618,18 @@
           <el-button type="primary" :loading="submitting" @click="confirmDeyuReview">{{ deyuDecision === 'approved' ? '确认通过' : '确认退回' }}</el-button>
         </template>
       </el-dialog>
+
+      <el-dialog v-model="changeReqVisible" title="申请修改周任务" width="520px" destroy-on-close>
+        <p class="change-req-task">任务：<strong>{{ changeReqTask?.title }}</strong><span v-if="changeReqTask?.weekly_times">（每周{{ changeReqTask.weekly_times }}次）</span></p>
+        <p class="dialog-tip">提交后需德育主任审批；同意后档案将退回整改，届时即可修改该任务。</p>
+        <el-form label-position="top">
+          <el-form-item label="申请原因" required><el-input v-model="changeReqReason" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" placeholder="说明需要修改的原因，例如：学生进度超前，需增加每周次数" /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="changeReqVisible = false">取消</el-button>
+          <el-button type="primary" :loading="changeReqSaving" @click="submitChangeRequest">提交申请</el-button>
+        </template>
+      </el-dialog>
     </template>
   </section>
 </template>
@@ -629,7 +640,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, TrendCharts, Upload, View, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, exportStudentCase, getStudentCase, listCaseVersions, listStageCompletions, rebuildStageCompletion, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
+import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, decideTaskChange, exportStudentCase, getStudentCase, listCaseVersions, listStageCompletions, rebuildStageCompletion, requestTaskChange, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import SecureCheckinImage from '../../components/SecureCheckinImage.vue'
@@ -678,14 +689,9 @@ const savingSuggestion = ref(false)
 const taskForm = ref(createEmptyTaskForm())
 const overviewForm = ref(createEmptyOverviewForm())
 const profileForm = ref(createEmptyProfileForm())
-const checkinForm = ref({ task_id: null, completion_rate: 0, self_check: '', log_date: '' })
+const checkinForm = ref({ task_id: null, self_check: '', log_date: '' })
 const checkinFileList = ref([])
 const stageCompletions = ref([])
-const expectedCheckinPoints = computed(() => {
-  const task = detail.value?.tasks?.find((item) => item.id === checkinForm.value.task_id)
-  if (!task) return '-'
-  return `${Math.round(((task.points || 0) * (checkinForm.value.completion_rate || 0) / 100) * 100) / 100} / ${task.points || 0} 分`
-})
 const reviewForm = ref(createEmptyReviewForm())
 const labels = { draft: '草稿', pending_confirmation: '待确认', executing: '执行中', pending_review: '待复盘', adjusted: '已调整', archived: '已归档' }
 const gradeOptions = ['初一', '初二', '初三', '高一', '高二', '高三', '复读']
@@ -807,7 +813,7 @@ function createEmptyPlanForm() {
 
 function createEmptyTaskForm() {
   const today = new Date().toISOString().slice(0, 10)
-  return { title: '', description: '', cadence: 'daily', starts_on: today, due_on: today, points: 10 }
+  return { title: '', description: '', cadence: 'daily', weekly_times: null, starts_on: today, due_on: today, points: 1 }
 }
 
 function createEmptyOverviewForm() {
@@ -1084,9 +1090,10 @@ function startTaskEdit(task = null) {
     title: task.title || '',
     description: task.description || '',
     cadence: task.cadence || 'daily',
+    weekly_times: task.weekly_times ?? null,
     starts_on: task.starts_on || '',
     due_on: task.due_on || '',
-    points: task.points ?? 10,
+    points: 1,
   } : createEmptyTaskForm()
 }
 
@@ -1108,9 +1115,14 @@ async function saveTask() {
     ElMessage.warning('截止日期不能早于开始日期')
     return
   }
+  if (taskForm.value.cadence === 'weekly' && !(taskForm.value.weekly_times >= 1 && taskForm.value.weekly_times <= 7)) {
+    ElMessage.warning('周计划必须明确每周执行次数（1-7次）')
+    return
+  }
   savingTask.value = true
   try {
-    const payload = { subject: selectedSubject.value, ...taskForm.value, title: taskForm.value.title.trim() }
+    const payload = { subject: selectedSubject.value, ...taskForm.value, title: taskForm.value.title.trim(), points: 1 }
+    if (payload.cadence !== 'weekly') payload.weekly_times = null
     const saved = editingTask.value === 'new'
       ? await createCaseTask(detail.value.id, payload)
       : await updateCaseTask(detail.value.id, editingTask.value, payload)
@@ -1127,6 +1139,67 @@ async function saveTask() {
 
 function tasksFor(subject) {
   return detail.value?.tasks?.filter((item) => item.subject === subject) || []
+}
+
+// 周任务创建后锁定：仅草稿或德育退回整改状态可改，其余需向德育主任申请（退回整改后方可调整）。
+function canEditTask(task) {
+  if (!canEditTasks.value || editingTask.value) return false
+  if (task?.cadence === 'weekly' && !['draft', 'revision_required'].includes(detail.value?.status)) return false
+  return true
+}
+
+const changeReqVisible = ref(false)
+const changeReqTask = ref(null)
+const changeReqReason = ref('')
+const changeReqSaving = ref(false)
+
+function openChangeRequestFor(task) {
+  if (!task) return null
+  return detail.value?.reviews?.find((r) => r.task_id === task.id && r.workflow_status === 'open') || null
+}
+
+function openChangeRequestDialog(task) {
+  changeReqTask.value = task
+  changeReqReason.value = ''
+  changeReqVisible.value = true
+}
+
+async function submitChangeRequest() {
+  if (!detail.value || !changeReqTask.value) return
+  if (!changeReqReason.value.trim()) {
+    ElMessage.warning('请填写申请原因')
+    return
+  }
+  changeReqSaving.value = true
+  try {
+    const saved = await requestTaskChange(detail.value.id, changeReqTask.value.id, { reason: changeReqReason.value.trim() })
+    detail.value.reviews.unshift(saved)
+    changeReqVisible.value = false
+    ElMessage.success('修改申请已提交，待德育主任审批')
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || '提交失败，请重试')
+  } finally {
+    changeReqSaving.value = false
+  }
+}
+
+async function decideChangeRequest(review, decision) {
+  const action = decision === 'approved' ? '同意并退回整改' : '驳回'
+  try {
+    await ElMessageBox.confirm(`确认${action}该周任务修改申请吗？${decision === 'approved' ? '同意后档案将退回整改，班主任可修改该任务。' : ''}`, '审批修改申请', { confirmButtonText: `确认${action}`, cancelButtonText: '取消', type: 'warning' })
+  } catch { return }
+  try {
+    const saved = await decideTaskChange(review.id, { decision })
+    Object.assign(review, saved)
+    if (decision === 'approved') {
+      ElMessage.success('已同意并退回整改，班主任可修改该任务')
+      await load()
+    } else {
+      ElMessage.success('已驳回该修改申请')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || '审批失败，请重试')
+  }
 }
 
 function subjectTargets(stage) {
@@ -1345,7 +1418,7 @@ async function saveCheckin() {
   savingCheckin.value = true
   try {
     const saved = await checkinCaseTask(checkinForm.value.task_id, {
-      completion_rate: checkinForm.value.completion_rate,
+      completion_rate: 100,
       self_check: checkinForm.value.self_check,
       log_date: checkinForm.value.log_date || undefined,
     })
@@ -1363,8 +1436,8 @@ async function saveCheckin() {
     }
     detail.value.task_checkins.unshift(saved)
     const task = detail.value.tasks.find((item) => item.id === saved.task_id)
-    if (task) task.status = saved.completion_rate === 100 ? 'completed' : saved.completion_rate > 0 ? 'in_progress' : 'pending'
-    checkinForm.value = { task_id: null, completion_rate: 0, self_check: '', log_date: '' }
+    if (task) task.status = 'completed'
+    checkinForm.value = { task_id: null, self_check: '', log_date: '' }
     checkinFileList.value = []
     ElMessage.success(`执行记录已保存，得 ${saved.earned_points ?? 0} 分`)
     await loadStages()
@@ -1732,7 +1805,7 @@ onMounted(load)
 .stage-head { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; margin-bottom: 8px; font-size: 13px; color: var(--ink-muted); }
 .stage-head strong { color: var(--ink); font-size: 13.5px; }.checkin-form-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(160px, .9fr); gap: 14px; }.checkin-form :deep(.el-form-item) { margin-bottom: 12px; }.checkin-form :deep(.el-select) { width: 100%; }.checkin-form :deep(.el-form-item__label) { color: var(--ink); font-size: 12px; font-weight: 700; }.percent-suffix { margin-left: 6px; color: var(--ink-muted); font-weight: 600; }.checkin-list { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }.checkin-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; padding: 14px 16px; background: var(--surface); }.checkin-row:first-child { border-radius: 12px 12px 0 0; }.checkin-row:last-child { border-bottom: 0; }.completion-rate { display: grid; align-content: center; justify-items: center; min-height: 54px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); border-radius: 10px; box-shadow: 0 2px 8px color-mix(in oklch, var(--brand) 22%, transparent); }.completion-rate strong { font-size: 16px; }.completion-rate span { margin-top: 1px; font-size: 10px; opacity: .9; }.checkin-row > div:last-child > strong { font-size: 13.5px; }.checkin-row p { margin: 4px 0; color: var(--ink-secondary); line-height: 1.6; font-size: 13px; white-space: pre-wrap; }.checkin-row time { color: var(--ink-muted); font-size: 11px; }.inline-empty { margin-top: 12px; padding: 16px; color: var(--ink-muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; text-align: center; }.inline-empty p { margin: 0; font-size: 12.5px; }
 .review-form-card { margin-bottom: 16px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-form-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.review-form-header strong { font-size: 14px; font-weight: 750; letter-spacing: -.01em; }.review-form-header span { color: var(--ink-muted); font-size: 11.5px; }.review-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }.review-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; }.review-form :deep(.el-select), .review-form :deep(.el-date-editor) { width: 100%; }.review-form :deep(.el-input__wrapper), .review-form :deep(.el-textarea__inner) { border-radius: 10px; }.review-form-actions { display: flex; justify-content: flex-end; }
-.review-item-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }.review-level { padding: 4px 8px; color: #fff; background: var(--brand); border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }.review-level.is-school { background: #7c3aed; }.review-level.is-principal { background: #be123c; }.review-level.is-head_teacher { background: var(--brand); }.review-level.is-subject { background: #0ea5e9; }.review-subject, .review-due { padding: 4px 8px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; }.review-problem { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }.review-action, .review-recheck { margin: 6px 0 0; color: var(--ink-secondary); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; background: var(--surface-soft); border: 1px solid var(--line); padding: 8px 10px; border-radius: 10px; }
+.review-item-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }.review-level { padding: 4px 8px; color: #fff; background: var(--brand); border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }.review-level.is-school { background: #7c3aed; }.review-level.is-principal { background: #be123c; }.review-level.is-head_teacher { background: var(--brand); }.review-level.is-subject { background: #0ea5e9; }.review-level.is-task_change { background: #d97706; }.review-decide-actions { display: flex; gap: 8px; margin-top: 10px; }.change-req-task { margin: 0 0 6px; font-size: 14px; }.dialog-tip { margin: 0 0 12px; font-size: 12.5px; color: #64748b; }.review-subject, .review-due { padding: 4px 8px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; }.review-problem { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }.review-action, .review-recheck { margin: 6px 0 0; color: var(--ink-secondary); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; background: var(--surface-soft); border: 1px solid var(--line); padding: 8px 10px; border-radius: 10px; }
 .review-timeline { padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-timeline :deep(.el-timeline-item__node) { border-color: var(--brand); background: var(--brand-soft); }.review-timeline :deep(.el-timeline-item__timestamp) { font-size: 11.5px; }
 .weekly-section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); padding: 18px 20px; }
 .weekly-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }

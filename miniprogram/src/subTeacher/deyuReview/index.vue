@@ -10,6 +10,24 @@
       <text class="loading-text">加载中...</text>
     </view>
     <template v-else>
+      <view class="card change-req-card">
+        <text class="card-title">周任务修改申请（{{ changeRequests.length }}）</text>
+        <view v-if="changeRequests.length">
+          <view v-for="(r, idx) in changeRequests" :key="r.id" class="case-row" :class="{ 'has-border': idx > 0 }">
+            <view class="case-info">
+              <text class="case-name">{{ r.task_title }}</text>
+              <text class="case-meta">{{ r.student_name || `学生#${r.student_id}` }} · {{ r.class_name || '' }} · {{ r.subject }} · 每周任务</text>
+              <text class="case-meta">原因：{{ r.reason }}</text>
+            </view>
+            <view class="req-actions">
+              <view class="req-btn reject" @click.stop="handleDecide(r, 'rejected')"><text>驳回</text></view>
+              <view class="req-btn approve" @click.stop="handleDecide(r, 'approved')"><text>同意</text></view>
+            </view>
+          </view>
+        </view>
+        <view v-else class="empty-text">暂无待审批的修改申请，有班主任提交后会在此出现</view>
+      </view>
+
       <view v-if="pendingCases.length" class="card">
         <text class="card-title">待审查（{{ pendingCases.length }}）</text>
         <view v-for="(c, idx) in pendingCases" :key="c.id" class="case-row" :class="{ 'has-border': idx > 0 }" @click="openCase(c)">
@@ -43,7 +61,7 @@ import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { listStudentCases, getStudentCase } from '../../api/studentCases'
+import { listStudentCases, getStudentCase, listTaskChangeRequests, decideTaskChange } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 import EmptyState from '../../components/EmptyState.vue'
 
@@ -51,6 +69,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const pendingCases = ref([])
 const recentDecisions = ref([])
+const changeRequests = ref([])
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
@@ -79,9 +98,26 @@ async function load() {
       } catch (_) {}
     }
     recentDecisions.value = decisions.sort((a, b) => new Date(b.reviewed_at) - new Date(a.reviewed_at)).slice(0, 10)
+    try { changeRequests.value = await listTaskChangeRequests() } catch (_) { changeRequests.value = [] }
   } catch (_) {
     pendingCases.value = []
   } finally { loading.value = false }
+}
+
+async function handleDecide(row, decision) {
+  const title = decision === 'approved' ? '同意并退回整改' : '驳回申请'
+  const content = decision === 'approved' ? '同意后档案将退回整改，班主任可修改该任务' : '确认驳回该修改申请？'
+  uni.showModal({
+    title, content,
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await decideTaskChange(row.id, { decision })
+        uni.showToast({ title: decision === 'approved' ? '已同意并退回整改' : '已驳回', icon: 'success' })
+        load()
+      } catch (e) { uni.showToast({ title: e.message || '操作失败', icon: 'none' }) }
+    }
+  })
 }
 
 function openCase(c) {
@@ -125,4 +161,10 @@ onShow(() => { if (guardRole()) load() })
 .review-copy { flex: 1; }
 .review-label { font-size: 24rpx; color: var(--mp-ink); }
 .review-time { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 2rpx; }
+.change-req-card { border: 2rpx solid #FCD34D; }
+.empty-text { text-align: center; color: var(--mp-muted); padding: 18rpx; font-size: 24rpx; }
+.req-actions { display: flex; gap: 12rpx; flex-shrink: 0; }
+.req-btn { padding: 10rpx 18rpx; border-radius: 10rpx; font-size: 24rpx; }
+.req-btn.approve { background: #286349; color: #fff; }
+.req-btn.reject { background: #fff; color: #A33E39; border: 1rpx solid #FECACA; }
 </style>

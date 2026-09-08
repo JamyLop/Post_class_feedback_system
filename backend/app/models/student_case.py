@@ -217,8 +217,11 @@ class CaseTask(TimestampMixin, Base):
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     # 阶段归属：创建时快照总案 version，阶段即版本
     version: Mapped[int] = mapped_column(Integer, default=1, index=True)
-    # 满分积分/权重：每日打卡按 completion_rate% 折算 earned_points
-    points: Mapped[int] = mapped_column(Integer, default=10)
+    # 积分规则：每天每任务满分 1 分（按打卡完成度折算），单科每周封顶 7 分。
+    # points 保留兼容历史数据，新任务统一为 1，不再作为权重使用。
+    points: Mapped[int] = mapped_column(Integer, default=1)
+    # 周任务每周执行次数：cadence=weekly 时必填 1-7，其余周期忽略。
+    weekly_times: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
 
 
 class TaskCheckin(Base):

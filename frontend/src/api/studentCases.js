@@ -18,6 +18,9 @@ export const listSubjectSuggestions = (caseId) => http.get(`/student-cases/${cas
 export const createSubjectSuggestion = (caseId, data) => http.post(`/student-cases/${caseId}/subject-suggestions`, data)
 export const createCaseTask = (caseId, data) => http.post(`/student-cases/${caseId}/tasks`, data)
 export const updateCaseTask = (caseId, taskId, data) => http.put(`/student-cases/${caseId}/tasks/${taskId}`, data)
+export const requestTaskChange = (caseId, taskId, data) => http.post(`/student-cases/${caseId}/tasks/${taskId}/change-request`, data)
+export const listTaskChangeRequests = (params = {}) => http.get('/student-cases/tasks/change-requests', { params })
+export const decideTaskChange = (reviewId, data) => http.post(`/student-cases/reviews/${reviewId}/decide`, data)
 export const checkinCaseTask = (taskId, data) => http.post(`/student-cases/tasks/${taskId}/checkins`, data)
 export const uploadCheckinAttachment = (checkinId, file) => {
   const formData = new FormData()

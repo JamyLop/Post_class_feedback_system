@@ -3,7 +3,7 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">积分周月报</text>
-      <text class="p">阶段任务每日记录后，按完成度累加积分，一键生成班级周报、月报</text>
+      <text class="p">打卡即得1分（单科单日封顶1分、单科周封顶7分），周任务按每周执行次数计入应得满分，一键生成班级周报、月报</text>
     </view>
 
     <view class="filter-bar">

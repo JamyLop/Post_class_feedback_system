@@ -61,7 +61,6 @@ def _case_and_task(client, auth, class_id, seed_users):
             "cadence": "daily",
             "starts_on": str(date.today() - timedelta(days=1)),
             "due_on": str(date.today() + timedelta(days=7)),
-            "points": 20,
         },
     )
     assert task.status_code == 200, task.text

@@ -431,6 +431,7 @@ def test_case_detail_includes_task_checkins(client, auth, db, seed_users):
             "title": "函数基础与错题复盘",
             "description": "完整保留教师填写的训练要求",
             "cadence": "weekly",
+            "weekly_times": 3,
             "starts_on": str(date.today()),
             "due_on": str(date.today() + timedelta(days=14)),
         },

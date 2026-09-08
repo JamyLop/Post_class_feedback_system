@@ -12,18 +12,28 @@
 
       <view v-if="detail?.tasks?.length" class="list">
         <view v-for="task in detail.tasks" :key="task.id" class="task-card">
-          <view class="task-top" @click="editTask(task)">
+          <view class="task-top" @click="onTaskTap(task)">
             <view class="task-info">
               <text class="subject-tag">{{ task.subject || '综合' }}</text>
               <text class="task-title">{{ task.title }}</text>
             </view>
             <text class="task-status" :class="`is-${task.status}`">{{ taskStatusLabel(task.status) }}</text>
           </view>
-          <text class="task-meta">{{ task.starts_on }} 至 {{ task.due_on }} · {{ cadenceLabel(task.cadence) }}</text>
+          <text class="task-meta">{{ task.starts_on }} 至 {{ task.due_on }} · {{ cadenceLabel(task.cadence) }}{{ task.cadence === 'weekly' && task.weekly_times ? ` · 每周${task.weekly_times}次` : '' }} · 1分/天</text>
           <text class="task-desc">{{ task.description || '暂无描述' }}</text>
+          <text v-if="isLocked(task)" class="lock-tip">周任务已锁定，修改需向德育主任申请</text>
           <view class="task-actions">
             <view class="task-action-btn" @click="goCheckin(task.id)">
               <text>任务打卡</text>
+            </view>
+            <view v-if="canEdit(task)" class="task-action-btn" @click="editTask(task)">
+              <text>编辑</text>
+            </view>
+            <view v-else-if="task.cadence === 'weekly' && openReq(task)" class="task-action-btn disabled">
+              <text>已申请待审批</text>
+            </view>
+            <view v-else-if="task.cadence === 'weekly' && detail.status !== 'archived'" class="task-action-btn warn" @click="openApply(task)">
+              <text>申请修改</text>
             </view>
           </view>
         </view>
@@ -31,6 +41,27 @@
       <view v-else class="empty-text">暂无任务</view>
 
       <button class="btn-primary" @click="addTask">+ 新建任务</button>
+
+      <view v-if="showApply" class="modal-mask" @click.self="showApply=false">
+        <view class="modal">
+          <view class="modal-header">
+            <text class="modal-title">申请修改周任务</text>
+            <text class="modal-close" @click="showApply=false">✕</text>
+          </view>
+          <view class="form">
+            <text class="apply-task">{{ applyTask?.title }}<text v-if="applyTask?.weekly_times"> · 每周{{ applyTask.weekly_times }}次</text></text>
+            <text class="hint">提交后需德育主任审批，同意后档案退回整改即可修改</text>
+            <view class="field">
+              <text class="label">申请原因 *</text>
+              <textarea v-model="applyReason" class="textarea" placeholder="说明需要修改的原因，例如：学生进度超前需增加每周次数" />
+            </view>
+          </view>
+          <view class="modal-btns">
+            <button class="btn-outline" @click="showApply=false">取消</button>
+            <button class="btn-primary" :loading="applying" :disabled="applying" @click="submitApply">提交申请</button>
+          </view>
+        </view>
+      </view>
 
       <view v-if="showForm" class="modal-mask" @click.self="showForm=false">
         <view class="modal">
@@ -57,6 +88,12 @@
               <text class="label">频率 *</text>
               <picker :range="cadences" range-key="label" @change="e => taskForm.cadence = cadences[e.detail.value].value">
                 <view class="picker">{{ cadenceLabel(taskForm.cadence) }}</view>
+              </picker>
+            </view>
+            <view v-if="taskForm.cadence === 'weekly'" class="field">
+              <text class="label">每周执行次数 *</text>
+              <picker :range="weeklyTimesOptions" @change="e => taskForm.weekly_times = weeklyTimesOptions[e.detail.value]">
+                <view class="picker">{{ taskForm.weekly_times ? `每周${taskForm.weekly_times}次` : '请选择1-7次' }}</view>
               </picker>
             </view>
             <view class="field">
@@ -86,7 +123,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getStudentCase, createTask, updateTask } from '../../api/studentCases'
+import { getStudentCase, createTask, updateTask, requestTaskChange } from '../../api/studentCases'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -95,7 +132,12 @@ const showForm = ref(false)
 const editingTask = ref(null)
 const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理']
 const cadences = [{ value: 'daily', label: '日计划' }, { value: 'weekly', label: '周计划' }, { value: 'monthly', label: '月计划' }]
-const taskForm = reactive({ subject: '', title: '', description: '', cadence: 'weekly', starts_on: '', due_on: '' })
+const weeklyTimesOptions = [1, 2, 3, 4, 5, 6, 7]
+const taskForm = reactive({ subject: '', title: '', description: '', cadence: 'weekly', weekly_times: null, starts_on: '', due_on: '' })
+const showApply = ref(false)
+const applyTask = ref(null)
+const applyReason = ref('')
+const applying = ref(false)
 
 function getCaseId() {
   const pages = getCurrentPages()
@@ -105,6 +147,19 @@ function getCaseId() {
 
 function cadenceLabel(v) { return { daily:'日计划', weekly:'周计划', monthly:'月计划' }[v] || v }
 function taskStatusLabel(v) { return { pending:'待执行', in_progress:'执行中', completed:'已完成', cancelled:'已取消' }[v] || v }
+function canEdit(task) {
+  if (!detail.value) return false
+  if (task.cadence === 'weekly' && !['draft', 'revision_required'].includes(detail.value.status)) return false
+  return true
+}
+function isLocked(task) { return task.cadence === 'weekly' && !canEdit(task) }
+function openReq(task) { return (detail.value?.reviews || []).find(r => r.task_id === task.id && r.workflow_status === 'open') || null }
+function onTaskTap(task) {
+  if (canEdit(task)) editTask(task)
+  else if (task.cadence === 'weekly' && !openReq(task)) openApply(task)
+  else uni.showToast({ title: task.cadence === 'weekly' ? '需申请修改' : '去任务打卡', icon: 'none' })
+}
+function openApply(task) { applyTask.value = task; applyReason.value = ''; showApply.value = true }
 
 async function load() {
   loading.value = true
@@ -123,17 +178,23 @@ function addTask() {
   taskForm.title = ''
   taskForm.description = ''
   taskForm.cadence = 'weekly'
+  taskForm.weekly_times = null
   taskForm.starts_on = ''
   taskForm.due_on = ''
   showForm.value = true
 }
 
 function editTask(task) {
+  if (!canEdit(task)) {
+    if (task.cadence === 'weekly') openApply(task)
+    return
+  }
   editingTask.value = task
   taskForm.subject = task.subject || ''
   taskForm.title = task.title || ''
   taskForm.description = task.description || ''
   taskForm.cadence = task.cadence || 'weekly'
+  taskForm.weekly_times = task.weekly_times ?? null
   taskForm.starts_on = task.starts_on || ''
   taskForm.due_on = task.due_on || ''
   showForm.value = true
@@ -142,9 +203,16 @@ function editTask(task) {
 async function saveTask() {
   if (!taskForm.title) return uni.showToast({ title: '请填写标题', icon: 'none' })
   if (!taskForm.starts_on || !taskForm.due_on) return uni.showToast({ title: '请选择日期', icon: 'none' })
+  if (taskForm.cadence === 'weekly' && !(taskForm.weekly_times >= 1 && taskForm.weekly_times <= 7)) {
+    return uni.showToast({ title: '周计划需选择每周执行次数1-7次', icon: 'none' })
+  }
   saving.value = true
   try {
-    const data = { subject: taskForm.subject, title: taskForm.title, description: taskForm.description, cadence: taskForm.cadence, starts_on: taskForm.starts_on, due_on: taskForm.due_on }
+    const data = {
+      subject: taskForm.subject, title: taskForm.title, description: taskForm.description,
+      cadence: taskForm.cadence, points: 1, starts_on: taskForm.starts_on, due_on: taskForm.due_on,
+      weekly_times: taskForm.cadence === 'weekly' ? taskForm.weekly_times : null,
+    }
     if (editingTask.value) await updateTask(getCaseId(), editingTask.value.id, data)
     else await createTask(getCaseId(), data)
     showForm.value = false
@@ -153,6 +221,20 @@ async function saveTask() {
   } catch (e) {
     uni.showToast({ title: e.message || '保存失败', icon: 'none' })
   } finally { saving.value = false }
+}
+
+async function submitApply() {
+  if (!applyTask.value) return
+  if (!applyReason.value.trim()) return uni.showToast({ title: '请填写申请原因', icon: 'none' })
+  applying.value = true
+  try {
+    await requestTaskChange(getCaseId(), applyTask.value.id, { reason: applyReason.value.trim() })
+    uni.showToast({ title: '已提交，待德育审批', icon: 'success' })
+    showApply.value = false
+    detail.value = await getStudentCase(getCaseId())
+  } catch (e) {
+    uni.showToast({ title: e.message || '提交失败', icon: 'none' })
+  } finally { applying.value = false }
 }
 
 function goCheckin(taskId) { uni.navigateTo({ url: `/subTeacher/checkin/index?caseId=${getCaseId()}&taskId=${taskId}` }) }
@@ -192,12 +274,17 @@ onShow(() => load())
 .task-status.is-completed { background: #D1FAE5; color: #059669; }
 .task-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 8rpx; }
 .task-desc { font-size: 24rpx; color: #526177; display: block; margin-top: 6rpx; line-height: 1.5; }
-.task-actions { display: flex; gap: 14rpx; margin-top: 12rpx; }
+.lock-tip { font-size: 22rpx; color: #A33E39; background: #FEF2F2; padding: 6rpx 12rpx; border-radius: 8rpx; display: inline-block; margin-top: 8rpx; }
+.task-actions { display: flex; gap: 14rpx; margin-top: 12rpx; flex-wrap: wrap; }
 .task-action-btn {
   font-size: 24rpx; color: var(--mp-primary);
   background: var(--mp-soft);
   padding: 8rpx 18rpx; border-radius: 12rpx;
 }
+.task-action-btn.warn { color: #A33E39; background: #FEF2F2; border: 1rpx solid #FECACA; }
+.task-action-btn.disabled { color: var(--mp-muted); background: #F3F5F8; }
+.apply-task { font-size: 26rpx; font-weight: 600; color: var(--mp-ink); }
+.hint { font-size: 22rpx; color: var(--mp-muted); }
 .empty-text { text-align: center; color: var(--mp-muted); padding: 36rpx; font-size: 24rpx; }
 
 .btn-primary {

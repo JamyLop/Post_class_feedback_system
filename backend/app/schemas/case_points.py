@@ -33,11 +33,12 @@ class ReminderTaskItem(BaseModel):
     subject: str = ""
     title: str
     cadence: str = ""
+    weekly_times: int | None = None
     starts_on: date | None = None
     due_on: date | None = None
     status: str = ""
     version: int = 1
-    points: int = 10
+    points: int = 1
     overdue_days: int = 0
     logged_today: bool = False
 
@@ -65,7 +66,8 @@ class TaskRemindersOut(BaseModel):
 
 class BatchCheckinItem(BaseModel):
     task_id: int
-    completion_rate: int = Field(ge=0, le=100)
+    # 打卡即得满分 1 分：前端不再填写完成度，缺省按 100% 计。
+    completion_rate: int = Field(default=100, ge=0, le=100)
     self_check: str = Field(default="", max_length=2000)
 
 

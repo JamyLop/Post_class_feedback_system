@@ -4,7 +4,7 @@
       <div>
         <div class="scope-line"><span>高三试点</span><span>任务提醒 · 每日记录</span></div>
         <h1>任务提醒中心</h1>
-        <p>汇总所带班级的学生任务安排与执行情况：待整改档案、逾期任务、今日到期、今日未打卡，并在此完成阶段任务的每日记录，记录自动折算积分。</p>
+        <p>汇总所带班级的学生任务安排与执行情况：待整改档案、逾期任务、今日到期、今日未打卡，并在此完成阶段任务的每日记录（每天每任务满分 1 分，单科每周封顶 7 分）。</p>
       </div>
       <div class="head-actions">
         <el-button type="primary" :disabled="!batchRows.length" @click="batchVisible = true"><el-icon><EditPen /></el-icon>每日记录（{{ batchRows.length }}）</el-button>
@@ -42,9 +42,9 @@
           <el-table :data="data.overdue" empty-text="暂无逾期任务">
             <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name }}</strong><div class="sub">{{ row.class_name }}</div></template></el-table-column>
             <el-table-column label="任务" min-width="200" show-overflow-tooltip><template #default="{ row }">{{ row.title }}<div class="sub">V{{ row.version }}阶段</div></template></el-table-column>
-            <el-table-column label="学科/周期" width="130"><template #default="{ row }">{{ row.subject || '-' }} · {{ cadenceText(row.cadence) }}</template></el-table-column>
+            <el-table-column label="学科/周期" width="130"><template #default="{ row }">{{ row.subject || '-' }} · {{ cadenceText(row) }}</template></el-table-column>
             <el-table-column prop="due_on" label="截止" width="120" />
-            <el-table-column label="积分" width="80"><template #default="{ row }">{{ row.points }}分</template></el-table-column>
+            <el-table-column label="积分" width="80"><template #default="{ row }">1分/天</template></el-table-column>
             <el-table-column label="状态" width="120"><template #default="{ row }"><el-tag type="danger">逾期{{ row.overdue_days }}天</el-tag></template></el-table-column>
             <el-table-column label="操作" width="170" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase(row)">去档案</el-button><el-button link @click="addToBatch(row)">记今日</el-button></template></el-table-column>
           </el-table>
@@ -53,8 +53,8 @@
           <el-table :data="data.due_today" empty-text="今日无到期任务">
             <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name }}</strong><div class="sub">{{ row.class_name }}</div></template></el-table-column>
             <el-table-column label="任务" min-width="200" show-overflow-tooltip><template #default="{ row }">{{ row.title }}<div class="sub">V{{ row.version }}阶段</div></template></el-table-column>
-            <el-table-column label="学科/周期" width="130"><template #default="{ row }">{{ row.subject || '-' }} · {{ cadenceText(row.cadence) }}</template></el-table-column>
-            <el-table-column label="积分" width="80"><template #default="{ row }">{{ row.points }}分</template></el-table-column>
+            <el-table-column label="学科/周期" width="130"><template #default="{ row }">{{ row.subject || '-' }} · {{ cadenceText(row) }}</template></el-table-column>
+            <el-table-column label="积分" width="80"><template #default="{ row }">1分/天</template></el-table-column>
             <el-table-column label="今日记录" width="110"><template #default="{ row }"><el-tag :type="row.logged_today ? 'success' : 'info'">{{ row.logged_today ? '已记' : '未记' }}</el-tag></template></el-table-column>
             <el-table-column label="操作" width="170" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase(row)">去档案</el-button><el-button link @click="addToBatch(row)">记今日</el-button></template></el-table-column>
           </el-table>
@@ -63,9 +63,9 @@
           <el-table :data="data.unlogged_today" empty-text="今日执行均已记录">
             <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name }}</strong><div class="sub">{{ row.class_name }}</div></template></el-table-column>
             <el-table-column label="任务" min-width="200" show-overflow-tooltip><template #default="{ row }">{{ row.title }}<div class="sub">V{{ row.version }}阶段</div></template></el-table-column>
-            <el-table-column label="学科/周期" width="130"><template #default="{ row }">{{ row.subject || '-' }} · {{ cadenceText(row.cadence) }}</template></el-table-column>
+            <el-table-column label="学科/周期" width="130"><template #default="{ row }">{{ row.subject || '-' }} · {{ cadenceText(row) }}</template></el-table-column>
             <el-table-column prop="due_on" label="截止" width="120" />
-            <el-table-column label="积分" width="80"><template #default="{ row }">{{ row.points }}分</template></el-table-column>
+            <el-table-column label="积分" width="80"><template #default="{ row }">1分/天</template></el-table-column>
             <el-table-column label="操作" width="170" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase(row)">去档案</el-button><el-button link @click="addToBatch(row)">记今日</el-button></template></el-table-column>
           </el-table>
         </el-tab-pane>
@@ -73,16 +73,15 @@
     </section>
 
     <el-dialog v-model="batchVisible" title="阶段任务每日记录" width="760px" destroy-on-close>
-      <div class="batch-note">一次提交多任务当天的执行情况；得分 = 满分积分 × 完成度，提交后自动重算各学生当前阶段完成度。</div>
+      <div class="batch-note">一次提交多任务当天的执行情况；打卡即得 1 分（单科单日封顶 1 分、单科周封顶 7 分），提交后自动重算各学生当前阶段完成度。</div>
       <el-form label-position="top">
         <el-form-item label="记录日期"><el-date-picker v-model="logDate" type="date" value-format="YYYY-MM-DD" style="width: 220px" /></el-form-item>
       </el-form>
       <el-table :data="batchRows" max-height="360" border empty-text="暂无待记录任务，可从上方列表加入">
         <el-table-column label="学生" min-width="110"><template #default="{ row }">{{ row.student_name }}</template></el-table-column>
-        <el-table-column label="任务" min-width="180" show-overflow-tooltip><template #default="{ row }">{{ row.title }}（{{ row.points }}分）</template></el-table-column>
-        <el-table-column label="完成度" width="150"><template #default="{ row }"><el-input-number v-model="row.completion_rate" :min="0" :max="100" :step="10" controls-position="right" style="width: 120px" /></template></el-table-column>
+        <el-table-column label="任务" min-width="180" show-overflow-tooltip><template #default="{ row }">{{ row.title }}（1分/天）</template></el-table-column>
         <el-table-column label="记录" min-width="160"><template #default="{ row }"><el-input v-model="row.self_check" placeholder="执行情况说明（可选）" /></template></el-table-column>
-        <el-table-column label="预计得分" width="100"><template #default="{ row }">{{ expectedPoints(row) }}</template></el-table-column>
+        <el-table-column label="得分" width="80"><template #default>1分</template></el-table-column>
         <el-table-column label="操作" width="80"><template #default="{ $index }"><el-button link type="danger" @click="batchRows.splice($index, 1)">移除</el-button></template></el-table-column>
       </el-table>
       <template #footer><el-button @click="batchVisible = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="!batchRows.length" @click="submitBatch">提交每日记录</el-button></template>
@@ -109,8 +108,7 @@ const batchVisible = ref(false)
 const logDate = ref(new Date().toISOString().slice(0, 10))
 const batchRows = ref([])
 
-const cadenceText = (c) => ({ daily: '日计划', weekly: '周计划', monthly: '月计划' }[c] || c || '-')
-const expectedPoints = (row) => Math.round(((row.points || 0) * (row.completion_rate || 0) / 100) * 100) / 100
+const cadenceText = (row) => { const c = typeof row === 'string' ? row : row?.cadence; const base = ({ daily: '日计划', weekly: '周计划', monthly: '月计划' }[c] || c || '-'); if (typeof row === 'object' && row?.cadence === 'weekly' && row?.weekly_times) return `${base}·每周${row.weekly_times}次`; return base }
 
 async function load() {
   loading.value = true
@@ -130,7 +128,7 @@ function addToBatch(row) {
     ElMessage.warning('该任务已在今日记录中')
     return
   }
-  batchRows.value.push({ task_id: row.task_id, title: row.title, student_name: row.student_name, points: row.points, completion_rate: 100, self_check: '' })
+      batchRows.value.push({ task_id: row.task_id, title: row.title, student_name: row.student_name, self_check: '' })
   ElMessage.success(`已加入：${row.title}`)
 }
 
@@ -138,7 +136,7 @@ function addAllUnlogged() {
   let added = 0
   for (const row of data.value.unlogged_today) {
     if (!batchRows.value.some(r => r.task_id === row.task_id)) {
-      batchRows.value.push({ task_id: row.task_id, title: row.title, student_name: row.student_name, points: row.points, completion_rate: 100, self_check: '' })
+  batchRows.value.push({ task_id: row.task_id, title: row.title, student_name: row.student_name, self_check: '' })
       added += 1
     }
   }
@@ -152,7 +150,7 @@ async function submitBatch() {
   try {
     await batchCheckinTasks({
       log_date: logDate.value || new Date().toISOString().slice(0, 10),
-      items: batchRows.value.map(r => ({ task_id: r.task_id, completion_rate: Number(r.completion_rate) || 0, self_check: r.self_check || '' })),
+      items: batchRows.value.map(r => ({ task_id: r.task_id, completion_rate: 100, self_check: r.self_check || '' })),
     })
     ElMessage.success(`已提交 ${batchRows.value.length} 条每日记录，积分与阶段完成度已更新`)
     batchRows.value = []

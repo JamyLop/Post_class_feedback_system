@@ -173,18 +173,35 @@ class CaseTaskCreate(BaseModel):
     cadence: Literal["daily", "weekly", "monthly"]
     starts_on: date
     due_on: date
-    # 满分积分/权重：每日打卡按完成率折算
-    points: int = Field(default=10, ge=1, le=1000)
+    # 新口径：每天每任务满分 1 分，单科每周封顶 7 分。points 仅兼容历史，统一为 1。
+    points: int = Field(default=1, ge=1, le=1000)
+    # 周任务每周执行次数：cadence=weekly 时必填 1-7
+    weekly_times: int | None = Field(default=None, ge=1, le=7, description="周任务每周执行次数")
 
     @model_validator(mode="after")
     def validate_dates(self):
         if self.due_on < self.starts_on:
             raise ValueError("任务截止日期不能早于开始日期")
+        if self.cadence == "weekly" and self.weekly_times is None:
+            raise ValueError("周计划必须明确每周执行次数（1-7次）")
+        if self.cadence != "weekly" and self.weekly_times is not None:
+            raise ValueError("仅周计划需要填写每周执行次数")
         return self
 
 
-class CaseTaskOut(CaseTaskCreate):
+class CaseTaskOut(BaseModel):
+    """出参不做 weekly_times 必填校验：历史周任务可能为空，前端显示为待补充。"""
+
     model_config = ConfigDict(from_attributes=True)
+
+    subject: str = ""
+    title: str
+    description: str = ""
+    cadence: Literal["daily", "weekly", "monthly"]
+    starts_on: date
+    due_on: date
+    points: int = 1
+    weekly_times: int | None = None
     id: int
     student_case_id: int
     version: int = 1
@@ -193,7 +210,8 @@ class CaseTaskOut(CaseTaskCreate):
 
 
 class TaskCheckinCreate(BaseModel):
-    completion_rate: int = Field(ge=0, le=100)
+    # 打卡即得满分 1 分：前端不再填写完成度，缺省按 100% 计。
+    completion_rate: int = Field(default=100, ge=0, le=100)
     self_check: str = Field(default="", max_length=2000)
     # 每日记录日期：班主任代记哪一天的执行，缺省为当天
     log_date: date | None = None
@@ -248,6 +266,30 @@ class DeyuReviewDecision(BaseModel):
     problem: str = Field(default="", max_length=4000)
     corrective_action: str = Field(default="", max_length=4000)
     correction_due_on: date | None = None
+
+
+class TaskChangeRequestCreate(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class TaskChangeDecide(BaseModel):
+    decision: Literal["approved", "rejected"]
+    comment: str = Field(default="", max_length=2000)
+
+
+class TaskChangeRequestOut(BaseModel):
+    id: int
+    case_id: int
+    student_id: int | None = None
+    student_name: str | None = None
+    class_id: int | None = None
+    class_name: str | None = None
+    task_id: int
+    task_title: str = ""
+    subject: str = ""
+    reason: str = ""
+    reviewer_id: int
+    reviewed_at: datetime
 
 
 class GuardianAccountOut(BaseModel):
