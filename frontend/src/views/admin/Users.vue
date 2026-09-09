@@ -14,7 +14,7 @@
       <div class="filter-toolbar">
         <el-radio-group v-model="role" @change="load">
           <el-radio-button value="student">学生 (在校)</el-radio-button>
-          <el-radio-button value="teacher">任课与班主任</el-radio-button>
+          <el-radio-button value="teacher">班主任</el-radio-button>
           <el-radio-button value="subject_teacher">任课老师</el-radio-button>
           <el-radio-button value="deyu_director">德育主任</el-radio-button>
           <el-radio-button value="consultant">咨询老师</el-radio-button>

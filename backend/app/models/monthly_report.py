@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -18,6 +18,10 @@ class MonthlyReport(Base):
     """学生月度评定表；AI 元数据字段仅保留用于兼容历史记录。"""
 
     __tablename__ = "monthly_reports"
+    # 与数据库唯一约束同步，先在 ORM 层表达“每生每班每月一份”这一业务规则。
+    __table_args__ = (
+        UniqueConstraint("student_id", "class_id", "month_label", name="uq_monthly_report_student_month"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)

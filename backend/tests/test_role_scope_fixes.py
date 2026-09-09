@@ -56,9 +56,9 @@ def test_consultant_sees_only_linked_student_scores(client, auth, db, seed_users
 def test_deyu_and_admin_can_read_reminders_but_not_checkin(client, auth, db, seed_users):
     _setup(client, auth, db, seed_users)
     for who in ("deyu1", "admin"):
-        r = client.get("/api/student-cases/tasks/reminders", headers=auth(who))
+        r = client.get("/api/case-tasks/reminders", headers=auth(who))
         assert r.status_code == 200, (who, r.text)
-    r = client.post("/api/student-cases/tasks/batch-checkin",
+    r = client.post("/api/case-tasks/batch-checkin",
                     headers=auth("deyu1"), json={"items": []})
     assert r.status_code == 403, r.text
 

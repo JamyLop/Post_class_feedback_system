@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import List
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,9 +36,10 @@ class Settings(BaseSettings):
     log_dir: str = "logs"
     api_prefix: str = "/api"
     backend_port: int = 8000
+    # 开发环境可以使用默认值；生产环境必须通过 SECRET_KEY 显式注入随机密钥。
     secret_key: str = "dev-secret-change-me"
     access_token_expire_minutes: int = 1440
-    cors_origins: List[str] = ["*"]
+    cors_origins: List[str] = ["http://localhost:5173"]
 
     database_url: str = "postgresql+psycopg://pfs:pfs@localhost:5432/pfs"
 
@@ -59,6 +61,27 @@ class Settings(BaseSettings):
     wx_appid: str = ""
     wx_secret: str = ""
     wx_mock: bool = False
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value):
+        """兼容 JSON 数组及部署平台常用的逗号分隔环境变量。"""
+        if isinstance(value, str) and not value.lstrip().startswith("["):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @model_validator(mode="after")
+    def validate_production_security(self):
+        """生产进程启动即拒绝不安全的认证或跨域配置，避免带病上线。"""
+        if self.app_env.lower() not in {"prod", "production"}:
+            return self
+        if self.debug:
+            raise ValueError("生产环境必须设置 DEBUG=false")
+        if self.secret_key in {"", "dev-secret-change-me", "change-me-in-production-please"} or len(self.secret_key) < 32:
+            raise ValueError("生产环境必须设置至少 32 位的随机 SECRET_KEY")
+        if not self.cors_origins or "*" in self.cors_origins:
+            raise ValueError("生产环境 CORS_ORIGINS 必须是明确的受信任域名列表，不能包含 *")
+        return self
 
 
 settings = Settings()

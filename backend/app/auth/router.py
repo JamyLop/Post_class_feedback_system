@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user
@@ -20,7 +21,7 @@ from app.models.invite import (
 )
 from app.models.student_case import StudentCase
 from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
-from app.models.user_external_identity import UserExternalIdentity
+from app.models.user_external_identity import ConsumedWxBindTicket, UserExternalIdentity
 from app.schemas.admin import RegisterRequest
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
 from app.schemas.wx_auth import ChildBrief, WxBindRequest, WxLoginRequest
@@ -29,10 +30,6 @@ from app.services import captcha_service
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 logger = logging.getLogger(__name__)
-
-# 内存级一次性票据去重（进程内）；生产多实例建议换 Redis/DB 持久化
-_consumed_bind_jtis: set[str] = set()
-
 
 def _create_bind_ticket(openid: str, unionid: str | None) -> str:
     jti = uuid.uuid4().hex
@@ -55,19 +52,9 @@ def _verify_bind_ticket(ticket: str) -> dict:
     if payload.get("purpose") != "wx_bind":
         raise HTTPException(status_code=400, detail="bind_ticket 用途错误")
     jti = payload.get("jti")
-    if not jti or jti in _consumed_bind_jtis:
+    if not jti:
         raise HTTPException(status_code=400, detail="bind_ticket 已使用或无效")
     return payload
-
-
-def _consume_jti(jti: str) -> None:
-    _consumed_bind_jtis.add(jti)
-    # 简单防内存无限增长：超过 10000 条清空一半
-    if len(_consumed_bind_jtis) > 10000:
-        # set 无序，直接丢弃一半（创建新 set）
-        items = list(_consumed_bind_jtis)
-        _consumed_bind_jtis.clear()
-        _consumed_bind_jtis.update(items[5000:])
 
 
 def _check_captcha(captcha_id: str | None, captcha_code: str | None) -> None:
@@ -196,6 +183,15 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
     if not openid:
         raise HTTPException(status_code=400, detail="bind_ticket 缺少 openid")
 
+    # 与绑定记录放在同一事务中，以 jti 主键的唯一约束跨进程原子地消费票据。
+    expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    db.add(ConsumedWxBindTicket(jti=jti, expires_at=expires_at))
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="bind_ticket 已使用或无效") from exc
+
     # 唯一约束预检：该 openid 是否已被其他账号占用
     existing_identity = (
         db.query(UserExternalIdentity)
@@ -266,9 +262,6 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=409, detail="绑定冲突，请重试") from exc
-
-    # 标记票据已消费（内存）
-    _consume_jti(jti)
 
     try:
         from app.services.student_case_service import audit

@@ -25,3 +25,13 @@ class UserExternalIdentity(Base):
     unionid: Mapped[str | None] = mapped_column(String(128), nullable=True)
     bound_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ConsumedWxBindTicket(Base):
+    """已消费微信绑定票据；以主键唯一性保证多实例下也只能消费一次。"""
+
+    __tablename__ = "consumed_wx_bind_tickets"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

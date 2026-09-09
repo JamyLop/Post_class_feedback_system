@@ -30,8 +30,9 @@ export const uploadCheckinAttachment = (checkinId, file) => {
   })
 }
 export const listCheckinAttachments = (checkinId) => http.get(`/student-cases/task-checkins/${checkinId}/attachments`)
-export const getTaskReminders = (params = {}) => http.get('/student-cases/tasks/reminders', { params })
-export const batchCheckinTasks = (data) => http.post('/student-cases/tasks/batch-checkin', data)
+export const getTaskReminders = (params = {}) => http.get('/case-tasks/reminders', { params })
+export const batchCheckinTasks = (data) => http.post('/case-tasks/batch-checkin', data)
 export const listStageCompletions = (caseId) => http.get(`/student-cases/${caseId}/stage-completions`)
 export const rebuildStageCompletion = (caseId) => http.post(`/student-cases/${caseId}/stage-completions/rebuild`)
+export const getMyCase = () => http.get('/student-cases/my-case')
 export const listCaseVersions = (caseId) => http.get(`/student-cases/${caseId}/versions`)

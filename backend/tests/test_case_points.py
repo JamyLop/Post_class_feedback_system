@@ -150,7 +150,7 @@ def test_points_stage_and_reports(client, auth, db, seed_users):
 
     # 每日批量记录：一次记两个任务（100%→1.0，80%→0.8）
     batch = client.post(
-        "/api/student-cases/tasks/batch-checkin",
+        "/api/case-tasks/batch-checkin",
         headers=auth("teacher1"),
         json={"items": [
             {"task_id": t2["id"], "completion_rate": 100, "self_check": "全部完成"},
@@ -161,7 +161,7 @@ def test_points_stage_and_reports(client, auth, db, seed_users):
     assert sorted([b["earned_points"] for b in batch.json()]) == [0.8, 1.0]
 
     # 提醒：t3 已逾期；t1/t2 今日应执行但 t2 已记、t1 已记 → 未打卡为空或仅剩今日到期
-    reminders = client.get("/api/student-cases/tasks/reminders", headers=auth("teacher1"))
+    reminders = client.get("/api/case-tasks/reminders", headers=auth("teacher1"))
     assert reminders.status_code == 200, reminders.text
     data = reminders.json()
     assert data["counts"]["overdue"] == 1
@@ -221,7 +221,7 @@ def test_points_stage_and_reports(client, auth, db, seed_users):
     assert deyu_build.status_code == 200, deyu_build.text
 
     # 非班主任无所管班级：返回空待办
-    empty = client.get("/api/student-cases/tasks/reminders", headers=auth("teacher2"))
+    empty = client.get("/api/case-tasks/reminders", headers=auth("teacher2"))
     assert empty.status_code == 200, empty.text
     assert empty.json()["counts"] == {"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0}
 
@@ -240,7 +240,7 @@ def test_checkin_defaults_full_score(client, auth, db, seed_users):
     assert r.json()["completion_rate"] == 100
     assert r.json()["earned_points"] == 1.0
     batch = client.post(
-        "/api/student-cases/tasks/batch-checkin",
+        "/api/case-tasks/batch-checkin",
         headers=auth("teacher1"),
         json={"items": [{"task_id": t["id"], "self_check": "批量已完成"}]},
     )
@@ -364,7 +364,7 @@ def test_subject_weekly_cap_7(client, auth, db, seed_users):
     day = week_start
     for tid in (t1["id"], t2["id"]):
         r = client.post(
-            "/api/student-cases/tasks/batch-checkin",
+            "/api/case-tasks/batch-checkin",
             headers=auth("teacher1"),
             json={"log_date": str(day), "items": [{"task_id": tid, "completion_rate": 100}]},
         )

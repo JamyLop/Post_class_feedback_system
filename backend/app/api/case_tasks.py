@@ -32,7 +32,9 @@ from app.services.student_case_service import (
     require_case_manager,
 )
 
-router = APIRouter(prefix="/student-cases", tags=["case-tasks"])
+# 跨档案的督查/批量打卡不属于单个 student-case 资源。独立前缀避免
+# /student-cases/{case_id} 与 /student-cases/tasks/* 依赖路由注册顺序。
+router = APIRouter(prefix="/case-tasks", tags=["case-tasks"])
 _head_teacher = require_roles([ROLE_TEACHER])
 _staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER])
 
@@ -62,7 +64,7 @@ def _class_names(db: Session, class_ids: set[int]) -> dict[int, str]:
     return {c.id: c.name for c in db.query(Class).filter(Class.id.in_(class_ids)).all()}
 
 
-@router.get("/tasks/reminders", response_model=TaskRemindersOut)
+@router.get("/reminders", response_model=TaskRemindersOut)
 def task_reminders(
     class_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -189,7 +191,7 @@ def task_reminders(
     )
 
 
-@router.post("/tasks/batch-checkin", response_model=list[TaskCheckinOut])
+@router.post("/batch-checkin", response_model=list[TaskCheckinOut])
 def batch_checkin(
     body: BatchCheckinCreate,
     db: Session = Depends(get_db),
