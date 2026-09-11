@@ -407,6 +407,8 @@ def test_subject_weekly_cap_7(client, auth, db, seed_users):
     row = next(x for x in build.json() if x["student_id"] == seed_users["student1"])
     assert row["earned_points"] == 1.0
     assert row["detail"]["per_subject_earned"]["数学"] == 1.0
+    # 新报表必须携带口径版本，供前端识别旧口径存量行
+    assert row["detail"]["rule"] == "daily-1-point_subject-weekly-cap-7"
 
 
 def test_case_weekly_points_endpoint(client, auth, db, seed_users):

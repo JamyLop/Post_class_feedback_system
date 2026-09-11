@@ -41,12 +41,20 @@
     </section>
 
     <section class="list-surface">
+      <el-alert
+        v-if="hasStaleRows"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="存在旧口径报表（总分未按单科周封顶7分计算），请点击右上“一键生成本班报表”重新生成"
+        style="margin-bottom: 12px"
+      />
       <el-table v-loading="loading" :data="rows" empty-text="暂无积分报表，请先选择班级与周期，必要时点击“一键生成本班报表”">
         <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name || `学生#${row.student_id}` }}</strong></template></el-table-column>
         <el-table-column prop="class_name" label="班级" min-width="140" />
         <el-table-column prop="period_label" label="周期" width="120" />
         <el-table-column label="任务/打卡" width="120"><template #default="{ row }">{{ row.task_count }} / {{ row.checkin_count }}</template></el-table-column>
-        <el-table-column label="获得积分" width="130" sortable prop="earned_points"><template #default="{ row }"><strong>{{ row.earned_points }}</strong> / {{ row.total_points }}</template></el-table-column>
+        <el-table-column label="获得积分" width="150" sortable prop="earned_points"><template #default="{ row }"><strong>{{ row.earned_points }}</strong> / {{ row.total_points }}<el-tag v-if="isStaleRow(row)" type="warning" size="small" effect="plain" style="margin-left: 6px">旧口径</el-tag></template></el-table-column>
         <el-table-column label="完成率" min-width="180"><template #default="{ row }"><el-progress :percentage="Number(row.completion_rate) || 0" :stroke-width="8" /></template></el-table-column>
       </el-table>
     </section>
@@ -65,6 +73,11 @@ const rows = ref([])
 const loading = ref(false)
 const building = ref(false)
 const filters = ref({ class_id: null, period_type: 'weekly', period_label: '' })
+
+// 当前积分口径版本（与后端 POINTS_RULE 同步）：detail.rule 不一致即为9月8日封顶口径之前的旧行
+const CURRENT_POINTS_RULE = 'daily-1-point_subject-weekly-cap-7'
+const isStaleRow = (row) => (row?.detail?.rule || '') !== CURRENT_POINTS_RULE
+const hasStaleRows = computed(() => rows.value.some(isStaleRow))
 
 function currentWeekLabel() {
   const now = new Date()

@@ -20,6 +20,9 @@ from app.models.user import User
 DAILY_TASK_POINT = 1.0
 DAILY_SUBJECT_CAP = 1.0
 WEEKLY_SUBJECT_CAP = 7.0
+# 积分口径版本：写入每条报表的 detail.rule，前端据此识别旧口径存量行并提示重新生成。
+# 口径再次变更时必须同步更新此常量。
+POINTS_RULE = "daily-1-point_subject-weekly-cap-7"
 
 
 def _latest_checkins_by_task(db: Session, task_ids: list[int]) -> dict[int, TaskCheckin]:
@@ -347,7 +350,7 @@ def build_points_reports(
             "per_task_earned": {str(k): v for k, v in per_task_earned.items()},
             "per_subject_earned": per_subject_earned,
             "per_subject_total": per_subject_total,
-            "rule": "daily-1-point_subject-weekly-cap-7",
+            "rule": POINTS_RULE,
         }
         report.recorded_by = recorded_by
         results.append(report)
