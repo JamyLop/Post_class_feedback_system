@@ -14,7 +14,7 @@ export const ENTRIES = [
   { roles: ['consultant'], title: '学生周测', desc: '查看所负责学生的周测成绩', route: '/subTeacher/weeklyScores/index', group: '成长档案' },
   { roles: ['teacher', 'admin'], title: '月度评定', desc: '手动填写、审阅与发布评定', route: '/subTeacher/monthlyReports/index', group: '教学管理' },
   { roles: ['teacher', 'admin', 'deyu_director'], title: '积分周月报', desc: '一键生成并查看班级积分周报、月报', route: '/subTeacher/pointsReports/index', group: '教学管理' },
-  { roles: ['teacher', 'admin'], title: '班级管理', desc: '管理班级与学生信息', route: '/subTeacher/classManager/index', group: '教学管理' },
+  { roles: ['teacher', 'admin', 'deyu_director'], title: '班级管理', desc: '新建班级、分配班主任、管理学生信息', route: '/subTeacher/classManager/index', group: '教学管理' },
   { roles: ['admin'], title: '系统管理', desc: '查看统计、管理用户与邀请码', route: '/subTeacher/adminStats/index', group: '系统管理' },
 ]
 export function entriesForRole(role) { return ENTRIES.filter(entry => entry.roles.includes(role)) }
