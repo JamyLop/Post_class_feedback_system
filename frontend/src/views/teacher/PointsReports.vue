@@ -54,7 +54,18 @@
         <el-table-column prop="class_name" label="班级" min-width="140" />
         <el-table-column prop="period_label" label="周期" width="120" />
         <el-table-column label="任务/打卡" width="120"><template #default="{ row }">{{ row.task_count }} / {{ row.checkin_count }}</template></el-table-column>
-        <el-table-column label="获得积分" width="150" sortable prop="earned_points"><template #default="{ row }"><strong>{{ row.earned_points }}</strong> / {{ row.total_points }}<el-tag v-if="isStaleRow(row)" type="warning" size="small" effect="plain" style="margin-left: 6px">旧口径</el-tag></template></el-table-column>
+        <el-table-column label="获得积分" width="190" sortable prop="earned_points">
+          <template #default="{ row }">
+            <el-tooltip placement="top" :disabled="!subjectBreakdown(row).length">
+              <template #content>
+                <div v-for="s in subjectBreakdown(row)" :key="s.subject" class="tip-row">
+                  <span>{{ s.subject || '综合' }}</span><span>{{ s.earned }} / {{ s.total }}</span>
+                </div>
+              </template>
+              <span><strong>{{ row.earned_points }}</strong> / {{ row.total_points }}<span v-if="subjectBreakdown(row).length" class="subject-count">（{{ subjectBreakdown(row).length }}科）</span></span>
+            </el-tooltip><el-tag v-if="isStaleRow(row)" type="warning" size="small" effect="plain" style="margin-left: 6px">旧口径</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="完成率" min-width="180"><template #default="{ row }"><el-progress :percentage="Number(row.completion_rate) || 0" :stroke-width="8" /></template></el-table-column>
       </el-table>
     </section>
@@ -78,6 +89,15 @@ const filters = ref({ class_id: null, period_type: 'weekly', period_label: '' })
 const CURRENT_POINTS_RULE = 'daily-1-point_subject-weekly-cap-7'
 const isStaleRow = (row) => (row?.detail?.rule || '') !== CURRENT_POINTS_RULE
 const hasStaleRows = computed(() => rows.value.some(isStaleRow))
+// 分科明细：分母是各科封顶之和，悬停展示每科获得/满分（旧口径行无分科数据则不展示）
+const subjectBreakdown = (row) => {
+  const earned = row?.detail?.per_subject_earned || {}
+  const total = row?.detail?.per_subject_total || {}
+  const keys = [...new Set([...Object.keys(earned), ...Object.keys(total)])]
+  return keys
+    .map((k) => ({ subject: k, earned: earned[k] ?? 0, total: total[k] ?? '-' }))
+    .sort((a, b) => b.earned - a.earned)
+}
 
 function currentWeekLabel() {
   const now = new Date()
@@ -163,5 +183,7 @@ onMounted(async () => {
 .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .summary-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f1f5f9; }
 .summary-chip { padding: 3px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #334155; }
+.subject-count { color: #94a3b8; font-size: 11px; font-weight: 400; }
+.tip-row { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; line-height: 1.8; }
 @media (max-width: 760px) { .page-head { flex-direction: column; } }
 </style>
