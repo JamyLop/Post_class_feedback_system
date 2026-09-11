@@ -13,6 +13,7 @@ export const getStudentCase = (id) => http.get(`/student-cases/${id}`)
 export const getFamilyCases = () => http.get('/student-cases/children')
 export const getCaseProgress = (params = {}) => http.get('/student-cases/progress', params)
 export const getCaseVersions = (caseId) => http.get(`/student-cases/${caseId}/versions`)
+export const getWeeklyPoints = (caseId) => http.get(`/student-cases/${caseId}/weekly-points`)
 export const getMyChildren = () => http.get('/auth/me/children')
 export const getMyCase = () => http.get('/student-cases/my-case')
 

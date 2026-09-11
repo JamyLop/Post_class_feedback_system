@@ -54,22 +54,35 @@
 
     <view class="card">
       <text class="card-title">积分榜</text>
+      <view v-if="hasStaleRows" class="warn-bar">
+        <text class="warn-text">存在旧口径报表（总分未按单科周封顶7分计算），请点击「一键生成本班报表」重新生成</text>
+      </view>
       <view v-if="loading" class="loading-bar"><text class="loading-text">加载中...</text></view>
       <EmptyState v-else-if="!selectedClassId" title="请先选择班级" desc="选择班级后查看积分报表" />
       <EmptyState v-else-if="!rows.length" title="暂无积分报表" desc="确认周期后点击「一键生成本班报表」" />
       <view v-else class="report-list">
-        <view v-for="(item, idx) in rows" :key="item.id" class="report-row" :class="{ 'has-border': idx > 0 }">
-          <view class="report-info">
-            <view class="report-head">
-              <text class="student-name">{{ item.student_name || `学生#${item.student_id}` }}</text>
-              <text class="period-tag">{{ item.period_label }}</text>
+        <view v-for="(item, idx) in rows" :key="item.id" class="report-item" :class="{ 'has-border': idx > 0 }">
+          <view class="report-row" @click="toggleExpand(item.id)">
+            <view class="report-info">
+              <view class="report-head">
+                <text class="student-name">{{ item.student_name || `学生#${item.student_id}` }}</text>
+                <text class="period-tag">{{ item.period_label }}</text>
+              </view>
+              <text class="report-meta">{{ item.class_name || '' }} · 任务 {{ item.task_count }} / 打卡 {{ item.checkin_count }}</text>
+              <view class="progress-track"><view class="progress-fill" :style="{ width: `${Math.min(100, Number(item.completion_rate) || 0)}%` }" /></view>
             </view>
-            <text class="report-meta">{{ item.class_name || '' }} · 任务 {{ item.task_count }} / 打卡 {{ item.checkin_count }}</text>
-            <view class="progress-track"><view class="progress-fill" :style="{ width: `${Math.min(100, Number(item.completion_rate) || 0)}%` }" /></view>
+            <view class="report-score">
+              <text class="score-value">{{ item.earned_points }}<text class="score-max">/{{ item.total_points }}</text></text>
+              <text v-if="subjectBreakdown(item).length" class="score-sub">（{{ subjectBreakdown(item).length }}科，点看明细›）</text>
+              <text v-if="isStaleRow(item)" class="stale-tag">旧口径</text>
+              <text class="score-label">{{ item.completion_rate }}%</text>
+            </view>
           </view>
-          <view class="report-score">
-            <text class="score-value">{{ item.earned_points }}<text class="score-max">/{{ item.total_points }}</text></text>
-            <text class="score-label">{{ item.completion_rate }}%</text>
+          <view v-if="expandedId === item.id && subjectBreakdown(item).length" class="breakdown">
+            <view v-for="s in subjectBreakdown(item)" :key="s.subject" class="breakdown-row">
+              <text class="breakdown-subject">{{ s.subject || '综合' }}</text>
+              <text class="breakdown-score">{{ s.earned }} / {{ s.total }}</text>
+            </view>
           </view>
         </view>
       </view>
@@ -96,6 +109,26 @@ const typeOptions = ['周报', '月报']
 const typeValues = ['weekly', 'monthly']
 const periodLabel = ref('')
 const rows = ref([])
+const expandedId = ref(null)
+
+// 当前积分口径版本（与后端 POINTS_RULE / Web 端 CURRENT_POINTS_RULE 同步）
+const CURRENT_POINTS_RULE = 'daily-1-point_subject-weekly-cap-7'
+const isStaleRow = (row) => ((row && row.detail && row.detail.rule) || '') !== CURRENT_POINTS_RULE
+const hasStaleRows = computed(() => rows.value.some(isStaleRow))
+// 分科明细：分母是各科封顶之和，点行展开查看（旧口径行无分科数据则不可展开）
+const subjectBreakdown = (row) => {
+  const earned = (row && row.detail && row.detail.per_subject_earned) || {}
+  const total = (row && row.detail && row.detail.per_subject_total) || {}
+  const keys = [...new Set([...Object.keys(earned), ...Object.keys(total)])]
+  return keys
+    .map((k) => ({ subject: k, earned: earned[k] ?? 0, total: total[k] ?? '-' }))
+    .sort((a, b) => b.earned - a.earned)
+}
+function toggleExpand(id) {
+  const row = rows.value.find((r) => r.id === id)
+  if (!row || !subjectBreakdown(row).length) return
+  expandedId.value = expandedId.value === id ? null : id
+}
 
 const classNames = computed(() => ['选择班级', ...classList.value.map(c => c.name)])
 const selectedClassId = computed(() => (classIndex.value > 0 ? classList.value[classIndex.value - 1]?.id : null))
@@ -244,7 +277,7 @@ onShow(async () => {
 .loading-bar { text-align: center; padding: 32rpx; }
 .loading-text { color: var(--mp-muted); font-size: 26rpx; }
 .report-row { display: flex; align-items: center; gap: 16rpx; padding: 14rpx 0; }
-.report-row.has-border { border-top: 2rpx solid var(--mp-soft); }
+.report-item.has-border { border-top: 2rpx solid var(--mp-soft); }
 .report-info { flex: 1; min-width: 0; }
 .report-head { display: flex; align-items: center; gap: 10rpx; min-width: 0; }
 .student-name { font-size: 27rpx; font-weight: 600; color: var(--mp-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -255,5 +288,13 @@ onShow(async () => {
 .report-score { text-align: right; flex-shrink: 0; }
 .score-value { font-size: 30rpx; font-weight: 700; color: var(--mp-primary); display: block; }
 .score-max { font-size: 24rpx; font-weight: 400; color: var(--mp-muted); }
+.score-sub { font-size: 22rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
+.stale-tag { font-size: 20rpx; color: #B45309; background: #FEF3C7; border: 1rpx solid #FCD34D; padding: 2rpx 10rpx; border-radius: 10rpx; display: inline-block; margin-top: 4rpx; }
 .score-label { font-size: 22rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
+.warn-bar { background: #FFFBEB; border: 1rpx solid #FDE68A; border-radius: 8rpx; padding: 16rpx 18rpx; }
+.warn-text { font-size: 24rpx; color: #92400E; line-height: 1.6; display: block; }
+.breakdown { background: #F7F8FA; border-radius: 10rpx; padding: 12rpx 16rpx; margin: 8rpx 0 12rpx; display: flex; flex-direction: column; gap: 6rpx; }
+.breakdown-row { display: flex; justify-content: space-between; align-items: center; }
+.breakdown-subject { font-size: 24rpx; color: var(--mp-muted); }
+.breakdown-score { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 </style>

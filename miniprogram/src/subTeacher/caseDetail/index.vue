@@ -49,6 +49,17 @@
             <text class="section-h">当前状态说明</text>
             <text class="section-body">{{ detail.current_summary || '—' }}</text>
           </view>
+          <view class="section section-muted">
+            <text class="section-h">本周积分</text>
+            <text v-if="weeklyPoints" class="section-body">{{ weeklyPoints.starts_on }} 至 {{ weeklyPoints.ends_on }} · 本周已获 {{ weeklyPoints.earned_points }} 分 · {{ weeklyPoints.checkin_count }} 条执行记录</text>
+            <text v-else class="section-body muted">暂无本周积分数据</text>
+            <view v-if="weeklySubjectEntries.length" class="weekly-list">
+              <view v-for="s in weeklySubjectEntries" :key="s.subject" class="weekly-row">
+                <text class="weekly-subject">{{ s.subject || '综合' }}</text>
+                <text class="weekly-points">{{ s.earned }} 分</text>
+              </view>
+            </view>
+          </view>
           <view v-if="detail.student_profile" class="section section-muted">
             <text class="section-h">学生档案</text>
             <view class="field"><text class="dt">姓名</text><text class="dd">{{ detail.student_profile.student_name || '—' }}</text></view>
@@ -121,7 +132,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getStudentCase, transitionCase } from '../../api/studentCases'
+import { getStudentCase, getWeeklyPoints, transitionCase } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 import CheckinAttachments from '../../components/CheckinAttachments.vue'
 import Timeline from '../../components/Timeline.vue'
@@ -130,6 +141,8 @@ import EmptyState from '../../components/EmptyState.vue'
 const loading = ref(false)
 const detail = ref(null)
 const active = ref('overview')
+const weeklyPoints = ref(null)
+const weeklySubjectEntries = computed(() => Object.entries(weeklyPoints.value?.per_subject_earned || {}).sort((a, b) => b[1] - a[1]).map(([subject, earned]) => ({ subject, earned })))
 const tabs = [
   { key: 'overview', label: '总览' },
   { key: 'subjects', label: '学科' },
@@ -194,6 +207,11 @@ async function load() {
     const id = caseId()
     if (!id) throw new Error('缺少 case id')
     detail.value = await getStudentCase(id)
+    try {
+      weeklyPoints.value = await getWeeklyPoints(id)
+    } catch (_) {
+      weeklyPoints.value = null
+    }
   } catch (e) {
     uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally { loading.value = false }
@@ -280,6 +298,11 @@ onShow(() => load())
 .section-muted { background: #F7F8FA; border-radius: 14rpx; padding: 18rpx; }
 .section-h { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
 .section-body { font-size: 26rpx; color: var(--mp-body); line-height: 1.7; white-space: pre-wrap; }
+.section-body.muted { color: var(--mp-muted); }
+.weekly-list { display: flex; flex-direction: column; gap: 8rpx; margin-top: 8rpx; }
+.weekly-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 10rpx; padding: 12rpx 16rpx; }
+.weekly-subject { font-size: 24rpx; color: var(--mp-muted); }
+.weekly-points { font-size: 26rpx; font-weight: 600; color: var(--mp-primary); }
 .section-head-row { display: flex; justify-content: space-between; align-items: center; }
 .empty-text { text-align: center; color: var(--mp-muted); padding: 28rpx; font-size: 24rpx; }
 
