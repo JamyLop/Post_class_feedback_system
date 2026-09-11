@@ -55,12 +55,30 @@ class RevisionCaseItem(BaseModel):
     correction_due_on: date | None = None
 
 
+class NextWeekMissingItem(BaseModel):
+    """下周待建周任务的档案：下周一起止范围内没有生效中周计划任务覆盖。"""
+
+    case_id: int
+    student_id: int
+    student_name: str | None = None
+    class_id: int
+    class_name: str | None = None
+    version: int = 1
+    case_status: str = ""
+    # 该档案生效中的周计划任务总数（供班主任判断是补建还是新建）
+    active_weekly_count: int = 0
+
+
 class TaskRemindersOut(BaseModel):
     date: date
     overdue: list[ReminderTaskItem] = []
     due_today: list[ReminderTaskItem] = []
     unlogged_today: list[ReminderTaskItem] = []
     needs_revision: list[RevisionCaseItem] = []
+    # 下周（周一~周日）尚无周计划任务覆盖的档案：提醒班主任提前建好下周周任务
+    next_week_starts_on: date | None = None
+    next_week_ends_on: date | None = None
+    next_week_missing: list[NextWeekMissingItem] = []
     counts: dict[str, int] = {}
 
 

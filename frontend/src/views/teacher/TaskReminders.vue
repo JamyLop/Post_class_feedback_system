@@ -4,7 +4,7 @@
       <div>
         <div class="scope-line"><span>高三试点</span><span>任务提醒 · 每日记录</span></div>
         <h1>任务提醒中心</h1>
-        <p>汇总所带班级的学生任务安排与执行情况：待整改档案、逾期任务、今日到期、今日未打卡，并在此完成阶段任务的每日记录（每天每任务满分 1 分，单科每周封顶 7 分）。</p>
+        <p>汇总所带班级的学生任务安排与执行情况：待整改档案、下周待建周任务、逾期任务、今日到期、今日未打卡，并在此完成阶段任务的每日记录（每天每任务满分 1 分，单科每周封顶 7 分）。</p>
       </div>
       <div class="head-actions">
         <el-button type="primary" :disabled="!batchRows.length" @click="batchVisible = true"><el-icon><EditPen /></el-icon>每日记录（{{ batchRows.length }}）</el-button>
@@ -21,6 +21,7 @@
       </div>
       <div class="count-row">
         <div class="count-card is-danger"><strong>{{ data.counts.needs_revision || 0 }}</strong><span>待整改档案</span></div>
+        <div class="count-card is-warning"><strong>{{ data.counts.next_week_missing || 0 }}</strong><span>下周待建周任务</span></div>
         <div class="count-card is-danger"><strong>{{ data.counts.overdue || 0 }}</strong><span>逾期任务</span></div>
         <div class="count-card is-warning"><strong>{{ data.counts.due_today || 0 }}</strong><span>今日到期</span></div>
         <div class="count-card is-info"><strong>{{ data.counts.unlogged_today || 0 }}</strong><span>今日未打卡</span></div>
@@ -36,6 +37,14 @@
             <el-table-column label="退回问题" min-width="220" show-overflow-tooltip><template #default="{ row }">{{ row.problem || '-' }}<div class="sub">V{{ row.version }}阶段 · 整改要求：{{ row.corrective_action || '-' }}</div></template></el-table-column>
             <el-table-column prop="correction_due_on" label="整改截止" width="120" />
             <el-table-column label="操作" width="120" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase(row)">去整改</el-button></template></el-table-column>
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane :label="`下周待建周任务（${data.next_week_missing.length}）`" name="nextweek">
+          <div class="batch-note">下周（{{ data.next_week_starts_on || '-' }} 至 {{ data.next_week_ends_on || '-' }}）尚无生效中周计划任务覆盖的档案，请提前建好下周周任务。</div>
+          <el-table :data="data.next_week_missing" empty-text="下周周任务均已建好">
+            <el-table-column label="学生" min-width="130"><template #default="{ row }"><strong>{{ row.student_name }}</strong><div class="sub">{{ row.class_name }}</div></template></el-table-column>
+            <el-table-column label="档案" min-width="140"><template #default="{ row }"><span>{{ caseStatusText(row.case_status) }}</span><div class="sub">第 {{ row.version }} 版 · 生效中周任务 {{ row.active_weekly_count }} 个</div></template></el-table-column>
+            <el-table-column label="操作" width="120" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openCase(row)">去建任务</el-button></template></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane :label="`逾期任务（${data.overdue.length}）`" name="overdue">
@@ -103,12 +112,14 @@ const loading = ref(false)
 const saving = ref(false)
 const activeTab = ref('revision')
 const filters = ref({ class_id: null })
-const data = ref({ date: '', overdue: [], due_today: [], unlogged_today: [], needs_revision: [], counts: {} })
+const data = ref({ date: '', next_week_starts_on: '', next_week_ends_on: '', overdue: [], due_today: [], unlogged_today: [], needs_revision: [], next_week_missing: [], counts: {} })
 const batchVisible = ref(false)
 const logDate = ref(new Date().toISOString().slice(0, 10))
 const batchRows = ref([])
 
 const cadenceText = (row) => { const c = typeof row === 'string' ? row : row?.cadence; const base = ({ daily: '日计划', weekly: '周计划', monthly: '月计划' }[c] || c || '-'); if (typeof row === 'object' && row?.cadence === 'weekly' && row?.weekly_times) return `${base}·每周${row.weekly_times}次`; return base }
+
+const caseStatusText = (s) => ({ draft: '草稿', pending_confirmation: '待德育审查', revision_required: '待整改', executing: '执行中', pending_review: '待复盘', adjusted: '已调整', archived: '已归档' }[s] || s || '-')
 
 async function load() {
   loading.value = true

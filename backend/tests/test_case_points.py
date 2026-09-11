@@ -225,7 +225,34 @@ def test_points_stage_and_reports(client, auth, db, seed_users):
     # 非班主任无所管班级：返回空待办
     empty = client.get("/api/case-tasks/reminders", headers=auth("teacher2"))
     assert empty.status_code == 200, empty.text
-    assert empty.json()["counts"] == {"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0}
+    assert empty.json()["counts"] == {"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0, "next_week_missing": 0}
+
+
+def test_next_week_missing_reminds_weekly_tasks(client, auth, db, seed_users):
+    """下周待建周任务提醒：下周无周计划覆盖的档案列出，有覆盖的不列，归档的不列。"""
+    from datetime import timedelta
+
+    class_id = _setup(db, seed_users)
+    case1 = _cycle_case(client, auth, class_id, seed_users, "student1")
+    case2 = _cycle_case(client, auth, class_id, seed_users, "student2")
+    today = date.today()
+    next_monday = today + timedelta(days=(7 - today.weekday()))
+    next_sunday = next_monday + timedelta(days=6)
+
+    # case1 建一个覆盖下周的周任务；case2 只建日任务
+    _task(client, auth, case1, title="下周周复盘", cadence="weekly", weekly_times=3,
+          starts_on=str(next_monday), due_on=str(next_sunday))
+    _task(client, auth, case2, title="每日训练")
+
+    r = client.get("/api/case-tasks/reminders", headers=auth("teacher1"))
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["next_week_starts_on"] == str(next_monday)
+    assert data["next_week_ends_on"] == str(next_sunday)
+    missing_ids = {m["case_id"] for m in data["next_week_missing"]}
+    assert case2 in missing_ids
+    assert case1 not in missing_ids
+    assert data["counts"]["next_week_missing"] == len(data["next_week_missing"])
 
 
 def test_checkin_defaults_full_score(client, auth, db, seed_users):

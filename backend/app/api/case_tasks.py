@@ -18,6 +18,7 @@ from app.models.user import (
 )
 from app.schemas.case_points import (
     BatchCheckinCreate,
+    NextWeekMissingItem,
     ReminderTaskItem,
     RevisionCaseItem,
     StageCompletionOut,
@@ -72,7 +73,13 @@ def task_reminders(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """任务执行进度提醒：班主任看所带班级，德育主任/校长可全局督查（含逾期/今日到期/今日未打卡）。"""
+    """任务执行进度提醒：班主任看所带班级，德育主任/校长可全局督查（含逾期/今日到期/今日未打卡/下周待建周任务）。"""
+    from datetime import timedelta
+
+    today = date.today()
+    # 下周范围：下周一~下周日，用于提醒班主任提前建好下周周任务
+    next_monday = today + timedelta(days=(7 - today.weekday()))
+    next_sunday = next_monday + timedelta(days=6)
     if user.role not in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER):
         raise HTTPException(status_code=403, detail="无权查看任务执行进度")
     if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
@@ -82,21 +89,20 @@ def task_reminders(
         else:
             class_ids = {row.id for row in db.query(Class).all()}
             if not class_ids:
-                return TaskRemindersOut(date=date.today(), counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
+                return TaskRemindersOut(date=today, next_week_starts_on=next_monday, next_week_ends_on=next_sunday, counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0, "next_week_missing": 0})
     else:
         managed = _managed_class_ids(db, user)
         if not managed:
-            return TaskRemindersOut(date=date.today(), counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
+            return TaskRemindersOut(date=today, next_week_starts_on=next_monday, next_week_ends_on=next_sunday, counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0, "next_week_missing": 0})
         if class_id is not None:
             if class_id not in managed:
                 raise HTTPException(status_code=403, detail="无权查看该班级任务提醒")
             class_ids = {class_id}
         else:
             class_ids = managed
-    today = date.today()
     cases = db.query(StudentCase).filter(StudentCase.class_id.in_(class_ids)).all()
     if not cases:
-        return TaskRemindersOut(date=today, counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0})
+        return TaskRemindersOut(date=today, next_week_starts_on=next_monday, next_week_ends_on=next_sunday, counts={"overdue": 0, "due_today": 0, "unlogged_today": 0, "needs_revision": 0, "next_week_missing": 0})
     case_by_id = {c.id: c for c in cases}
     tasks = (
         db.query(CaseTask)
@@ -183,13 +189,42 @@ def task_reminders(
                     correction_due_on=(r.correction_due_on if r else None),
                 )
             )
+    # 下周待建周任务：下周一起止范围内没有生效中周计划任务覆盖的档案（已归档除外），
+    # 提醒班主任提前建好下周周任务
+    active_weekly_by_case: dict[int, int] = {}
+    covered_case_ids: set[int] = set()
+    for task in tasks:
+        if task.cadence != "weekly" or task.status in {"completed", "cancelled"}:
+            continue
+        active_weekly_by_case[task.student_case_id] = active_weekly_by_case.get(task.student_case_id, 0) + 1
+        if task.starts_on <= next_sunday and task.due_on >= next_monday:
+            covered_case_ids.add(task.student_case_id)
+    next_week_missing: list[NextWeekMissingItem] = []
+    for case in cases:
+        if case.status == "archived" or case.id in covered_case_ids:
+            continue
+        next_week_missing.append(
+            NextWeekMissingItem(
+                case_id=case.id,
+                student_id=case.student_id,
+                student_name=student_names.get(case.student_id),
+                class_id=case.class_id,
+                class_name=class_names.get(case.class_id),
+                version=case.version or 1,
+                case_status=case.status,
+                active_weekly_count=active_weekly_by_case.get(case.id, 0),
+            )
+        )
     return TaskRemindersOut(
         date=today,
         overdue=overdue,
         due_today=due_today,
         unlogged_today=unlogged,
         needs_revision=needs_revision,
-        counts={"overdue": len(overdue), "due_today": len(due_today), "unlogged_today": len(unlogged), "needs_revision": len(needs_revision)},
+        next_week_starts_on=next_monday,
+        next_week_ends_on=next_sunday,
+        next_week_missing=next_week_missing,
+        counts={"overdue": len(overdue), "due_today": len(due_today), "unlogged_today": len(unlogged), "needs_revision": len(needs_revision), "next_week_missing": len(next_week_missing)},
     )
 
 
