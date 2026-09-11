@@ -11,6 +11,14 @@
       </div>
     </header>
 
+    <section v-if="rows.length" class="class-points-banner">
+      <div>
+        <span class="banner-label">班主任：{{ headTeacherName }}</span>
+        <strong>本{{ filters.period_type === 'weekly' ? '周' : '月' }}班级总积分</strong>
+      </div>
+      <span class="class-total-points">{{ classTotalPoints }}<small> 分</small></span>
+    </section>
+
     <section class="filter-surface">
       <div class="filters">
         <el-select v-model="filters.class_id" placeholder="选择班级" style="width: 200px" @change="load">
@@ -78,6 +86,8 @@ const avgPoints = computed(() => {
 })
 const maxPoints = computed(() => rows.value.length ? Math.max(...rows.value.map(r => Number(r.earned_points) || 0)) : 0)
 const topStudent = computed(() => rows.value.find(r => (Number(r.earned_points) || 0) === maxPoints.value)?.student_name || '-')
+const classTotalPoints = computed(() => Math.round(rows.value.reduce((sum, row) => sum + (Number(row.earned_points) || 0), 0) * 100) / 100)
+const headTeacherName = computed(() => rows.value[0]?.head_teacher_name || '班主任')
 const periodRange = computed(() => {
   const first = rows.value[0]
   return first ? `${first.period_start} ~ ${first.period_end}` : '-'
@@ -131,6 +141,11 @@ onMounted(async () => {
 .page-head h1 { margin: 0 0 6px; font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
 .page-head p { margin: 0; font-size: 13.5px; color: #64748b; max-width: 76ch; line-height: 1.5; }
 .head-actions { display: flex; gap: 10px; }
+.class-points-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; color: #fff; background: linear-gradient(120deg, #1e40af, #2563eb); border-radius: var(--radius); box-shadow: 0 8px 20px rgba(37, 99, 235, .18); }
+.banner-label { display: block; margin-bottom: 4px; color: #bfdbfe; font-size: 12px; font-weight: 600; }
+.class-points-banner strong { font-size: 17px; }
+.class-total-points { font-size: 30px; font-weight: 750; line-height: 1; }
+.class-total-points small { font-size: 14px; font-weight: 500; }
 .filter-surface, .list-surface { background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--radius); padding: 16px 18px; }
 .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .summary-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f1f5f9; }

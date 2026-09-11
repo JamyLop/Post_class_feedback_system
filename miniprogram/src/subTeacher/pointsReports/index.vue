@@ -6,6 +6,14 @@
       <text class="p">打卡即得1分（单科单日封顶1分、单科周封顶7分），周任务按每周执行次数计入应得满分，一键生成班级周报、月报</text>
     </view>
 
+    <view v-if="rows.length" class="class-points-banner">
+      <view>
+        <text class="banner-label">班主任：{{ headTeacherName }}</text>
+        <text class="banner-title">本{{ periodType === 'weekly' ? '周' : '月' }}班级总积分</text>
+      </view>
+      <text class="class-total-points">{{ classTotalPoints }}<text class="points-unit"> 分</text></text>
+    </view>
+
     <view class="filter-bar">
       <view class="filter-item">
         <text class="filter-label">班级</text>
@@ -99,6 +107,8 @@ const avgPoints = computed(() => {
 })
 const maxPoints = computed(() => (rows.value.length ? Math.max(...rows.value.map(r => Number(r.earned_points) || 0)) : 0))
 const topStudent = computed(() => rows.value.find(r => (Number(r.earned_points) || 0) === maxPoints.value)?.student_name || '-')
+const classTotalPoints = computed(() => Math.round(rows.value.reduce((sum, row) => sum + (Number(row.earned_points) || 0), 0) * 100) / 100)
+const headTeacherName = computed(() => rows.value[0]?.head_teacher_name || '班主任')
 const periodRange = computed(() => {
   const first = rows.value[0]
   return first ? `${first.period_start || ''} ~ ${first.period_end || ''}` : ''
@@ -209,6 +219,11 @@ onShow(async () => {
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
 .h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
 .p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; line-height: 1.6; }
+.class-points-banner { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; padding: 26rpx 28rpx; border-radius: 16rpx; color: #fff; background: linear-gradient(120deg, #1E40AF, #2563EB); }
+.banner-label { display: block; margin-bottom: 8rpx; color: #BFDBFE; font-size: 24rpx; font-weight: 600; }
+.banner-title { display: block; font-size: 30rpx; font-weight: 700; }
+.class-total-points { flex-shrink: 0; font-size: 48rpx; font-weight: 750; }
+.points-unit { font-size: 26rpx; font-weight: 400; }
 .filter-bar { display: flex; gap: 16rpx; }
 .filter-item { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .filter-label { font-size: 24rpx; font-weight: 500; color: #526177; }

@@ -35,6 +35,8 @@ from app.services.student_case_service import (
 # 跨档案的督查/批量打卡不属于单个 student-case 资源。独立前缀避免
 # /student-cases/{case_id} 与 /student-cases/tasks/* 依赖路由注册顺序。
 router = APIRouter(prefix="/case-tasks", tags=["case-tasks"])
+# 阶段完成度从属于单个学生档案；单列路由避免因批量任务前缀拆分而改变详情页契约。
+stage_router = APIRouter(prefix="/student-cases", tags=["student-cases"])
 _head_teacher = require_roles([ROLE_TEACHER])
 _staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER])
 
@@ -239,7 +241,7 @@ def batch_checkin(
     return results
 
 
-@router.get("/{case_id}/stage-completions", response_model=list[StageCompletionOut])
+@stage_router.get("/{case_id}/stage-completions", response_model=list[StageCompletionOut])
 def list_stage_completions(
     case_id: int,
     db: Session = Depends(get_db),
@@ -255,7 +257,7 @@ def list_stage_completions(
     )
 
 
-@router.post("/{case_id}/stage-completions/rebuild", response_model=StageCompletionOut)
+@stage_router.post("/{case_id}/stage-completions/rebuild", response_model=StageCompletionOut)
 def rebuild_stage_completion(
     case_id: int,
     db: Session = Depends(get_db),

@@ -96,6 +96,8 @@ class PointsReportOut(BaseModel):
     remark: str = ""
     student_name: str | None = None
     class_name: str | None = None
+    # 报表抬头使用班主任署名；班主任关系优先于 classes.teacher_id 的旧字段。
+    head_teacher_name: str | None = None
 
 
 class PointsReportBuildIn(BaseModel):

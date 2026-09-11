@@ -184,6 +184,8 @@ def test_points_stage_and_reports(client, auth, db, seed_users):
     assert by_student[seed_users["student1"]]["earned_points"] == 1.0
     assert by_student[seed_users["student1"]]["earned_points"] <= 7.0
     assert by_student[seed_users["student2"]]["earned_points"] == 0.8
+    # 班级总积分抬头由前端汇总；每条报表均提供班主任署名。
+    assert by_student[seed_users["student1"]]["head_teacher_name"] == "王老师"
 
     # 幂等：重复生成不新增行
     again = client.post(

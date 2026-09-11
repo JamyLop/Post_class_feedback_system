@@ -358,9 +358,22 @@ def build_points_reports(
 def enrich_points_report(db: Session, report: StudentPointsReport) -> dict:
     stu = db.get(User, report.student_id)
     cls = db.get(Class, report.class_id)
+    # 新班级通过 ClassTeacher 标注班主任，旧数据仍沿用 classes.teacher_id。
+    from app.models.class_ import ClassTeacher
+
+    head_teacher = None
+    if cls:
+        relation = (
+            db.query(ClassTeacher)
+            .filter(ClassTeacher.class_id == cls.id, ClassTeacher.role == "head_teacher")
+            .order_by(ClassTeacher.id.asc())
+            .first()
+        )
+        head_teacher = db.get(User, relation.teacher_id if relation else cls.teacher_id)
     from app.schemas.case_points import PointsReportOut
 
     data = PointsReportOut.model_validate(report).model_dump()
     data["student_name"] = stu.name if stu else None
     data["class_name"] = cls.name if cls else None
+    data["head_teacher_name"] = head_teacher.name if head_teacher else None
     return data

@@ -20,6 +20,10 @@
             <el-icon><DataBoard /></el-icon>
             <span>系统概览</span>
           </el-menu-item>
+          <el-menu-item index="/admin/points-reports">
+            <el-icon><TrendCharts /></el-icon>
+            <span>积分周月报</span>
+          </el-menu-item>
           <el-menu-item index="/admin/users">
             <el-icon><User /></el-icon>
             <span>用户管理</span>
@@ -74,7 +78,7 @@
 </template>
 
 <script setup>
-import { Compass, DataBoard, Files, Key, Link, School, User } from '@element-plus/icons-vue'
+import { Compass, DataBoard, Files, Key, Link, School, TrendCharts, User } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
