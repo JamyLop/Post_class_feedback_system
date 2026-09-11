@@ -89,6 +89,10 @@
           "style": { "navigationBarTitleText": "快速打卡" }
         },
         {
+          "path": "nextWeek/index",
+          "style": { "navigationBarTitleText": "下周待建" }
+        },
+        {
           "path": "reviewCreate/index",
           "style": { "navigationBarTitleText": "提交督查" }
         },

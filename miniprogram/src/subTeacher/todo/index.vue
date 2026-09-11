@@ -60,7 +60,7 @@ import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { getCaseProgress, listStudentCases } from '../../api/studentCases'
+import { getCaseProgress, getTaskReminders, listStudentCases } from '../../api/studentCases'
 import LoadState from '../../components/LoadState.vue'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 
@@ -69,6 +69,7 @@ const loading = ref(false)
 const error = ref('')
 const progress = ref({})
 const pendingCases = ref([])
+const nextWeek = ref({ count: 0, starts_on: '', ends_on: '' })
 
 const statusCounts = computed(() => {
   const keys = ['draft','pending_confirmation','revision_required','executing','pending_review','adjusted','archived']
@@ -103,6 +104,19 @@ async function refresh() {
       .filter(c => ['revision_required','pending_confirmation','draft','pending_review','adjusted'].includes(c.status))
       .sort((a,b) => (priority[a.status]??9)-(priority[b.status]??9) || new Date(b.updated_at)-new Date(a.updated_at))
       .slice(0,10)
+    // 下周待建周任务数：仅班主任拉取（其余角色无提醒接口权限）
+    if (auth.role === 'teacher') {
+      try {
+        const r = await getTaskReminders()
+        nextWeek.value = {
+          count: (r.next_week_missing || []).length,
+          starts_on: r.next_week_starts_on || '',
+          ends_on: r.next_week_ends_on || '',
+        }
+      } catch (_) {
+        nextWeek.value = { count: 0, starts_on: '', ends_on: '' }
+      }
+    }
   } catch (_) { error.value = '暂时无法读取工作进展，请检查网络后重试。' } finally { loading.value = false }
 }
 
@@ -116,11 +130,18 @@ function goWeeklyScores() { uni.navigateTo({ url: '/subTeacher/weeklyScores/inde
 function goMonthlyReports() { uni.navigateTo({ url: '/subTeacher/monthlyReports/index' }) }
 function goPointsReports() { uni.navigateTo({ url: '/subTeacher/pointsReports/index' }) }
 function goClassManager() { uni.navigateTo({ url: '/subTeacher/classManager/index' }) }
+function goNextWeek() { uni.navigateTo({ url: '/subTeacher/nextWeek/index' }) }
+
+const nextWeekDesc = computed(() => {
+  if (!nextWeek.value.starts_on) return '提前建好下周周任务'
+  return `下周${nextWeek.value.starts_on.slice(5)}~${nextWeek.value.ends_on.slice(5)} · ${nextWeek.value.count}人待建`
+})
 
 const navItems = computed(() => {
   const items = []
   if (auth.role === 'teacher') {
     items.push({ title: '班级档案', desc: '按班级筛选', action: goCaseList })
+    items.push({ title: `下周待建（${nextWeek.value.count}）`, desc: nextWeekDesc.value, action: goNextWeek })
     items.push({ title: '快速打卡', desc: '先选档案，再记录执行', action: goCheckin })
     items.push({ title: '提交督查', desc: '提交档案督查', action: goReview })
     items.push({ title: '周测成绩', desc: '录入与查看', action: goWeeklyScores })
