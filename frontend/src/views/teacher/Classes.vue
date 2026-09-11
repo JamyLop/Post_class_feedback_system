@@ -18,23 +18,55 @@
             <strong class="class-name-text">{{ row.name }}</strong>
           </template>
         </el-table-column>
-        <el-table-column label="学年" width="220">
+        <el-table-column
+          label="学年"
+          width="220"
+          column-key="school_year"
+          :filters="schoolYearFilters"
+          :filter-method="filterBySchoolYear"
+        >
           <template #default="{ row }">
             <div class="school-year-cell"><strong>{{ row.school_year }}</strong><span>{{ row.school_year_starts_on }} 至 {{ row.school_year_ends_on || '—' }}</span></div>
           </template>
         </el-table-column>
-        <el-table-column prop="education_stage" label="学段" width="100">
+        <el-table-column
+          prop="education_stage"
+          label="学段"
+          width="110"
+          column-key="education_stage"
+          :filters="stageFilters"
+          :filter-method="filterByStage"
+        >
           <template #default="{ row }">
             <el-tag size="small" effect="plain">{{ row.education_stage }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="grade" label="年级" width="100" />
-        <el-table-column label="班主任" width="130">
+        <el-table-column
+          prop="grade"
+          label="年级"
+          width="120"
+          column-key="grade"
+          :filters="gradeFilters"
+          :filter-method="filterByGrade"
+        />
+        <el-table-column
+          label="班主任"
+          width="150"
+          column-key="teacher_name"
+          :filters="teacherFilters"
+          :filter-method="filterByTeacher"
+        >
           <template #default="{ row }">
             <span>{{ row.teacher_name || teacherNameOf(row) || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="班型" width="160">
+        <el-table-column
+          label="班型"
+          width="170"
+          column-key="class_type"
+          :filters="classTypeFilters"
+          :filter-method="filterByClassType"
+        >
           <template #default="{ row }">
             <span>{{ row.class_type }}</span>
             <span v-if="row.short_term_type" class="sub-type-badge">（{{ row.short_term_type }}）</span>
@@ -178,6 +210,26 @@ function teacherNameOf(row) {
   if (auth.role === 'teacher' && row.teacher_id === auth.user?.id) return auth.user?.name || ''
   return ''
 }
+
+// 表头筛选：选项从已加载数据去重生成，随数据更新
+function distinctOptions(rows, pick) {
+  const seen = new Map()
+  for (const r of rows) {
+    const v = pick(r)
+    if (v !== '' && v !== null && v !== undefined && !seen.has(v)) seen.set(v, { text: v, value: v })
+  }
+  return [...seen.values()].sort((a, b) => String(a.value).localeCompare(String(b.value), 'zh-CN'))
+}
+const schoolYearFilters = computed(() => distinctOptions(classes.value, (r) => r.school_year))
+const stageFilters = computed(() => distinctOptions(classes.value, (r) => r.education_stage))
+const gradeFilters = computed(() => distinctOptions(classes.value, (r) => r.grade))
+const teacherFilters = computed(() => distinctOptions(classes.value, (r) => r.teacher_name || teacherNameOf(r) || '—'))
+const classTypeFilters = computed(() => distinctOptions(classes.value, (r) => r.class_type))
+function filterBySchoolYear(value, row) { return row.school_year === value }
+function filterByStage(value, row) { return row.education_stage === value }
+function filterByGrade(value, row) { return row.grade === value }
+function filterByTeacher(value, row) { return (row.teacher_name || teacherNameOf(row) || '—') === value }
+function filterByClassType(value, row) { return row.class_type === value }
 
 function openDialog() {
   if (!canManageClass.value) {
