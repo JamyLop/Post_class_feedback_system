@@ -16,7 +16,7 @@
 
         <view class="card-text">
           <text class="card-title">账号密码登录</text>
-          <text class="card-desc">使用用户名和密码登录系统</text>
+          <text class="card-desc">使用学号 / 手机号和密码登录系统</text>
         </view>
       </view>
       <view class="form">
