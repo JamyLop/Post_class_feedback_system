@@ -10,63 +10,54 @@
       </el-button>
     </div>
 
+    <div class="filter-card">
+      <el-input v-model="filters.keyword" placeholder="搜索班级名称" clearable class="filter-item filter-search">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-select v-model="filters.school_year" placeholder="学年" clearable class="filter-item">
+        <el-option v-for="o in schoolYearOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.education_stage" placeholder="学段" clearable class="filter-item filter-short">
+        <el-option v-for="o in stageOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.grade" placeholder="年级" clearable class="filter-item filter-short">
+        <el-option v-for="o in gradeOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.teacher_name" placeholder="班主任" clearable filterable class="filter-item">
+        <el-option v-for="o in teacherNameOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.class_type" placeholder="班型" clearable class="filter-item filter-short">
+        <el-option v-for="o in classTypeOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-button @click="resetFilters">重置</el-button>
+      <span class="filter-count">共 {{ classes.length }} 个班级<span v-if="isFiltering"> · 筛选出 {{ filteredClasses.length }} 个</span></span>
+    </div>
+
     <div class="table-card">
-      <el-table :data="classes" v-loading="loading" empty-text="暂无班级数据" style="width: 100%">
+      <el-table :data="filteredClasses" v-loading="loading" empty-text="暂无符合条件的班级数据" style="width: 100%">
         <el-table-column prop="id" label="序号" width="80" />
         <el-table-column prop="name" label="班级名称" min-width="160">
           <template #default="{ row }">
             <strong class="class-name-text">{{ row.name }}</strong>
           </template>
         </el-table-column>
-        <el-table-column
-          label="学年"
-          width="220"
-          column-key="school_year"
-          :filters="schoolYearFilters"
-          :filter-method="filterBySchoolYear"
-        >
+        <el-table-column label="学年" width="220">
           <template #default="{ row }">
             <div class="school-year-cell"><strong>{{ row.school_year }}</strong><span>{{ row.school_year_starts_on }} 至 {{ row.school_year_ends_on || '—' }}</span></div>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="education_stage"
-          label="学段"
-          width="110"
-          column-key="education_stage"
-          :filters="stageFilters"
-          :filter-method="filterByStage"
-        >
+        <el-table-column prop="education_stage" label="学段" width="110">
           <template #default="{ row }">
             <el-tag size="small" effect="plain">{{ row.education_stage }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="grade"
-          label="年级"
-          width="120"
-          column-key="grade"
-          :filters="gradeFilters"
-          :filter-method="filterByGrade"
-        />
-        <el-table-column
-          label="班主任"
-          width="150"
-          column-key="teacher_name"
-          :filters="teacherFilters"
-          :filter-method="filterByTeacher"
-        >
+        <el-table-column prop="grade" label="年级" width="120" />
+        <el-table-column label="班主任" width="150">
           <template #default="{ row }">
             <span>{{ row.teacher_name || teacherNameOf(row) || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column
-          label="班型"
-          width="170"
-          column-key="class_type"
-          :filters="classTypeFilters"
-          :filter-method="filterByClassType"
-        >
+        <el-table-column label="班型" width="170">
           <template #default="{ row }">
             <span>{{ row.class_type }}</span>
             <span v-if="row.short_term_type" class="sub-type-badge">（{{ row.short_term_type }}）</span>
@@ -137,6 +128,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { createClass, deleteClass, listClasses, updateClass, listUsers } from '../../api/classes'
 import { useAuthStore } from '../../stores/auth'
 
@@ -211,7 +203,7 @@ function teacherNameOf(row) {
   return ''
 }
 
-// 表头筛选：选项从已加载数据去重生成，随数据更新
+// 筛选栏：选项从已加载数据去重生成，随数据更新
 function distinctOptions(rows, pick) {
   const seen = new Map()
   for (const r of rows) {
@@ -220,16 +212,26 @@ function distinctOptions(rows, pick) {
   }
   return [...seen.values()].sort((a, b) => String(a.value).localeCompare(String(b.value), 'zh-CN'))
 }
-const schoolYearFilters = computed(() => distinctOptions(classes.value, (r) => r.school_year))
-const stageFilters = computed(() => distinctOptions(classes.value, (r) => r.education_stage))
-const gradeFilters = computed(() => distinctOptions(classes.value, (r) => r.grade))
-const teacherFilters = computed(() => distinctOptions(classes.value, (r) => r.teacher_name || teacherNameOf(r) || '—'))
-const classTypeFilters = computed(() => distinctOptions(classes.value, (r) => r.class_type))
-function filterBySchoolYear(value, row) { return row.school_year === value }
-function filterByStage(value, row) { return row.education_stage === value }
-function filterByGrade(value, row) { return row.grade === value }
-function filterByTeacher(value, row) { return (row.teacher_name || teacherNameOf(row) || '—') === value }
-function filterByClassType(value, row) { return row.class_type === value }
+const schoolYearOpts = computed(() => distinctOptions(classes.value, (r) => r.school_year))
+const stageOpts = computed(() => distinctOptions(classes.value, (r) => r.education_stage))
+const gradeOpts = computed(() => distinctOptions(classes.value, (r) => r.grade))
+const teacherNameOpts = computed(() => distinctOptions(classes.value, (r) => r.teacher_name || teacherNameOf(r) || '—'))
+const classTypeOpts = computed(() => distinctOptions(classes.value, (r) => r.class_type))
+
+const filters = reactive({ keyword: '', school_year: '', education_stage: '', grade: '', teacher_name: '', class_type: '' })
+const isFiltering = computed(() => Object.values(filters).some((v) => v !== ''))
+const filteredClasses = computed(() => classes.value.filter((r) => {
+  if (filters.keyword && !String(r.name || '').includes(filters.keyword.trim())) return false
+  if (filters.school_year && r.school_year !== filters.school_year) return false
+  if (filters.education_stage && r.education_stage !== filters.education_stage) return false
+  if (filters.grade && r.grade !== filters.grade) return false
+  if (filters.teacher_name && (r.teacher_name || teacherNameOf(r) || '—') !== filters.teacher_name) return false
+  if (filters.class_type && r.class_type !== filters.class_type) return false
+  return true
+}))
+function resetFilters() {
+  Object.assign(filters, { keyword: '', school_year: '', education_stage: '', grade: '', teacher_name: '', class_type: '' })
+}
 
 function openDialog() {
   if (!canManageClass.value) {
@@ -346,6 +348,28 @@ onMounted(load)
   box-shadow: none;
   overflow: hidden;
   padding: 16px 18px;
+}
+
+.filter-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  box-shadow: none;
+  padding: 14px 18px;
+}
+
+.filter-item { width: 150px; }
+.filter-item.filter-search { width: 210px; }
+.filter-item.filter-short { width: 120px; }
+.filter-count {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 12.5px;
+  white-space: nowrap;
 }
 
 .class-name-text {
