@@ -407,3 +407,41 @@ def test_subject_weekly_cap_7(client, auth, db, seed_users):
     row = next(x for x in build.json() if x["student_id"] == seed_users["student1"])
     assert row["earned_points"] == 1.0
     assert row["detail"]["per_subject_earned"]["数学"] == 1.0
+
+
+def test_case_weekly_points_endpoint(client, auth, db, seed_users):
+    """档案本周积分接口：与周报同口径（单科单日封顶1分），本周外打卡不计入。"""
+    from app.services.case_points_service import current_week_label, parse_week_label
+
+    class_id = _setup(db, seed_users)
+    case1 = _cycle_case(client, auth, class_id, seed_users, "student1")
+    week_start, week_end = parse_week_label(current_week_label())
+    t1 = _task(client, auth, case1, title="任务A", subject="数学",
+               starts_on=str(week_start), due_on=str(week_end))
+    t2 = _task(client, auth, case1, title="任务B", subject="英语",
+               starts_on=str(week_start), due_on=str(week_end))
+    # 数学同一天两条 100% 打卡 → 单日封顶 1 分；英语一条 1 分
+    for _ in range(2):
+        r = client.post(
+            "/api/case-tasks/batch-checkin",
+            headers=auth("teacher1"),
+            json={"log_date": str(week_start), "items": [{"task_id": t1["id"], "completion_rate": 100}]},
+        )
+        assert r.status_code == 200, r.text
+    r = client.post(
+        "/api/case-tasks/batch-checkin",
+        headers=auth("teacher1"),
+        json={"log_date": str(week_start), "items": [{"task_id": t2["id"], "completion_rate": 100}]},
+    )
+    assert r.status_code == 200, r.text
+
+    r = client.get(f"/api/student-cases/{case1}/weekly-points", headers=auth("teacher1"))
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["week_label"] == current_week_label()
+    assert data["starts_on"] == str(week_start)
+    assert data["ends_on"] == str(week_end)
+    assert data["earned_points"] == 2.0
+    assert data["per_subject_earned"] == {"数学": 1.0, "英语": 1.0}
+    # 同一任务同一天多次打卡仅计一条
+    assert data["checkin_count"] == 2

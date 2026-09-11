@@ -34,5 +34,6 @@ export const getTaskReminders = (params = {}) => http.get('/case-tasks/reminders
 export const batchCheckinTasks = (data) => http.post('/case-tasks/batch-checkin', data)
 export const listStageCompletions = (caseId) => http.get(`/student-cases/${caseId}/stage-completions`)
 export const rebuildStageCompletion = (caseId) => http.post(`/student-cases/${caseId}/stage-completions/rebuild`)
+export const getWeeklyPoints = (caseId) => http.get(`/student-cases/${caseId}/weekly-points`)
 export const getMyCase = () => http.get('/student-cases/my-case')
 export const listCaseVersions = (caseId) => http.get(`/student-cases/${caseId}/versions`)

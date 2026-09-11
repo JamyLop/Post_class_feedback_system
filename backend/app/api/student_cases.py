@@ -775,6 +775,57 @@ def list_case_versions(
     return db.query(CaseVersion).filter_by(student_case_id=case_id).order_by(CaseVersion.version.desc()).all()
 
 
+@router.get("/{case_id}/weekly-points")
+def case_weekly_points(
+    case_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """单个档案本周积分（周一~周日）：与积分周报同口径，供档案详情页展示本周积分获取数量。"""
+    from datetime import timedelta
+
+    from app.schemas.case_points import WeeklyPointsOut
+    from app.services.case_points_service import (
+        _capped_earned,
+        _checkin_log_date,
+        current_week_label,
+        parse_week_label,
+    )
+
+    case = require_case_access(db, case_id, user)
+    week_label = current_week_label()
+    start, end = parse_week_label(week_label)
+    tasks = db.query(CaseTask).filter_by(student_case_id=case.id).all()
+    task_map = {t.id: t for t in tasks}
+    earned = 0.0
+    per_subject_earned: dict[str, float] = {}
+    checkin_count = 0
+    if task_map:
+        rows = db.query(TaskCheckin).filter(TaskCheckin.task_id.in_(list(task_map))).all()
+        # 同一任务同一天仅取最新一条，不重复计分
+        seen: dict[tuple[int, date], TaskCheckin] = {}
+        for row in rows:
+            log_date = _checkin_log_date(row)
+            if log_date is None or not (start <= log_date <= end):
+                continue
+            key = (row.task_id, log_date)
+            prev = seen.get(key)
+            if prev is None or (row.checked_in_at and prev.checked_in_at and row.checked_in_at > prev.checked_in_at):
+                seen[key] = row
+        deduped = [(task_map[task_id], row, log_date) for (task_id, log_date), row in seen.items() if task_id in task_map]
+        checkin_count = len(deduped)
+        if deduped:
+            earned, per_subject_earned, _ = _capped_earned(deduped)
+    return WeeklyPointsOut(
+        week_label=week_label,
+        starts_on=start,
+        ends_on=end,
+        earned_points=earned,
+        per_subject_earned=per_subject_earned,
+        checkin_count=checkin_count,
+    )
+
+
 @router.put("/{case_id}/subject-plans/{subject}", response_model=SubjectPlanOut)
 def upsert_subject_plan(
     case_id: int,

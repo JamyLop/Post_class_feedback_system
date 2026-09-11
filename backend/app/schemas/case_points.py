@@ -69,6 +69,21 @@ class NextWeekMissingItem(BaseModel):
     active_weekly_count: int = 0
 
 
+class WeeklyPointsOut(BaseModel):
+    """单个档案本周积分：自然周（周一~周日）内打卡积分。
+
+    口径与积分周报一致：每天每任务满分 1 分按完成度折算，
+    同一任务同一天仅取最新一条，单科单日封顶 1 分、单科周封顶 7 分。
+    """
+
+    week_label: str
+    starts_on: date
+    ends_on: date
+    earned_points: float = 0.0
+    per_subject_earned: dict[str, float] = {}
+    checkin_count: int = 0
+
+
 class TaskRemindersOut(BaseModel):
     date: date
     overdue: list[ReminderTaskItem] = []

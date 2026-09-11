@@ -462,14 +462,17 @@
               </section>
 
               <section class="subject-section">
-                <div class="subject-section-heading"><div><el-icon><TrendCharts /></el-icon><h3>阶段完成度</h3></div><span>按总案版本记录 · 打卡后自动更新</span><el-button v-if="detail.can_manage" link type="primary" @click="rebuildStages">重算</el-button></div>
-                <div v-if="stageCompletions.length" class="stage-list">
-                  <article v-for="stage in stageCompletions" :key="stage.id" class="stage-row">
-                    <div class="stage-head"><strong>V{{ stage.version }}阶段</strong><span>{{ stage.completed_tasks }}/{{ stage.total_tasks }} 任务完成</span><span>积分 {{ stage.earned_points }}/{{ stage.total_points }}</span></div>
-                    <el-progress :percentage="Number(stage.avg_completion_rate) || 0" :stroke-width="8" />
+                <div class="subject-section-heading"><div><el-icon><TrendCharts /></el-icon><h3>本周积分</h3></div><span>{{ weeklyPoints ? `${weeklyPoints.starts_on} 至 ${weeklyPoints.ends_on} · 打卡后自动更新` : '打卡后自动更新' }}</span></div>
+                <div v-if="weeklyPoints" class="stage-list">
+                  <article class="stage-row">
+                    <div class="stage-head"><strong>本周已获 {{ weeklyPoints.earned_points }} 分</strong><span>{{ weeklyPoints.checkin_count }} 条执行记录</span></div>
+                    <div v-if="weeklySubjectEntries.length" class="weekly-subjects">
+                      <div v-for="[subject, pts] in weeklySubjectEntries" :key="subject" class="weekly-subject"><span>{{ subject || '综合' }}</span><strong>{{ pts }} 分</strong></div>
+                    </div>
+                    <div v-else class="inline-empty"><p>本周暂无积分入账。</p></div>
                   </article>
                 </div>
-                <div v-else class="inline-empty"><p>暂无阶段完成度记录，完成一次执行记录后自动生成。</p></div>
+                <div v-else class="inline-empty"><p>暂无本周积分数据。</p></div>
               </section>
             </main>
           </div>
@@ -642,7 +645,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, TrendCharts, Upload, View, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, decideTaskChange, exportStudentCase, getStudentCase, listCaseVersions, listStageCompletions, rebuildStageCompletion, requestTaskChange, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
+import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, decideTaskChange, exportStudentCase, getStudentCase, listCaseVersions, getWeeklyPoints, requestTaskChange, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import SecureCheckinImage from '../../components/SecureCheckinImage.vue'
@@ -693,7 +696,8 @@ const overviewForm = ref(createEmptyOverviewForm())
 const profileForm = ref(createEmptyProfileForm())
 const checkinForm = ref({ task_id: null, self_check: '', log_date: '' })
 const checkinFileList = ref([])
-const stageCompletions = ref([])
+const weeklyPoints = ref(null)
+const weeklySubjectEntries = computed(() => Object.entries(weeklyPoints.value?.per_subject_earned || {}).sort((a, b) => b[1] - a[1]))
 const reviewForm = ref(createEmptyReviewForm())
 const labels = { draft: '草稿', pending_confirmation: '待确认', executing: '执行中', pending_review: '待复盘', adjusted: '已调整', archived: '已归档' }
 const gradeOptions = ['初一', '初二', '初三', '高一', '高二', '高三', '复读']
@@ -1133,7 +1137,7 @@ async function saveTask() {
     else detail.value.tasks.push(saved)
     cancelTaskEdit()
     ElMessage.success('任务已保存')
-    await loadStages()
+    await loadWeeklyPoints()
   } finally {
     savingTask.value = false
   }
@@ -1396,20 +1400,13 @@ function checkinsFor(subject) {
   return detail.value?.task_checkins?.filter((item) => taskIds.has(item.task_id)) || []
 }
 
-async function loadStages() {
+async function loadWeeklyPoints() {
   if (!detail.value?.id) return
   try {
-    stageCompletions.value = await listStageCompletions(detail.value.id)
+    weeklyPoints.value = await getWeeklyPoints(detail.value.id)
   } catch {
-    stageCompletions.value = []
+    weeklyPoints.value = null
   }
-}
-
-async function rebuildStages() {
-  if (!detail.value?.can_manage) return
-  await rebuildStageCompletion(detail.value.id)
-  await loadStages()
-  ElMessage.success('阶段完成度已重算')
 }
 
 async function saveCheckin() {
@@ -1442,7 +1439,7 @@ async function saveCheckin() {
     checkinForm.value = { task_id: null, self_check: '', log_date: '' }
     checkinFileList.value = []
     ElMessage.success(`执行记录已保存，得 ${saved.earned_points ?? 0} 分`)
-    await loadStages()
+    await loadWeeklyPoints()
   } finally {
     savingCheckin.value = false
   }
@@ -1533,7 +1530,7 @@ async function load() {
     if (!subjectOptions.value.includes(selectedSubject.value)) selectedSubject.value = subjectOptions.value[0] || ''
     const firstTask = tasksFor(selectedSubject.value)[0]
     checkinForm.value.task_id = firstTask?.id || null
-    await loadStages()
+    await loadWeeklyPoints()
     if (auth.role === 'admin') reviewForm.value.review_level = 'school'
     else if (detail.value?.can_manage) reviewForm.value.review_level = 'head_teacher'
     if (active.value === 'weekly') await loadWeekly()
@@ -1805,7 +1802,7 @@ onMounted(load)
 .stage-list { display: flex; flex-direction: column; gap: 12px; }
 .stage-row { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
 .stage-head { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; margin-bottom: 8px; font-size: 13px; color: var(--ink-muted); }
-.stage-head strong { color: var(--ink); font-size: 13.5px; }.checkin-form-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(160px, .9fr); gap: 14px; }.checkin-form :deep(.el-form-item) { margin-bottom: 12px; }.checkin-form :deep(.el-select) { width: 100%; }.checkin-form :deep(.el-form-item__label) { color: var(--ink); font-size: 12px; font-weight: 700; }.percent-suffix { margin-left: 6px; color: var(--ink-muted); font-weight: 600; }.checkin-list { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }.checkin-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; padding: 14px 16px; background: var(--surface); }.checkin-row:first-child { border-radius: 12px 12px 0 0; }.checkin-row:last-child { border-bottom: 0; }.completion-rate { display: grid; align-content: center; justify-items: center; min-height: 54px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); border-radius: 10px; box-shadow: 0 2px 8px color-mix(in oklch, var(--brand) 22%, transparent); }.completion-rate strong { font-size: 16px; }.completion-rate span { margin-top: 1px; font-size: 10px; opacity: .9; }.checkin-row > div:last-child > strong { font-size: 13.5px; }.checkin-row p { margin: 4px 0; color: var(--ink-secondary); line-height: 1.6; font-size: 13px; white-space: pre-wrap; }.checkin-row time { color: var(--ink-muted); font-size: 11px; }.inline-empty { margin-top: 12px; padding: 16px; color: var(--ink-muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; text-align: center; }.inline-empty p { margin: 0; font-size: 12.5px; }
+.stage-head strong { color: var(--ink); font-size: 13.5px; }.checkin-form-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(160px, .9fr); gap: 14px; }.checkin-form :deep(.el-form-item) { margin-bottom: 12px; }.weekly-subjects { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }.weekly-subject { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 12.5px; color: var(--ink-secondary); }.weekly-subject strong { color: var(--brand-strong); }.checkin-form :deep(.el-select) { width: 100%; }.checkin-form :deep(.el-form-item__label) { color: var(--ink); font-size: 12px; font-weight: 700; }.percent-suffix { margin-left: 6px; color: var(--ink-muted); font-weight: 600; }.checkin-list { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }.checkin-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; padding: 14px 16px; background: var(--surface); }.checkin-row:first-child { border-radius: 12px 12px 0 0; }.checkin-row:last-child { border-bottom: 0; }.completion-rate { display: grid; align-content: center; justify-items: center; min-height: 54px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); border-radius: 10px; box-shadow: 0 2px 8px color-mix(in oklch, var(--brand) 22%, transparent); }.completion-rate strong { font-size: 16px; }.completion-rate span { margin-top: 1px; font-size: 10px; opacity: .9; }.checkin-row > div:last-child > strong { font-size: 13.5px; }.checkin-row p { margin: 4px 0; color: var(--ink-secondary); line-height: 1.6; font-size: 13px; white-space: pre-wrap; }.checkin-row time { color: var(--ink-muted); font-size: 11px; }.inline-empty { margin-top: 12px; padding: 16px; color: var(--ink-muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; text-align: center; }.inline-empty p { margin: 0; font-size: 12.5px; }
 .review-form-card { margin-bottom: 16px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-form-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.review-form-header strong { font-size: 14px; font-weight: 750; letter-spacing: -.01em; }.review-form-header span { color: var(--ink-muted); font-size: 11.5px; }.review-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }.review-form :deep(.el-form-item__label) { padding-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 700; }.review-form :deep(.el-select), .review-form :deep(.el-date-editor) { width: 100%; }.review-form :deep(.el-input__wrapper), .review-form :deep(.el-textarea__inner) { border-radius: 10px; }.review-form-actions { display: flex; justify-content: flex-end; }
 .review-item-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }.review-level { padding: 4px 8px; color: #fff; background: var(--brand); border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }.review-level.is-school { background: #7c3aed; }.review-level.is-principal { background: #be123c; }.review-level.is-head_teacher { background: var(--brand); }.review-level.is-subject { background: #0ea5e9; }.review-level.is-task_change { background: #d97706; }.review-decide-actions { display: flex; gap: 8px; margin-top: 10px; }.change-req-task { margin: 0 0 6px; font-size: 14px; }.dialog-tip { margin: 0 0 12px; font-size: 12.5px; color: #64748b; }.review-subject, .review-due { padding: 4px 8px; color: var(--ink-secondary); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; }.review-problem { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }.review-action, .review-recheck { margin: 6px 0 0; color: var(--ink-secondary); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; background: var(--surface-soft); border: 1px solid var(--line); padding: 8px 10px; border-radius: 10px; }
 .review-timeline { padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }.review-timeline :deep(.el-timeline-item__node) { border-color: var(--brand); background: var(--brand-soft); }.review-timeline :deep(.el-timeline-item__timestamp) { font-size: 11.5px; }
