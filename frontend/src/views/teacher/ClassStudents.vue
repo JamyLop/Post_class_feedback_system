@@ -37,7 +37,7 @@
     <el-dialog v-model="dialogVisible" title="添加学生到本班级" width="560px" @close="onDialogClose">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="新建学生" name="create">
-          <el-alert type="info" :closable="false" show-icon title="仅需录入学生信息，学生学号由后端按学段、入学信息、班级和位号自动生成" style="margin-bottom: 14px" />
+          <el-alert type="info" :closable="false" show-icon title="仅需录入学生信息，学号规则：Y/U(初中Y/高中U)+年级(1/2/3)+年份后两位+入学月份(2位)+班号(2位)+位号(2位)，如 Y326090101" style="margin-bottom: 14px" />
           <el-form :model="newForm" label-width="92px" @submit.prevent>
             <el-form-item label="姓名" required>
               <el-input v-model="newForm.name" placeholder="请输入学生姓名" maxlength="64" />

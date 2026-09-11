@@ -73,7 +73,7 @@ const menuItems = computed(() => {
     { index: '/teacher/task-reminders', icon: 'Bell', title: '任务提醒', roles: ['admin', 'teacher'] },
     { index: '/teacher/points-reports', icon: 'TrendCharts', title: '积分周月报', roles: ['admin', 'teacher', 'deyu_director'] },
     { index: '/teacher/monthly-reports', icon: 'Notebook', title: '月度评定', roles: ['admin', 'teacher'] },
-    { index: '/teacher/classes', icon: 'School', title: '班级与教师', roles: ['admin', 'teacher'] },
+    { index: '/teacher/classes', icon: 'School', title: '班级与教师', roles: ['admin', 'teacher', 'deyu_director'] },
   ]
   return allItems.filter(item => item.roles.includes(role))
 })

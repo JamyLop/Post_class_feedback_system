@@ -53,9 +53,17 @@ def test_register_student_with_valid_invite(client, db, seed_users):
 
 def test_register_teacher_with_valid_invite(client, db, seed_users):
     _create_invite(db, "TEACH0001", role="teacher", admin_id=seed_users["admin"])
-    r = _register(client, "newteacher", role="teacher", code="TEACH0001")
+    r = _register(client, "13800000001", role="teacher", code="TEACH0001")
     assert r.status_code == 200, r.text
     assert r.json()["role"] == "teacher"
+
+
+def test_register_non_student_requires_phone(client, db, seed_users):
+    """除学生外，其他角色注册用户名必须为11位手机号。"""
+    _create_invite(db, "TEACHPH01", role="teacher", admin_id=seed_users["admin"])
+    r = _register(client, "newteacher", role="teacher", code="TEACHPH01")
+    assert r.status_code == 400, r.text
+    assert "手机号" in r.text
 
 
 def test_register_rejects_admin_role(client, db, seed_users):
@@ -69,7 +77,7 @@ def test_admin_invite_allows_admin_register(client, db, seed_users, auth):
     r = client.post("/api/admin/invite-codes", json={"role": "admin"}, headers=admin)
     assert r.status_code == 200, r.text
     code = r.json()["code"]
-    r = _register(client, "newadmin", role="admin", code=code)
+    r = _register(client, "13800000002", role="admin", code=code)
     assert r.status_code == 200, r.text
     assert r.json()["role"] == "admin"
 
@@ -197,8 +205,8 @@ def test_admin_creates_and_disables_invite(client, auth, seed_users):
     invite_id = r.json()["id"]
     r = client.post(f"/api/admin/invite-codes/{invite_id}/disable", headers=admin)
     assert r.status_code == 200
-    # 停用后无法注册
-    assert _register(client, "blocked", role="teacher", code=code).status_code == 400
+    # 停用后无法注册（用合法手机号以命中邀请码停用分支）
+    assert _register(client, "13800000003", role="teacher", code=code).status_code == 400
 
 
 def test_admin_stats(client, auth, seed_users):

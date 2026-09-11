@@ -21,8 +21,8 @@
       </view>
       <view class="form">
         <view class="field">
-          <text class="field-label">用户名</text>
-          <input v-model="form.username" placeholder="请输入用户名" class="input" />
+          <text class="field-label">用户名 / 手机号</text>
+          <input v-model="form.username" placeholder="学号或11位手机号（历史用户名仍可登录）" class="input" />
         </view>
         <view class="field">
           <text class="field-label">密码</text>
@@ -81,11 +81,11 @@ function routeByRole() { return '/pages/index/index' }
 
 async function handlePasswordLogin() {
   if (pwdLoading.value) return
-  if (!form.username || !form.password) return uni.showToast({ title: '请填写用户名和密码', icon: 'none' })
+  if (!form.username?.trim() || !form.password) return uni.showToast({ title: '请填写用户名和密码', icon: 'none' })
   if (!form.captcha_code) return uni.showToast({ title: '请输入验证码', icon: 'none' })
   pwdLoading.value = true
   try {
-    const user = await auth.login(form.username, form.password, captcha.id, form.captcha_code)
+    const user = await auth.login(form.username.trim(), form.password, captcha.id, form.captcha_code)
     uni.reLaunch({ url: routeByRole(user.role) })
   } catch (e) {
     // 验证码一次性消费，失败后自动刷新

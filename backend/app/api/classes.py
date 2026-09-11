@@ -23,7 +23,10 @@ from app.schemas.class_ import (
 
 router = APIRouter(prefix="/classes", tags=["classes"])
 
-_manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
+# 班级本身由德育主任（校长兼容）新建并分配班主任；班主任仅负责录入班级学生信息。
+_class_manager = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR])
+# 班级学生名单维护：班主任录入，德育主任/校长可协同。
+_student_manager = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER])
 
 
 def _check_class_owner(db: Session, class_id: int, user: User) -> Class:
@@ -50,10 +53,25 @@ def _check_class_owner(db: Session, class_id: int, user: User) -> Class:
 def create_class(
     body: ClassCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(_manager),
+    user: User = Depends(_class_manager),
 ):
-    """创建班级（教师/管理员）。"""
-    cls = Class(**body.model_dump(), teacher_id=user.id)
+    """新建班级（德育主任操作，分配给班主任；校长兼容）。
+
+    body.teacher_id 为分配的班主任ID；德育主任必须传入，管理员不传时默认归自己
+    （若自己不是班主任则必须传入）。
+    """
+    data = body.model_dump(exclude={"teacher_id"})
+    teacher_id = body.teacher_id
+    if teacher_id is None:
+        # 兼容：班主任历史调用不传 teacher_id 时归自己；德育主任/校长必须显式分配
+        if user.role == ROLE_TEACHER:
+            teacher_id = user.id
+        else:
+            raise HTTPException(status_code=422, detail="请指定分配的班主任（teacher_id）")
+    teacher = db.get(User, teacher_id)
+    if teacher is None or teacher.role != ROLE_TEACHER:
+        raise HTTPException(status_code=400, detail="所选账号不是班主任")
+    cls = Class(**data, teacher_id=teacher.id)
     db.add(cls)
     db.commit()
     db.refresh(cls)
@@ -112,7 +130,7 @@ def update_class(
     class_id: int,
     body: ClassUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(_manager),
+    user: User = Depends(_class_manager),
 ):
     cls = _check_class_owner(db, class_id, user)
     changes = body.model_dump(exclude_unset=True)
@@ -149,6 +167,11 @@ def update_class(
         cls.school_year_starts_on = body.school_year_starts_on
     if "school_year_ends_on" in changes:
         cls.school_year_ends_on = changes["school_year_ends_on"]
+    if "teacher_id" in changes and changes["teacher_id"] is not None:
+        new_teacher = db.get(User, changes["teacher_id"])
+        if new_teacher is None or new_teacher.role != ROLE_TEACHER:
+            raise HTTPException(status_code=400, detail="所选账号不是班主任")
+        cls.teacher_id = new_teacher.id
     # 校验结束时间晚于开始时间
     if cls.school_year_ends_on <= cls.school_year_starts_on:
         raise HTTPException(status_code=422, detail="结束时间必须晚于开始时间")
@@ -161,7 +184,7 @@ def update_class(
 def delete_class(
     class_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(_manager),
+    user: User = Depends(_class_manager),
 ):
     """仅删除没有学生档案的班级，避免级联丢失档案记录。"""
     from app.models.student_case import StudentCase
@@ -185,7 +208,7 @@ def add_students(
     class_id: int,
     body: StudentAdd,
     db: Session = Depends(get_db),
-    user: User = Depends(_manager),
+    user: User = Depends(_student_manager),
 ):
     """向班级批量添加学生（跳过非法/重复的 id）。"""
     _check_class_owner(db, class_id, user)
@@ -226,19 +249,37 @@ def _ensure_user_profile_columns(db: Session) -> None:
 
 
 def _generate_student_username(db: Session, cls: Class, enrollment_month: int, seat_number: int) -> str:
-    """按学段、入学信息、年级、班级和位号生成可读且唯一的学号。"""
+    """学号规则：Y/U(初中Y 高中U)+年级(初一/高一=1,初二/高二=2,初三/高三=3)+年份后两位+入学月份(2位)+班号(2位)+位号(2位)。
+
+    eg: Y326090101 = 初中(Y)+初三(3)+26届+09月+01班+01号。
+    """
     import re
+    from datetime import date as _date
 
     prefix = "U" if cls.education_stage == "高中" else "Y"
-    grade_code = {"高一": "01", "高二": "02", "高三": "03", "初一": "01", "初二": "02", "初三": "03"}.get(cls.grade)
-    if grade_code is None:
+    grade_digit_map = {
+        "初一": "1", "初二": "2", "初三": "3",
+        "高一": "1", "高二": "2", "高三": "3",
+        "复读": "4",
+    }
+    grade_digit = grade_digit_map.get((cls.grade or "").strip())
+    if grade_digit is None:
         raise HTTPException(status_code=422, detail="当前班级年级无法生成学号")
-    class_match = re.search(r"(\d+)", cls.name)
-    class_number = int(class_match.group(1)) if class_match else cls.id
+    class_match = re.search(r"(\d+)", cls.name or "")
+    class_number = int(class_match.group(1)) if class_match else cls.id or 1
     if class_number > 99:
         raise HTTPException(status_code=422, detail="班级编号不能超过99")
-    year = str(cls.school_year).split("-", 1)[0]
-    base = f"{prefix}{year}{enrollment_month:02d}{grade_code}{class_number:02d}{seat_number:02d}"
+    # 年份后两位：优先从 school_year 起始年取（如 2026-2027 -> 26），异常时用当年
+    year_two = ""
+    try:
+        year_full = str(cls.school_year or "").split("-", 1)[0].strip()
+        if len(year_full) >= 2 and year_full.isdigit():
+            year_two = year_full[-2:]
+    except Exception:
+        year_two = ""
+    if not year_two or not year_two.isdigit():
+        year_two = str(_date.today().year)[-2:]
+    base = f"{prefix}{grade_digit}{year_two}{enrollment_month:02d}{class_number:02d}{seat_number:02d}"
     if db.query(User).filter(User.username == base).first() is None:
         return base
     raise HTTPException(status_code=409, detail=f"学号 {base} 已存在，请更换位号或入学月份")
@@ -249,7 +290,7 @@ def create_and_add_student(
     class_id: int,
     body: StudentCreateAndEnroll,
     db: Session = Depends(get_db),
-    user: User = Depends(_manager),
+    user: User = Depends(_student_manager),
 ):
     """在班级内直接新建学生账号并加入班级（仅录入档案信息，账号自动生成）。"""
     cls = _check_class_owner(db, class_id, user)

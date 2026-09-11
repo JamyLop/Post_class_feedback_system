@@ -35,8 +35,8 @@
         </el-form-item>
 
         <div class="grid-2">
-          <el-form-item label="用户名">
-            <el-input v-model="form.username" placeholder="学号 / 工号，3-64位" clearable />
+          <el-form-item :label="form.role === 'student' ? '用户名（学号）' : '用户名（手机号）'">
+            <el-input v-model="form.username" :placeholder="form.role === 'student' ? '学生学号，由班主任生成' : '11位手机号'" clearable />
           </el-form-item>
           <el-form-item label="真实姓名">
             <el-input v-model="form.name" placeholder="请输入姓名" clearable />
@@ -116,6 +116,11 @@ const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生�
 async function onSubmit() {
   if (!form.invite_code || !form.username || !form.name || !form.password) {
     ElMessage.warning('请填写完整信息')
+    return
+  }
+  // 除学生外，其他角色注册必须使用手机号作为用户名（与后端校验一致）
+  if (form.role !== 'student' && !/^1[3-9]\d{9}$/.test(form.username.trim())) {
+    ElMessage.warning('除学生外，用户名必须为11位手机号')
     return
   }
   if (form.role === 'subject_teacher' && !form.subject) {

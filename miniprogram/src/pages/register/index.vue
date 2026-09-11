@@ -38,8 +38,8 @@
           </view>
         </view>
         <view class="field">
-          <text class="field-label">用户名 <text class="required">*</text></text>
-          <input v-model="form.username" placeholder="请设置登录用户名" class="input" />
+          <text class="field-label">用户名 {{ form.role === 'student' ? '（学号）' : '（手机号）' }} <text class="required">*</text></text>
+          <input v-model="form.username" :placeholder="form.role === 'student' ? '学生学号，由班主任生成' : '请输入11位手机号'" class="input" />
         </view>
         <view class="field">
           <text class="field-label">姓名 <text class="required">*</text></text>
@@ -130,6 +130,11 @@ function validate() {
   }
   if (!form.username.trim()) {
     uni.showToast({ title: '请输入用户名', icon: 'none' })
+    return false
+  }
+  // 除学生外，其他角色注册必须使用手机号作为用户名（与后端校验一致）
+  if (form.role !== 'student' && !/^1[3-9]\d{9}$/.test(form.username.trim())) {
+    uni.showToast({ title: '除学生外，用户名必须为11位手机号', icon: 'none' })
     return false
   }
   if (!form.name.trim()) {

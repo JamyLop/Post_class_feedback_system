@@ -93,8 +93,8 @@
             <el-radio value="admin">校长</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="用户名">
-          <el-input v-model="form.username" :disabled="editing" placeholder="用户名（3-64位）" />
+        <el-form-item :label="form.role === 'student' ? '用户名（学号）' : '用户名（手机号）'">
+          <el-input v-model="form.username" :disabled="editing" :placeholder="form.role === 'student' ? '学生学号' : '11位手机号'" />
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="form.name" placeholder="姓名" />
@@ -159,6 +159,11 @@ function openEdit(row) {
 async function onSubmit() {
   if (!form.username || !form.name) {
     ElMessage.warning('请填写用户名和姓名')
+    return
+  }
+  // 除学生外，其他角色用户名必须为11位手机号（与后端一致）
+  if (form.role !== 'student' && !/^1[3-9]\d{9}$/.test(form.username.trim())) {
+    ElMessage.warning('除学生外，用户名必须为11位手机号')
     return
   }
   if (!editing.value && !form.password) {

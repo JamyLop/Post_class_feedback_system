@@ -3,9 +3,9 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">班级与教学组织</h1>
-        <p class="header-desc">配置各学段年级教学班级、班型属性及学生名册归属。</p>
+        <p class="header-desc">{{ canManageClass ? '由德育主任新建班级并分配班主任，班主任负责录入班级学生信息。' : '查看所带班级，班主任负责录入班级学生信息；新建/分配由德育主任操作。' }}</p>
       </div>
-      <el-button type="primary" @click="openDialog">
+      <el-button v-if="canManageClass" type="primary" @click="openDialog">
         <el-icon><Plus /></el-icon>新建班级
       </el-button>
     </div>
@@ -40,8 +40,8 @@
             <el-button link type="primary" @click="$router.push(`/teacher/classes/${row.id}/students`)">
               学生名册
             </el-button>
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="danger" @click="onDelete(row)">删除</el-button>
+            <el-button v-if="canManageClass" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="canManageClass" link type="danger" @click="onDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -49,6 +49,11 @@
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑班级' : '新建班级'" width="460px">
       <el-form :model="form" label-position="top">
+        <el-form-item v-if="canManageClass" label="分配班主任" required>
+          <el-select v-model="form.teacher_id" placeholder="选择班主任" style="width: 100%" filterable>
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="`${t.name}（${t.username}）`" :value="t.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="学年">
           <el-select v-model="form.school_year" placeholder="选择学年" style="width: 100%" @change="onSchoolYearChange"><el-option v-for="year in schoolYears" :key="year" :label="`${year}学年`" :value="year" /></el-select>
         </el-form-item>
@@ -95,7 +100,12 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { createClass, deleteClass, listClasses, updateClass } from '../../api/classes'
+import { createClass, deleteClass, listClasses, updateClass, listUsers } from '../../api/classes'
+import { useAuthStore } from '../../stores/auth'
+
+const auth = useAuthStore()
+// 新建/编辑/删除班级由德育主任（校长兼容）操作；班主任仅维护学生名册。
+const canManageClass = computed(() => ['admin', 'deyu_director'].includes(auth.role))
 
 const classes = ref([])
 const loading = ref(false)
@@ -113,7 +123,8 @@ const defaultEndDate = (schoolYear) => {
   return `${endYear}-07-31`
 }
 const initialSchoolYear = currentSchoolYear()
-const form = reactive({ name: '', education_stage: '高中', grade: '高三', class_type: '全年班', short_term_type: null, school_year: initialSchoolYear, school_year_starts_on: defaultStartDate(initialSchoolYear), school_year_ends_on: defaultEndDate(initialSchoolYear) })
+const form = reactive({ name: '', education_stage: '高中', grade: '高三', class_type: '全年班', short_term_type: null, school_year: initialSchoolYear, school_year_starts_on: defaultStartDate(initialSchoolYear), school_year_ends_on: defaultEndDate(initialSchoolYear), teacher_id: null })
+const teacherOptions = ref([])
 const gradesByStage = { 初中: ['初一', '初二', '初三'], 高中: ['高一', '高二', '高三', '复读'] }
 const availableGrades = computed(() => gradesByStage[form.education_stage])
 const availableClassTypes = computed(() => form.education_stage === '高中'
@@ -143,18 +154,30 @@ async function load() {
   loading.value = true
   try {
     classes.value = await listClasses()
+    if (canManageClass.value) {
+      try {
+        teacherOptions.value = await listUsers('teacher', '')
+      } catch {
+        teacherOptions.value = []
+      }
+    }
   } finally {
     loading.value = false
   }
 }
 
 function openDialog() {
+  if (!canManageClass.value) {
+    ElMessage.warning('新建班级由德育主任操作')
+    return
+  }
   editingId.value = null
   form.name = ''
   form.education_stage = '高中'
   form.grade = '高三'
   form.class_type = '全年班'
   form.short_term_type = null
+  form.teacher_id = null
   form.school_year = currentSchoolYear()
   form.school_year_starts_on = defaultStartDate(form.school_year)
   form.school_year_ends_on = defaultEndDate(form.school_year)
@@ -162,6 +185,10 @@ function openDialog() {
 }
 
 function openEdit(row) {
+  if (!canManageClass.value) {
+    ElMessage.warning('编辑班级由德育主任操作')
+    return
+  }
   editingId.value = row.id
   Object.assign(form, {
     name: row.name,
@@ -169,6 +196,7 @@ function openEdit(row) {
     grade: row.grade,
     class_type: row.class_type,
     short_term_type: row.short_term_type,
+    teacher_id: row.teacher_id || null,
     school_year: row.school_year || '未设置',
     school_year_starts_on: row.school_year_starts_on || defaultStartDate(row.school_year),
     school_year_ends_on: row.school_year_ends_on || defaultEndDate(row.school_year),
@@ -177,8 +205,16 @@ function openEdit(row) {
 }
 
 async function onSave() {
+  if (!canManageClass.value) {
+    ElMessage.warning('新建/编辑班级由德育主任操作')
+    return
+  }
   if (!form.name || !form.education_stage || !form.grade || !form.class_type || !form.school_year || !form.school_year_starts_on || !form.school_year_ends_on) {
     ElMessage.warning('请完整填写学年、起止日期、班级名称、学段、年级和班型')
+    return
+  }
+  if (!editingId.value && !form.teacher_id) {
+    ElMessage.warning('请选择分配的班主任')
     return
   }
   if (form.school_year_ends_on <= form.school_year_starts_on) {
@@ -197,6 +233,10 @@ async function onSave() {
 }
 
 async function onDelete(row) {
+  if (!canManageClass.value) {
+    ElMessage.warning('删除班级由德育主任操作')
+    return
+  }
   try {
     await ElMessageBox.confirm(`确认删除班级「${row.name}」？仅未关联档案、作业或反馈数据的班级可以删除。`, '删除班级', { type: 'warning', confirmButtonText: '确认删除' })
   } catch { return }

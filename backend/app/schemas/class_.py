@@ -39,6 +39,9 @@ class ClassCreate(BaseModel):
     school_year: str = Field(default="2026-2027", min_length=4, max_length=16)
     school_year_starts_on: date | None = None
     school_year_ends_on: date | None = None
+    # 新建班级由德育主任操作，必须指定分配的班主任（teacher_id）。
+    # 兼容历史调用：班主任/管理员不传时由后端按创建人兜底。
+    teacher_id: int | None = Field(default=None, description="分配的班主任用户ID")
 
     @model_validator(mode="after")
     def validate_category(self):
@@ -75,6 +78,8 @@ class ClassUpdate(BaseModel):
     school_year: str | None = Field(default=None, min_length=4, max_length=16)
     school_year_starts_on: date | None = None
     school_year_ends_on: date | None = None
+    # 德育主任可重新分配班主任
+    teacher_id: int | None = Field(default=None, description="重新分配的班主任用户ID")
 
 
 class ClassOut(BaseModel):

@@ -31,6 +31,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 logger = logging.getLogger(__name__)
 
+# 除学生外，其他角色注册/绑定必须使用手机号作为用户名
+import re as _re
+
+PHONE_RE = _re.compile(r"^1[3-9]\d{9}$")
+
+
+def _require_phone_username(role: str, username: str) -> str:
+    """非学生角色用户名必须为11位手机号；返回 strip 后的用户名。"""
+    cleaned = (username or "").strip()
+    if role != ROLE_STUDENT and not PHONE_RE.fullmatch(cleaned):
+        raise HTTPException(status_code=400, detail="除学生外，用户名必须为11位手机号")
+    return cleaned
+
 def _create_bind_ticket(openid: str, unionid: str | None) -> str:
     jti = uuid.uuid4().hex
     payload = {
@@ -106,9 +119,14 @@ def get_captcha():
 
 @router.post("/login", response_model=LoginResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    """账号密码 + 图形验证码登录，签发 JWT。"""
+    """账号密码 + 图形验证码登录，签发 JWT。
+
+    用户名兼容历史账号与新手机号账号：除学生学号外，其他角色注册已统一为11位手机号，
+    此处不限制格式，仅 strip 后精确匹配，保证新老账号均可登录。
+    """
     _check_captcha(body.captcha_id, body.captcha_code)
-    user = db.query(User).filter(User.username == body.username).first()
+    username = (body.username or "").strip()
+    user = db.query(User).filter(User.username == username).first()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     if user.status != "active":
@@ -209,6 +227,7 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="邀请码注册需提供 username/password/role")
         if body.role not in (ROLE_ADMIN, ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
             raise HTTPException(status_code=400, detail="仅支持注册管理员、班主任、德育主任、咨询老师、任课老师、学生或家长账号")
+        body.username = _require_phone_username(body.role, body.username)
         if db.query(User).filter(User.username == body.username).first():
             raise HTTPException(status_code=409, detail="用户名已存在")
         invite = (
@@ -228,10 +247,11 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
         db.flush()
         _consume_invite(invite, user.id)
     else:
-        # 分支二：绑定已有账号
+        # 分支二：绑定已有账号（兼容手机号与历史用户名，均 strip 后匹配）
         if not body.username or not body.password:
             raise HTTPException(status_code=400, detail="请提供用户名与密码")
-        user = db.query(User).filter(User.username == body.username).first()
+        username = (body.username or "").strip()
+        user = db.query(User).filter(User.username == username).first()
         if user is None or not verify_password(body.password, user.password_hash):
             raise HTTPException(status_code=401, detail="用户名或密码错误")
         if user.status != "active":
@@ -360,10 +380,14 @@ def me_children(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    """公开注册：邀请码 + 图形验证码，管理员、班主任、德育主任、咨询老师、任课老师、学生或家长必须使用对应角色的邀请码。"""
+    """公开注册：邀请码 + 图形验证码，管理员、班主任、德育主任、咨询老师、任课老师、学生或家长必须使用对应角色的邀请码。
+
+    除学生外，其他角色用户名必须为11位手机号。
+    """
     _check_captcha(body.captcha_id, body.captcha_code)
     if body.role not in (ROLE_ADMIN, ROLE_TEACHER, ROLE_DEYU_DIRECTOR, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER, ROLE_STUDENT, ROLE_PARENT):
         raise HTTPException(status_code=400, detail="仅支持注册管理员、班主任、德育主任、咨询老师、任课老师、学生或家长账号")
+    body.username = _require_phone_username(body.role, body.username)
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=409, detail="用户名已存在")
 

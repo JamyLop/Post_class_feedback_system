@@ -33,7 +33,8 @@
             <textarea v-model="form.self_check" placeholder="实际执行情况、问题与要求" class="textarea" />
           </view>
 
-          <view class="field">
+          <!-- 需求：拍照打卡功能隐藏（仅保留文字执行记录） -->
+          <view v-if="false" class="field">
             <text class="label">打卡照片（最多 {{ MAX_PHOTOS }} 张）</text>
             <view class="photo-grid">
               <view v-for="(p, idx) in photos" :key="idx" class="photo-cell">

@@ -7,7 +7,7 @@
     </view>
 
     <view class="hint-card">
-      <text class="hint-text">仅需录入学生信息，学生学号由后端按学段、入学信息、班级和位号自动生成</text>
+      <text class="hint-text">仅需录入学生信息，学号规则：Y/U(初中Y/高中U)+年级+年份后两位+入学月份+班号+位号，如 Y326090101</text>
     </view>
 
     <view class="card">

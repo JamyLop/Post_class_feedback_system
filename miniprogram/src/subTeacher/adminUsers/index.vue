@@ -98,8 +98,8 @@
         </view>
         <view class="form">
           <view class="field">
-            <text class="label">用户名</text>
-            <input v-model="newUser.username" class="input" placeholder="用户名" />
+            <text class="label">用户名{{ newUser.role === 'student' ? '（学号）' : '（手机号）' }}</text>
+            <input v-model="newUser.username" class="input" :placeholder="newUser.role === 'student' ? '学生学号' : '11位手机号'" />
           </view>
           <view class="field">
             <text class="label">密码</text>
@@ -201,6 +201,10 @@ async function loadUsers() {
 
 async function doCreateUser() {
   if (!newUser.username || !newUser.password || !newUser.name) return uni.showToast({ title: '请填写完整', icon: 'none' })
+  // 除学生外，其他角色用户名必须为11位手机号（与后端一致）
+  if (newUser.role !== 'student' && !/^1[3-9]\d{9}$/.test((newUser.username || '').trim())) {
+    return uni.showToast({ title: '除学生外，用户名必须为11位手机号', icon: 'none' })
+  }
   creatingUser.value = true
   try {
     await createUser(newUser)

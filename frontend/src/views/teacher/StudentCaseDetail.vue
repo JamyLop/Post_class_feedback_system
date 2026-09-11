@@ -79,7 +79,7 @@
               <div>
                 <span class="profile-kicker">学生档案</span>
                 <h2>基本信息</h2>
-                <p>记录学生身份、家庭反馈及需要关注的健康事项。</p>
+                <p>{{ auth.role === 'parent' ? '记录学生身份与家长反馈。' : '记录学生身份、家长反馈及需要关注的健康事项。' }}</p>
               </div>
               <div v-if="detail.can_manage && detail.status !== 'archived'" class="profile-actions">
                 <template v-if="!editingProfile">
@@ -119,13 +119,13 @@
 
               </div>
               <div class="profile-section">
-                <div class="profile-section-title"><span class="section-marker"></span><div><h3>家庭反馈</h3><p>由班主任根据家长沟通情况如实记录</p></div></div>
+                <div class="profile-section-title"><span class="section-marker"></span><div><h3>家长反馈</h3><p>由班主任根据家长沟通情况如实记录</p></div></div>
                 <dl class="profile-grid profile-copy-grid">
                   <div><dt>家长评价</dt><dd>{{ profileValue('parent_evaluation') }}</dd></div>
                   <div><dt>主要需求</dt><dd>{{ profileValue('primary_needs') }}</dd></div>
                 </dl>
               </div>
-              <div class="profile-section health-section">
+              <div v-if="auth.role !== 'parent'" class="profile-section health-section">
                 <div class="profile-section-title">
                   <span class="section-marker"></span>
                   <div><h3>健康与体检信息</h3><p>仅记录教育服务和在校安全确有必要的信息</p></div>
@@ -177,7 +177,7 @@
 
               </div>
               <div class="profile-form-block">
-                <h3>家庭反馈</h3>
+                <h3>家长反馈</h3>
                 <div class="profile-form-grid profile-form-copy">
                   <el-form-item label="家长评价"><el-input v-model="profileForm.parent_evaluation" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" maxlength="4000" show-word-limit placeholder="填写家长对学生学习、习惯和状态的评价" /></el-form-item>
                   <el-form-item label="主要需求"><el-input v-model="profileForm.primary_needs" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" maxlength="4000" show-word-limit placeholder="填写家长及学生当前最主要的支持需求" /></el-form-item>
@@ -445,14 +445,16 @@
                     <div class="expected-points">打卡即得<strong>1 分</strong>（单科单日封顶1分、单科周封顶7分）</div>
                   </div>
                   <el-form-item label="班主任记录"><el-input v-model="checkinForm.self_check" type="textarea" :autosize="{ minRows: 3, maxRows: 10 }" placeholder="完整记录学生实际执行情况、发现的问题和后续要求" /></el-form-item>
-                  <el-form-item label="上传照片"><el-upload drag :auto-upload="false" :on-change="handleCheckinFileChange" :file-list="checkinFileList" accept="image/*" :limit="5"><el-icon><Upload /></el-icon><div class="el-upload__text">拖拽或<em>点击上传</em>照片（最多5张）</div></el-upload></el-form-item>
+                  <!-- 需求：拍照打卡功能隐藏（仅保留文字执行记录，不再上传/展示照片） -->
+                  <el-form-item v-if="false" label="上传照片"><el-upload drag :auto-upload="false" :on-change="handleCheckinFileChange" :file-list="checkinFileList" accept="image/*" :limit="5"><el-icon><Upload /></el-icon><div class="el-upload__text">拖拽或<em>点击上传</em>照片（最多5张）</div></el-upload></el-form-item>
                   <div class="task-form-actions"><el-button type="primary" :loading="savingCheckin" @click="saveCheckin">保存执行记录</el-button></div>
                 </el-form>
                 <div v-if="checkinsFor(selectedSubject).length" class="checkin-list">
                   <article v-for="checkin in checkinsFor(selectedSubject)" :key="checkin.id" class="checkin-row">
                     <div class="completion-rate"><strong>1分</strong><span>已打卡</span></div>
                     <div><strong>{{ taskTitle(checkin.task_id) }}</strong><p>{{ checkin.self_check || '班主任未填写补充说明' }}</p><time>{{ formatDateTime(checkin.checked_in_at) }} · 记录{{ checkin.log_date || '-' }} · 得 {{ checkin.earned_points ?? '-' }} 分</time>
-                      <div v-if="checkin.attachments?.length" class="checkin-attachments"><SecureCheckinImage v-for="(att, index) in checkin.attachments" :key="`${checkin.id}-${att.object_name || index}`" :checkin-id="checkin.id" :attachment-index="index" :attachment="att" /></div>
+                      <!-- 需求：拍照打卡功能隐藏，不再展示打卡照片 -->
+                      <div v-if="false && checkin.attachments?.length" class="checkin-attachments"><SecureCheckinImage v-for="(att, index) in checkin.attachments" :key="`${checkin.id}-${att.object_name || index}`" :checkin-id="checkin.id" :attachment-index="index" :attachment="att" /></div>
                     </div>
                   </article>
                 </div>

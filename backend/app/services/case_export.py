@@ -543,7 +543,7 @@ def _add_profile_section(doc: Document, profile: Any | None, guardians: list | N
         else:
             # 家长评价 / 主要需求 合并
             c0 = tbl.cell(r, 0); _set_cell_shading(c0, HEADER_FILL); _set_cell_margins(c0)
-            p = c0.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER; run = p.add_run("家庭反馈"); _set_fonts(run, size=7.5, bold=True, color=MUTED)
+            p = c0.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER; run = p.add_run("家长反馈"); _set_fonts(run, size=7.5, bold=True, color=MUTED)
             # 跨3列合并：用 _merge
             # python-docx 合并
             try:

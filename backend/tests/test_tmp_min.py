@@ -6,9 +6,10 @@ from app.models.user import User
 def test_channel_consultant(client, auth, db, seed_users):
     created = client.post(
         "/api/classes",
-        headers=auth("teacher1"),
+        headers=auth("deyu1"),
         json={"name": "高三1班", "education_stage": "高中", "grade": "高三",
-              "class_type": "全年班", "school_year": "2026-2027"},
+              "class_type": "全年班", "school_year": "2026-2027",
+              "teacher_id": seed_users["teacher1"]},
     )
     assert created.status_code == 200, created.text
     class_id = created.json()["id"]

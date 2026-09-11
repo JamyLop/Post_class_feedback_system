@@ -93,7 +93,8 @@
           <view v-if="detail.task_checkins.length" class="checkin-section">
             <text class="section-h">执行记录（最近10条）</text>
             <Timeline :items="checkinItems" />
-            <view v-if="checkinsWithPhotos.length" class="photo-section">
+            <!-- 需求：拍照打卡功能隐藏 -->
+            <view v-if="false && checkinsWithPhotos.length" class="photo-section">
               <view v-for="c in checkinsWithPhotos" :key="c.id" class="photo-row">
                 <text class="photo-title">{{ taskTitle(c.task_id) }} · {{ formatCheckinTime(c.checked_in_at) }} · 打卡照片</text>
                 <CheckinAttachments :checkin-id="c.id" :attachments="c.attachments" />

@@ -128,6 +128,7 @@ const navItems = computed(() => {
     items.push({ title: '班级管理', desc: '管理班级学生', action: goClassManager })
   } else if (auth.role === 'deyu_director') {
     items.push({ title: '德育审查', desc: '审查待审方案', action: goDeyuReview })
+    items.push({ title: '新建班级', desc: '新建班级并分配班主任', action: goClassManager })
     items.push({ title: '全部档案', desc: '全局档案查看', action: goCaseList })
     items.push({ title: '档案进展', desc: '查看任务与督查记录', action: goCaseList })
     items.push({ title: '任务执行进度', desc: '查看全校任务逾期与打卡', action: goPointsReports })

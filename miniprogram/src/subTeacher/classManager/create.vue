@@ -7,8 +7,17 @@
     </view>
 
     <view class="card">
-      <text class="card-title">班级信息</text>
+      <text class="card-title">班级信息 · 由德育主任新建并分配班主任</text>
       <view class="form">
+        <view class="field">
+          <text class="field-label">分配班主任 <text class="required">*</text></text>
+          <picker :range="teacherOptions" range-key="label" :value="teacherIndex" @change="onTeacherChange">
+            <view class="input picker-input">
+              <text>{{ teacherLabel }}</text>
+              <text class="picker-arrow">⌄</text>
+            </view>
+          </picker>
+        </view>
         <view class="field">
           <text class="field-label">班级名称 <text class="required">*</text></text>
           <input v-model="form.name" placeholder="如：高三(1)班" class="input" />
@@ -111,9 +120,11 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
-import { ref, reactive, computed } from 'vue'
-import { createClass } from '../../api/classes'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { createClass, listUsers } from '../../api/classes'
+import { useAuthStore } from '../../stores/auth'
 
+const auth = useAuthStore()
 const submitting = ref(false)
 
 const stageOptions = ['初中', '高中']
@@ -149,6 +160,28 @@ const form = reactive({
   school_year: initialSchoolYear,
   school_year_starts_on: defaultStartDate(initialSchoolYear),
   school_year_ends_on: defaultEndDate(initialSchoolYear),
+  teacher_id: null,
+})
+
+const teacherOptions = ref([{ id: null, label: '请选择班主任' }])
+const teacherIndex = computed(() => {
+  const idx = teacherOptions.value.findIndex((t) => t.id === form.teacher_id)
+  return idx >= 0 ? idx : 0
+})
+const teacherLabel = computed(() => teacherOptions.value[teacherIndex.value]?.label || '请选择班主任')
+function onTeacherChange(e) {
+  form.teacher_id = teacherOptions.value[Number(e.detail.value)]?.id || null
+}
+
+onMounted(async () => {
+  // 德育主任新建时需选择班主任
+  try {
+    const teachers = await listUsers('teacher', '').catch(() => [])
+    teacherOptions.value = [
+      { id: null, label: '请选择班主任' },
+      ...(teachers || []).map((u) => ({ id: u.id, label: `${u.name}（${u.username}）` })),
+    ]
+  } catch (_) {}
 })
 
 const schoolYearOptions = Array.from({ length: 81 }, (_, i) => {
@@ -174,6 +207,10 @@ function onEndsOnChange(e) {
 const gradeOptions = computed(() => gradeMap[form.education_stage] || [])
 
 function validate() {
+  if (!form.teacher_id) {
+    uni.showToast({ title: '请选择分配的班主任', icon: 'none' })
+    return false
+  }
   if (!form.name.trim()) {
     uni.showToast({ title: '请输入班级名称', icon: 'none' })
     return false
@@ -218,6 +255,7 @@ async function handleSubmit() {
       school_year: form.school_year,
       school_year_starts_on: form.school_year_starts_on,
       school_year_ends_on: form.school_year_ends_on,
+      teacher_id: form.teacher_id,
     })
     uni.showToast({ title: '创建成功', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 1500)

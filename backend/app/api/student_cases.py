@@ -472,7 +472,7 @@ def create_student_case(
     if not is_head_teacher(db, body.class_id, user.id):
         raise HTTPException(status_code=403, detail="仅班主任可建立学生总案")
     verify_case_membership(db, body.student_id, body.class_id)
-    # 家庭反馈属于学生基本资料，不得混入总体问题和升学目标等总案诊断字段。
+    # 家长反馈属于学生基本资料，不得混入总体问题和升学目标等总案诊断字段。
     case_data = body.model_dump(exclude={"parent_evaluation", "primary_needs"})
     case = StudentCase(**case_data)
     db.add(case)

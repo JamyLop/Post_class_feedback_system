@@ -7,7 +7,8 @@
     </view>
 
     <view class="action-bar">
-      <button class="btn-primary" @click="goCreateClass">新建班级</button>
+      <!-- 新建班级由德育主任操作；班主任仅维护学生名册 -->
+      <button v-if="['admin', 'deyu_director'].includes(auth.role)" class="btn-primary" @click="goCreateClass">新建班级</button>
       <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
@@ -46,7 +47,8 @@ const classList = ref([])
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (!['teacher', 'admin'].includes(auth.role)) {
+  // 新建班级由德育主任操作并分配班主任；班主任仅录入学生信息（可查看名册）。
+  if (!['teacher', 'admin', 'deyu_director'].includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true
