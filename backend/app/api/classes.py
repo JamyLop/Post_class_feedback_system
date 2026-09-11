@@ -29,6 +29,21 @@ _class_manager = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR])
 _student_manager = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER])
 
 
+def _classes_out(db: Session, classes: list[Class]) -> list[dict]:
+    """批量回填班主任姓名，避免 N+1 查询。"""
+    teacher_ids = {c.teacher_id for c in classes if c.teacher_id}
+    names: dict[int, str] = {}
+    if teacher_ids:
+        for u in db.query(User).filter(User.id.in_(teacher_ids)).all():
+            names[u.id] = u.name
+    result = []
+    for c in classes:
+        data = ClassOut.model_validate(c).model_dump()
+        data["teacher_name"] = names.get(c.teacher_id, "")
+        result.append(data)
+    return result
+
+
 def _check_class_owner(db: Session, class_id: int, user: User) -> Class:
     """校验班级存在且当前用户有权操作（教师仅限自己的班级，任课老师仅限所带学科班级）。
 
@@ -75,7 +90,7 @@ def create_class(
     db.add(cls)
     db.commit()
     db.refresh(cls)
-    return cls
+    return _classes_out(db, [cls])[0]
 
 
 @router.get("", response_model=list[ClassOut])
@@ -87,7 +102,7 @@ def list_classes(
     from app.models.user import ROLE_DEYU_DIRECTOR
 
     if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
-        return db.query(Class).order_by(Class.id.desc()).all()
+        return _classes_out(db, db.query(Class).order_by(Class.id.desc()).all())
     if user.role == ROLE_CONSULTANT:
         student_ids = [r.student_id for r in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()]
         if not student_ids:
@@ -95,7 +110,7 @@ def list_classes(
         class_ids = [r.class_id for r in db.query(ClassStudent).filter(ClassStudent.student_id.in_(student_ids)).all()]
         if not class_ids:
             return []
-        return db.query(Class).filter(Class.id.in_(set(class_ids))).order_by(Class.id.desc()).all()
+        return _classes_out(db, db.query(Class).filter(Class.id.in_(set(class_ids))).order_by(Class.id.desc()).all())
     if user.role in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
         from app.models.class_ import ClassTeacher
 
@@ -104,14 +119,15 @@ def list_classes(
         all_ids = set(legacy_ids + relation_ids)
         if not all_ids:
             return []
-        return db.query(Class).filter(Class.id.in_(all_ids)).order_by(Class.id.desc()).all()
+        return _classes_out(db, db.query(Class).filter(Class.id.in_(all_ids)).order_by(Class.id.desc()).all())
     # 学生：返回自己所在班级
-    return (
+    return _classes_out(
+        db,
         db.query(Class)
         .join(ClassStudent, ClassStudent.class_id == Class.id)
         .filter(ClassStudent.student_id == user.id)
         .order_by(Class.id.desc())
-        .all()
+        .all(),
     )
 
 
@@ -122,7 +138,7 @@ def get_class(
     user: User = Depends(get_current_user),
 ):
     cls = _check_class_owner(db, class_id, user)
-    return cls
+    return _classes_out(db, [cls])[0]
 
 
 @router.put("/{class_id}", response_model=ClassOut)
@@ -177,7 +193,7 @@ def update_class(
         raise HTTPException(status_code=422, detail="结束时间必须晚于开始时间")
     db.commit()
     db.refresh(cls)
-    return cls
+    return _classes_out(db, [cls])[0]
 
 
 @router.delete("/{class_id}")

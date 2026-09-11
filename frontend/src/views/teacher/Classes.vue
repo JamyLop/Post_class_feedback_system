@@ -29,6 +29,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="grade" label="年级" width="100" />
+        <el-table-column label="班主任" width="130">
+          <template #default="{ row }">
+            <span>{{ row.teacher_name || teacherNameOf(row) || '—' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="班型" width="160">
           <template #default="{ row }">
             <span>{{ row.class_type }}</span>
@@ -164,6 +169,14 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+// 兜底：后端已返回 teacher_name；历史缓存无该字段时按名单/当前用户推断
+function teacherNameOf(row) {
+  const hit = teacherOptions.value.find((t) => t.id === row.teacher_id)
+  if (hit) return hit.name
+  if (auth.role === 'teacher' && row.teacher_id === auth.user?.id) return auth.user?.name || ''
+  return ''
 }
 
 function openDialog() {

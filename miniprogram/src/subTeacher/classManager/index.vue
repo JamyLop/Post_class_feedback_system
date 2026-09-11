@@ -24,6 +24,7 @@
             <text class="class-type">{{ cls.class_type }}</text>
           </view>
           <text class="class-meta">{{ cls.education_stage }} · {{ cls.grade }} · {{ cls.school_year }}</text>
+          <text v-if="cls.teacher_name" class="class-teacher">班主任：{{ cls.teacher_name }}</text>
         </view>
         <view class="class-actions">
           <text class="action-btn" @click="goStudents(cls.id, cls.name)">学生 ›</text>
@@ -109,6 +110,7 @@ onShow(() => { if (guardRole()) loadData() })
   padding: 4rpx 10rpx; border-radius: 14rpx;
 }
 .class-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
+.class-teacher { font-size: 24rpx; color: var(--mp-body); display: block; margin-top: 4rpx; }
 .class-actions { margin-left: 16rpx; }
 .action-btn {
   font-size: 24rpx; color: var(--mp-primary); font-weight: 500;

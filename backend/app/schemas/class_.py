@@ -95,6 +95,8 @@ class ClassOut(BaseModel):
     school_year_starts_on: date
     school_year_ends_on: date
     teacher_id: int
+    # 班主任姓名（列表展示用，由后端按 teacher_id 回填）
+    teacher_name: str = ""
 
 
 class StudentAdd(BaseModel):
