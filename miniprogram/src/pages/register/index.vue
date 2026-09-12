@@ -37,6 +37,14 @@
             </view>
           </view>
         </view>
+        <view v-if="form.role === 'subject_teacher'" class="field">
+          <text class="field-label">教授学科 <text class="required">*</text></text>
+          <picker :range="subjectOptions" :value="subjectIndex" @change="onSubjectChange">
+            <view class="input picker-display">
+              {{ form.subject || '请选择您教授的学科' }}
+            </view>
+          </picker>
+        </view>
         <view class="field">
           <text class="field-label">用户名 {{ form.role === 'student' ? '（学号）' : '（手机号）' }} <text class="required">*</text></text>
           <input v-model="form.username" :placeholder="form.role === 'student' ? '学生学号，由班主任生成' : '请输入11位手机号'" class="input" />
@@ -105,9 +113,13 @@ const roleOptions = [
   { label: '学生', value: 'student' },
   { label: '家长', value: 'parent' },
   { label: '班主任', value: 'teacher' },
+  { label: '任课老师', value: 'subject_teacher' },
   { label: '德育主任', value: 'deyu_director' },
+  { label: '咨询老师', value: 'consultant' },
   { label: '管理员', value: 'admin' },
 ]
+
+const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
 
 const form = reactive({
   invite_code: '',
@@ -117,7 +129,15 @@ const form = reactive({
   password: '',
   confirmPassword: '',
   captcha_code: '',
+  subject: '',
 })
+
+const subjectIndex = ref(-1)
+function onSubjectChange(e) {
+  const idx = Number(e.detail.value)
+  subjectIndex.value = idx
+  form.subject = subjectOptions[idx] || ''
+}
 
 function validate() {
   if (!form.invite_code.trim()) {
@@ -141,6 +161,10 @@ function validate() {
     uni.showToast({ title: '请输入姓名', icon: 'none' })
     return false
   }
+  if (form.role === 'subject_teacher' && !form.subject) {
+    uni.showToast({ title: '请选择您教授的学科', icon: 'none' })
+    return false
+  }
   if (!form.password || form.password.length < 6) {
     uni.showToast({ title: '密码至少6位', icon: 'none' })
     return false
@@ -160,7 +184,7 @@ async function handleRegister() {
   if (!validate()) return
   loading.value = true
   try {
-    await auth.register({
+    const payload = {
       invite_code: form.invite_code.trim(),
       role: form.role,
       username: form.username.trim(),
@@ -168,7 +192,11 @@ async function handleRegister() {
       password: form.password,
       captcha_id: captcha.id,
       captcha_code: form.captcha_code.trim(),
-    })
+    }
+    if (form.role === 'subject_teacher') {
+      payload.subject = form.subject
+    }
+    await auth.register(payload)
     uni.showModal({
       title: '注册成功',
       content: '账号已创建，是否立即登录？',
@@ -197,4 +225,8 @@ function goLogin() {
 
 <style scoped>
 @import "../../styles/auth.css";
+.picker-display {
+  display: flex;
+  align-items: center;
+}
 </style>
