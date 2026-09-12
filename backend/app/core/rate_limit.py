@@ -46,6 +46,15 @@ async def rate_limit_middleware(request: Request, call_next):
         return await call_next(request)
     if request.url.path in ("/api/health", "/api/ready"):
         return await call_next(request)
+    # 测试/开发环境跳过限流：pytest 用同一 TestClient 高频登录，否则 429 误杀；
+    # 生产（APP_ENV=production 等非 dev/test）仍强制限流，另有 Nginx 层限流兜底。
+    try:
+        from app.core.config import settings
+
+        if settings.app_env.lower() in {"dev", "development", "test", "testing"}:
+            return await call_next(request)
+    except Exception:
+        pass
     try:
         window, limit = _rule(request.url.path)
         now = time.monotonic()
