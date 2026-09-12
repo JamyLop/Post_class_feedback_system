@@ -64,7 +64,7 @@ function handleLogout() {
   }
 }
 
-function request({ url, method = 'GET', data, header = {}, showError = true }) {
+function request({ url, method = 'GET', data, header = {}, showError = true, timeout = 15000 }) {
   warnIfLocalhostOnDevice()
   const token = getToken()
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
@@ -74,6 +74,7 @@ function request({ url, method = 'GET', data, header = {}, showError = true }) {
       url: fullUrl,
       method,
       data,
+      timeout,
       header: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

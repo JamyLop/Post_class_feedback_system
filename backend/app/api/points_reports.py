@@ -44,6 +44,8 @@ def list_reports(
     class_id: int | None = Query(default=None),
     period_type: str | None = Query(default=None),
     period_label: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(_viewer),
 ):
@@ -57,7 +59,7 @@ def list_reports(
         q = q.filter(StudentPointsReport.period_type == period_type)
     if period_label:
         q = q.filter(StudentPointsReport.period_label == period_label)
-    rows = q.order_by(StudentPointsReport.period_label.desc(), StudentPointsReport.earned_points.desc()).all()
+    rows = q.order_by(StudentPointsReport.period_label.desc(), StudentPointsReport.earned_points.desc()).offset(offset).limit(limit).all()
     return [enrich_points_report(db, r) for r in rows]
 
 

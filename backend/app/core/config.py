@@ -73,7 +73,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_production_security(self):
         """生产进程启动即拒绝不安全的认证或跨域配置，避免带病上线。"""
-        if self.app_env.lower() not in {"prod", "production"}:
+        # 白名单反转：仅 dev/test 放行，其他一律按生产校验，防止 APP_ENV 拼写错误绕过。
+        if self.app_env.lower() in {"dev", "development", "test", "testing"}:
             return self
         if self.debug:
             raise ValueError("生产环境必须设置 DEBUG=false")

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.core.pagination import MAX_LIMIT
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentConsultant, StudentGuardian
 from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.models.weekly_score import WeeklyTestScore, WeeklyScoreEvaluation
@@ -115,6 +116,8 @@ def list_scores(
     subject: str | None = Query(default=None),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -130,7 +133,7 @@ def list_scores(
         q = q.filter(WeeklyTestScore.exam_date >= start_date)
     if end_date:
         q = q.filter(WeeklyTestScore.exam_date <= end_date)
-    rows = q.order_by(WeeklyTestScore.exam_date.desc(), WeeklyTestScore.id.desc()).all()
+    rows = q.order_by(WeeklyTestScore.exam_date.desc(), WeeklyTestScore.id.desc()).offset(offset).limit(limit).all()
     return [_enrich(r, db, user) for r in rows]
 
 

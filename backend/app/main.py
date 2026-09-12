@@ -22,6 +22,7 @@ from app.auth.router import router as auth_router
 from app.core.config import settings
 from app.core.database import engine
 from app.core.logging_config import configure_logging
+from app.core.rate_limit import rate_limit_middleware
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ async def request_log(request: Request, call_next):
     """请求日志中间件：记录耗时与结果，异常时记录堆栈。"""
     started = time.perf_counter()
     try:
-        response = await call_next(request)
+        response = await rate_limit_middleware(request, call_next)
     except Exception:
         logger.exception(
             "request_failed method=%s path=%s", request.method, request.url.path
@@ -59,8 +60,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 # 挂载全部业务路由（统一 /api 前缀）
@@ -85,11 +86,20 @@ def health():
 
 @app.get("/api/ready")
 def ready():
-    """就绪探针：校验数据库可连接。"""
+    """就绪探针：校验数据库可连接，失败返回 503（供 K8s/Compose 健康检查）。"""
+    from fastapi.responses import JSONResponse
     from sqlalchemy import text
+    from sqlalchemy.exc import SQLAlchemyError
 
-    with engine.connect() as connection:
-        connection.execute(text("SELECT 1"))
+    try:
+        with engine.connect() as connection:
+            connection.execution_options(timeout=3).execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        logger.warning("readiness_failed error=%s", type(exc).__name__)
+        return JSONResponse(status_code=503, content={"status": "not_ready"})
+    except Exception:
+        logger.exception("readiness_failed")
+        return JSONResponse(status_code=503, content={"status": "not_ready"})
     return {"status": "ready"}
 
 

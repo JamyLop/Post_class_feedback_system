@@ -119,6 +119,8 @@ def list_reports(
     class_id: int | None = Query(default=None),
     month_label: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -148,7 +150,7 @@ def list_reports(
         q = q.filter(MonthlyReport.month_label == month_label)
     if status:
         q = q.filter(MonthlyReport.status == status)
-    rows = q.order_by(MonthlyReport.month_label.desc(), MonthlyReport.created_at.desc()).all()
+    rows = q.order_by(MonthlyReport.month_label.desc(), MonthlyReport.created_at.desc()).offset(offset).limit(limit).all()
     return [_enrich(r, db) for r in rows]
 
 @router.get("/{report_id}", response_model=MonthlyReportOut)

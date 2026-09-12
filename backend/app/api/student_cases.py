@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.pagination import MAX_LIMIT
 from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.student_case import (
@@ -519,6 +520,8 @@ def create_student_case(
 def list_student_cases(
     class_id: int | None = Query(default=None),
     status: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -564,7 +567,7 @@ def list_student_cases(
         if status not in CASE_STATUSES:
             raise HTTPException(status_code=400, detail="未知总案状态")
         query = query.filter(StudentCase.status == status)
-    return [_case_out(db, row) for row in query.order_by(StudentCase.updated_at.desc()).all()]
+    return [_case_out(db, row) for row in query.order_by(StudentCase.updated_at.desc()).offset(offset).limit(limit).all()]
 
 
 @router.get("/{case_id}", response_model=StudentCaseDetail)

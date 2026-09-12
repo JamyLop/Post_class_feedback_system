@@ -43,7 +43,18 @@ export function uploadCheckinAttachment(checkinId, filePath, opts = {}) {
       header: token ? { Authorization: `Bearer ${token}` } : {},
       success(res) {
         if (res.statusCode === 401) {
-          uni.showToast({ title: '登录已过期', icon: 'none' })
+          try {
+            uni.removeStorageSync('token')
+            uni.removeStorageSync('user')
+          } catch (_) {}
+          const pages = getCurrentPages()
+          const cur = pages[pages.length - 1]?.route || ''
+          if (!cur.includes('pages/login/index')) {
+            uni.showToast({ title: '登录已过期', icon: 'none' })
+            uni.reLaunch({ url: '/pages/login/index' })
+          } else {
+            uni.showToast({ title: '登录已过期', icon: 'none' })
+          }
           reject({ status: 401, message: '未登录' })
           return
         }

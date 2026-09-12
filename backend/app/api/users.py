@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import require_roles
 from app.core.database import get_db
+from app.core.pagination import MAX_LIMIT, pagination_params
 from app.core.security import hash_password
 from app.models.user import (
     ROLE_ADMIN,
@@ -75,6 +76,8 @@ def create_user(
 def list_users(
     role: str = Query(default=ROLE_STUDENT),
     keyword: str = Query(default="", max_length=64),
+    limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(_list_manager),
 ):
@@ -98,7 +101,7 @@ def list_users(
         q = q.filter(
             User.username.ilike(like) | User.name.ilike(like)
         )
-    return q.order_by(User.id.desc()).limit(200).all()
+    return q.order_by(User.id.desc()).offset(offset).limit(limit).all()
 
 
 @router.get("/{user_id}", response_model=UserOut)

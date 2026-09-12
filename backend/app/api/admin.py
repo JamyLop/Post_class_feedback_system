@@ -3,12 +3,13 @@
 import secrets
 import string
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_roles
 from app.core.database import get_db
+from app.core.pagination import MAX_LIMIT
 from app.models.class_ import Class, ClassTeacher, StudentGuardian, StudentConsultant
 from app.models.invite import (
     INVITE_STATUS_ACTIVE,
@@ -104,13 +105,15 @@ def create_invite_code(
 @router.get("/invite-codes", response_model=list[InviteCodeOut])
 def list_invite_codes(
     role: str = "",
+    limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
     q = db.query(InviteCode)
     if role:
         q = q.filter(InviteCode.role == role)
-    return q.order_by(InviteCode.id.desc()).limit(200).all()
+    return q.order_by(InviteCode.id.desc()).offset(offset).limit(limit).all()
 
 
 @router.post("/invite-codes/{invite_id}/disable")
@@ -131,11 +134,13 @@ def disable_invite_code(
 
 @router.get("/guardian-links", response_model=list[GuardianLinkOut])
 def list_guardian_links(
+    limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     admin: User = Depends(_admin_only),
 ):
     result = []
-    for link in db.query(StudentGuardian).order_by(StudentGuardian.id.desc()).all():
+    for link in db.query(StudentGuardian).order_by(StudentGuardian.id.desc()).offset(offset).limit(limit).all():
         parent = db.get(User, link.parent_id)
         student = db.get(User, link.student_id)
         result.append({

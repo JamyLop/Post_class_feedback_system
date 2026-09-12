@@ -2,11 +2,12 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.core.pagination import MAX_LIMIT
 from app.models.class_ import Class, ClassStudent, StudentConsultant
 from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.core.security import hash_password
@@ -95,6 +96,8 @@ def create_class(
 
 @router.get("", response_model=list[ClassOut])
 def list_classes(
+    limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -102,7 +105,7 @@ def list_classes(
     from app.models.user import ROLE_DEYU_DIRECTOR
 
     if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
-        return _classes_out(db, db.query(Class).order_by(Class.id.desc()).all())
+        return _classes_out(db, db.query(Class).order_by(Class.id.desc()).offset(offset).limit(limit).all())
     if user.role == ROLE_CONSULTANT:
         student_ids = [r.student_id for r in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()]
         if not student_ids:
@@ -110,7 +113,7 @@ def list_classes(
         class_ids = [r.class_id for r in db.query(ClassStudent).filter(ClassStudent.student_id.in_(student_ids)).all()]
         if not class_ids:
             return []
-        return _classes_out(db, db.query(Class).filter(Class.id.in_(set(class_ids))).order_by(Class.id.desc()).all())
+        return _classes_out(db, db.query(Class).filter(Class.id.in_(set(class_ids))).order_by(Class.id.desc()).offset(offset).limit(limit).all())
     if user.role in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
         from app.models.class_ import ClassTeacher
 
@@ -119,7 +122,7 @@ def list_classes(
         all_ids = set(legacy_ids + relation_ids)
         if not all_ids:
             return []
-        return _classes_out(db, db.query(Class).filter(Class.id.in_(all_ids)).order_by(Class.id.desc()).all())
+        return _classes_out(db, db.query(Class).filter(Class.id.in_(all_ids)).order_by(Class.id.desc()).offset(offset).limit(limit).all())
     # 学生：返回自己所在班级
     return _classes_out(
         db,
@@ -127,6 +130,8 @@ def list_classes(
         .join(ClassStudent, ClassStudent.class_id == Class.id)
         .filter(ClassStudent.student_id == user.id)
         .order_by(Class.id.desc())
+        .offset(offset)
+        .limit(limit)
         .all(),
     )
 
@@ -250,18 +255,10 @@ def add_students(
 
 
 def _ensure_user_profile_columns(db: Session) -> None:
-    """兼容存量库：若 users 表缺少档案扩展列则在线补齐，避免额外迁移。"""
-    try:
-        from sqlalchemy import text
+    """历史兼容占位：users 档案扩展列已由迁移 w3x4y5z6a7b8/q7r8s9t0u1v2 保障。
 
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS gender VARCHAR(16) DEFAULT ''"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ethnicity VARCHAR(32) DEFAULT ''"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS source_school VARCHAR(128) DEFAULT ''"))
-        db.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS grade VARCHAR(32) DEFAULT \'\''))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS channel VARCHAR(64) DEFAULT ''"))
-        db.commit()
-    except Exception:
-        db.rollback()
+    上线前已移除请求路径 DDL，避免并发建号锁表。保留空函数仅防旧导入报错。
+    """
 
 
 def _generate_student_username(db: Session, cls: Class, enrollment_month: int, seat_number: int) -> str:
@@ -310,7 +307,6 @@ def create_and_add_student(
 ):
     """在班级内直接新建学生账号并加入班级（仅录入档案信息，账号自动生成）。"""
     cls = _check_class_owner(db, class_id, user)
-    _ensure_user_profile_columns(db)
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="姓名不能为空")
