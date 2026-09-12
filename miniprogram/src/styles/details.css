@@ -1,0 +1,23 @@
+.page { padding: 28rpx 32rpx calc(40rpx + env(safe-area-inset-bottom)); gap: 24rpx; }
+.header-card { padding: 32rpx; border-radius: 16rpx; }
+.h1, .name { font-size: 38rpx; font-weight: 600; }
+.meta { margin-top: 16rpx; font-size: 25rpx; }
+.state-banner { margin-top: 24rpx; padding: 20rpx; border-radius: 8rpx; background: var(--mp-soft); }
+.state-banner.is-executing { background: #EAF3EE; }
+.state-desc { font-size: 25rpx; line-height: 1.7; }
+.tabs, .panel { border-radius: 16rpx; }
+.tab-bar { border-bottom: 1rpx solid var(--mp-line); }
+.tab { min-height: 88rpx; padding: 24rpx 8rpx; font-size: 26rpx; }
+.tab-panel, .panel { padding: 30rpx; gap: 30rpx; }
+.section-h { display: block; font-size: 28rpx; font-weight: 600; }
+.section-body, .dd { font-size: 28rpx; line-height: 1.85; color: var(--mp-body); overflow-wrap: anywhere; }
+.section { gap: 14rpx; }
+.section-muted { padding: 24rpx 0 0; background: transparent; border-radius: 0; border-top: 1rpx solid var(--mp-line); }
+.plan-card { padding: 4rpx 0 28rpx; background: transparent; border-radius: 0; border-bottom: 1rpx solid var(--mp-line); gap: 20rpx; }
+.plan-card:last-child { border-bottom: 0; padding-bottom: 0; }
+.field { margin-top: 16rpx; gap: 10rpx; }.dt { font-size: 24rpx; color: var(--mp-muted); }
+.subject-chip { display: inline-block; font-size: 27rpx; background: var(--mp-soft); color: var(--mp-primary); padding: 8rpx 16rpx; border-radius: 6rpx; }
+.task-card { background: #F7F8FA; padding: 24rpx; border-radius: 8rpx; }
+.task-title { font-size: 28rpx; }.task-meta { font-size: 24rpx; line-height: 1.7; margin-top: 12rpx; }
+.actions-bar { gap: 16rpx; margin-top: 26rpx; }.action-btn { min-height: 80rpx; padding: 18rpx 24rpx; border-radius: 8rpx; font-size: 25rpx; }
+.edit-link, .add-link { display: inline-block; font-size: 26rpx; padding: 16rpx 0; }

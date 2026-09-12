@@ -1,0 +1,48 @@
+{
+  "pages": [
+    "src/pages/login/index",
+    "src/pages/index/index",
+    "src/subParent/children/index",
+    "src/subParent/caseDetail/index",
+    "src/subParent/taskDetail/index",
+    "src/subStudent/assignments/index",
+    "src/subStudent/assignmentDetail/index",
+    "src/subStudent/analytics/index",
+    "src/subStudent/myCase/index",
+    "src/subTeacher/todo/index",
+    "src/subTeacher/checkin/index",
+    "src/subTeacher/reviewCreate/index"
+  ],
+  "subPackages": [
+    {
+      "root": "src/subParent",
+      "pages": ["children/index", "caseDetail/index", "taskDetail/index"]
+    },
+    {
+      "root": "src/subStudent",
+      "pages": ["assignments/index", "assignmentDetail/index", "analytics/index", "myCase/index"]
+    },
+    {
+      "root": "src/subTeacher",
+      "pages": ["todo/index", "checkin/index", "reviewCreate/index"]
+    }
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "一生一案",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f8fafc"
+  },
+  "tabBar": {
+    "color": "#64748b",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "src/pages/index/index", "text": "首页" },
+      { "pagePath": "src/subParent/children/index", "text": "孩子" },
+      { "pagePath": "src/subStudent/assignments/index", "text": "作业" },
+      { "pagePath": "src/subTeacher/todo/index", "text": "待办" }
+    ]
+  }
+}

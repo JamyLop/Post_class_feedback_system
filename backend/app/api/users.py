@@ -1,11 +1,19 @@
+"""用户管理 API：创建/查询/更新用户。
+
+教师仅能管理学生角色账号，admin 可管理全部角色。
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_roles
 from app.core.database import get_db
+from app.core.pagination import MAX_LIMIT, pagination_params
 from app.core.security import hash_password
 from app.models.user import (
     ROLE_ADMIN,
+    ROLE_CONSULTANT,
+    ROLE_DEYU_DIRECTOR,
     ROLE_STUDENT,
     ROLE_TEACHER,
     ROLES,
@@ -18,6 +26,8 @@ from app.schemas.user import UserCreate, UserOut, UserUpdate
 router = APIRouter(prefix="/users", tags=["users"])
 
 _manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
+# 德育主任新建班级时需选择班主任，仅开放只读名单查询；创建/更新仍受角色范围限制。
+_list_manager = require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_DEYU_DIRECTOR])
 
 
 def _require_teacher_student_scope(actor: User, target_role: str) -> None:
@@ -26,15 +36,27 @@ def _require_teacher_student_scope(actor: User, target_role: str) -> None:
         raise HTTPException(status_code=403, detail="教师仅可管理学生账号")
 
 
+def _require_phone_username_for_role(role: str, username: str) -> str:
+    """除学生外，其他角色用户名必须为11位手机号。"""
+    import re
+
+    cleaned = (username or "").strip()
+    if role != ROLE_STUDENT and not re.fullmatch(r"1[3-9]\d{9}", cleaned):
+        raise HTTPException(status_code=400, detail="除学生外，用户名必须为11位手机号")
+    return cleaned
+
+
 @router.post("", response_model=UserOut, dependencies=[Depends(_manager)])
 def create_user(
     body: UserCreate,
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """创建用户（密码 bcrypt 加密存储）。除学生外用户名必须为手机号。"""
     if body.role not in ROLES:
         raise HTTPException(status_code=400, detail="无效角色")
     _require_teacher_student_scope(user, body.role)
+    body.username = _require_phone_username_for_role(body.role, body.username)
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=409, detail="用户名已存在")
     db_user = User(
@@ -42,6 +64,7 @@ def create_user(
         password_hash=hash_password(body.password),
         name=body.name,
         role=body.role,
+        channel=(body.channel or "").strip(),
     )
     db.add(db_user)
     db.commit()
@@ -49,23 +72,36 @@ def create_user(
     return db_user
 
 
-@router.get("", response_model=list[UserOut], dependencies=[Depends(_manager)])
+@router.get("", response_model=list[UserOut])
 def list_users(
     role: str = Query(default=ROLE_STUDENT),
     keyword: str = Query(default="", max_length=64),
+    limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    user: User = Depends(_manager),
+    user: User = Depends(_list_manager),
 ):
+    """按角色分页查询用户，支持用户名/姓名模糊搜索。"""
     if role not in ROLES:
         raise HTTPException(status_code=400, detail="无效角色")
-    _require_teacher_student_scope(user, role)
+    # 班主任新建学生时需选择咨询老师，允许只读查询 teacher/consultant 名单；
+    # 德育主任新建班级时需选择班主任，允许只读查询 teacher 名单；
+    # 创建/更新仍受 _require_teacher_student_scope 限制。
+    if user.role == ROLE_TEACHER and role in (ROLE_TEACHER, ROLE_CONSULTANT):
+        pass
+    elif user.role == ROLE_DEYU_DIRECTOR and role == ROLE_TEACHER:
+        pass
+    else:
+        _require_teacher_student_scope(user, role)
+        if user.role == ROLE_DEYU_DIRECTOR:
+            raise HTTPException(status_code=403, detail="德育主任仅可查询班主任名单")
     q = db.query(User).filter(User.role == role)
     if keyword:
         like = f"%{keyword}%"
         q = q.filter(
             User.username.ilike(like) | User.name.ilike(like)
         )
-    return q.order_by(User.id.desc()).limit(200).all()
+    return q.order_by(User.id.desc()).offset(offset).limit(limit).all()
 
 
 @router.get("/{user_id}", response_model=UserOut)
@@ -88,12 +124,15 @@ def update_user(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
+    """更新用户：姓名/密码/状态（仅传入字段生效）。"""
     db_user = db.get(User, user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="用户不存在")
     _require_teacher_student_scope(user, db_user.role)
     if body.name is not None:
         db_user.name = body.name
+    if body.channel is not None:
+        db_user.channel = body.channel.strip()
     if body.password is not None:
         db_user.password_hash = hash_password(body.password)
     if body.status is not None:

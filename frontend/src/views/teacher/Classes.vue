@@ -1,74 +1,389 @@
 <template>
-  <div class="page">
+  <div class="page classes-manage-page">
     <div class="page-header">
-      <span class="page-title">班级管理</span>
-      <el-button type="primary" @click="openDialog">新建班级</el-button>
+      <div>
+        <h1 class="page-title">班级与教学组织</h1>
+        <p class="header-desc">{{ canManageClass ? '由德育主任新建班级并分配班主任，班主任负责录入班级学生信息。' : '查看所带班级，班主任负责录入班级学生信息；新建/分配由德育主任操作。' }}</p>
+      </div>
+      <el-button v-if="canManageClass" type="primary" @click="openDialog">
+        <el-icon><Plus /></el-icon>新建班级
+      </el-button>
     </div>
-    <el-table :data="classes" v-loading="loading">
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="name" label="班级名称" />
-      <el-table-column prop="grade" label="年级" />
-      <el-table-column label="操作" width="160">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="$router.push(`/teacher/classes/${row.id}/students`)">
-            学生管理
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
 
-    <el-dialog v-model="dialogVisible" title="新建班级" width="420px">
-      <el-form :model="form" label-width="60px">
+    <div class="filter-card">
+      <el-input v-model="filters.keyword" placeholder="搜索班级名称" clearable class="filter-item filter-search">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-select v-model="filters.school_year" placeholder="学年" clearable class="filter-item">
+        <el-option v-for="o in schoolYearOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.education_stage" placeholder="学段" clearable class="filter-item filter-short">
+        <el-option v-for="o in stageOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.grade" placeholder="年级" clearable class="filter-item filter-short">
+        <el-option v-for="o in gradeOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.teacher_name" placeholder="班主任" clearable filterable class="filter-item">
+        <el-option v-for="o in teacherNameOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.class_type" placeholder="班型" clearable class="filter-item filter-short">
+        <el-option v-for="o in classTypeOpts" :key="o.value" :label="o.text" :value="o.value" />
+      </el-select>
+      <el-button @click="resetFilters">重置</el-button>
+      <span class="filter-count">共 {{ classes.length }} 个班级<span v-if="isFiltering"> · 筛选出 {{ filteredClasses.length }} 个</span></span>
+    </div>
+
+    <div class="table-card">
+      <el-table :data="filteredClasses" v-loading="loading" empty-text="暂无符合条件的班级数据" style="width: 100%">
+        <el-table-column prop="id" label="序号" width="80" />
+        <el-table-column prop="name" label="班级名称" min-width="160">
+          <template #default="{ row }">
+            <strong class="class-name-text">{{ row.name }}</strong>
+          </template>
+        </el-table-column>
+        <el-table-column label="学年" width="220">
+          <template #default="{ row }">
+            <div class="school-year-cell"><strong>{{ row.school_year }}</strong><span>{{ row.school_year_starts_on }} 至 {{ row.school_year_ends_on || '—' }}</span></div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="education_stage" label="学段" width="110">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain">{{ row.education_stage }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="grade" label="年级" width="120" />
+        <el-table-column label="班主任" width="150">
+          <template #default="{ row }">
+            <span>{{ row.teacher_name || teacherNameOf(row) || '—' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="班型" width="170">
+          <template #default="{ row }">
+            <span>{{ row.class_type }}</span>
+            <span v-if="row.short_term_type" class="sub-type-badge">（{{ row.short_term_type }}）</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="230" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="$router.push(`/teacher/classes/${row.id}/students`)">
+              学生名册
+            </el-button>
+            <el-button v-if="canManageClass" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="canManageClass" link type="danger" @click="onDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑班级' : '新建班级'" width="460px">
+      <el-form :model="form" label-position="top">
+        <el-form-item v-if="canManageClass" label="分配班主任" required>
+          <el-select v-model="form.teacher_id" placeholder="选择班主任" style="width: 100%" filterable>
+            <el-option v-for="t in teacherOptions" :key="t.id" :label="`${t.name}（${t.username}）`" :value="t.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="学年">
+          <el-select v-model="form.school_year" placeholder="选择学年" style="width: 100%" @change="onSchoolYearChange"><el-option v-for="year in schoolYears" :key="year" :label="`${year}学年`" :value="year" /></el-select>
+        </el-form-item>
+        <el-form-item label="学年开始日期">
+          <el-date-picker v-model="form.school_year_starts_on" type="date" value-format="YYYY-MM-DD" placeholder="选择开始日期" style="width: 100%" />
+          <span class="form-help">学生总案的阶段任务时间轴将从该日期开始计算。</span>
+        </el-form-item>
+        <el-form-item label="学年结束日期">
+          <el-date-picker v-model="form.school_year_ends_on" type="date" value-format="YYYY-MM-DD" placeholder="选择结束日期" style="width: 100%" />
+          <span class="form-help">结束时间需晚于开始时间，默认为次年07-31。</span>
+        </el-form-item>
         <el-form-item label="班级名称">
-          <el-input v-model="form.name" placeholder="如：初二3班" />
+          <el-input v-model="form.name" placeholder="如：高三1班" />
+        </el-form-item>
+        <el-form-item label="学段">
+          <el-radio-group v-model="form.education_stage" @change="onStageChange">
+            <el-radio-button value="初中">初中</el-radio-button>
+            <el-radio-button value="高中">高中</el-radio-button>
+          </el-radio-group>
         </el-form-item>
         <el-form-item label="年级">
-          <el-input v-model="form.grade" placeholder="如：初二" />
+          <el-select v-model="form.grade" placeholder="选择年级" style="width: 100%"><el-option v-for="grade in availableGrades" :key="grade" :label="grade" :value="grade" /></el-select>
+        </el-form-item>
+        <el-form-item label="班型">
+          <el-select v-model="form.class_type" placeholder="选择班型" style="width: 100%" @change="onClassTypeChange">
+            <el-option v-for="type in availableClassTypes" :key="type" :label="type" :value="type" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="form.class_type === '短期班'" label="短期班类型">
+          <el-radio-group v-model="form.short_term_type">
+            <el-radio-button value="暑假班">暑假班</el-radio-button>
+            <el-radio-button value="寒假班">寒假班</el-radio-button>
+          </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onCreate">创建</el-button>
+        <el-button type="primary" @click="onSave">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { createClass, listClasses } from '../../api/classes'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { createClass, deleteClass, listClasses, updateClass, listUsers } from '../../api/classes'
+import { useAuthStore } from '../../stores/auth'
+
+const auth = useAuthStore()
+// 新建/编辑/删除班级由德育主任（校长兼容）操作；班主任仅维护学生名册。
+const canManageClass = computed(() => ['admin', 'deyu_director'].includes(auth.role))
 
 const classes = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
-const form = reactive({ name: '', grade: '' })
+const editingId = ref(null)
+const currentSchoolYear = () => {
+  const today = new Date()
+  const start = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1
+  return `${start}-${start + 1}`
+}
+const defaultStartDate = (schoolYear) => `${Number.parseInt(schoolYear, 10)}-08-01`
+const defaultEndDate = (schoolYear) => {
+  const parts = String(schoolYear).split('-')
+  const endYear = Number.parseInt(parts[1], 10) || Number.parseInt(parts[0], 10) + 1
+  return `${endYear}-07-31`
+}
+const initialSchoolYear = currentSchoolYear()
+const form = reactive({ name: '', education_stage: '高中', grade: '高三', class_type: '全年班', short_term_type: null, school_year: initialSchoolYear, school_year_starts_on: defaultStartDate(initialSchoolYear), school_year_ends_on: defaultEndDate(initialSchoolYear), teacher_id: null })
+const teacherOptions = ref([])
+const gradesByStage = { 初中: ['初一', '初二', '初三'], 高中: ['高一', '高二', '高三', '复读'] }
+const availableGrades = computed(() => gradesByStage[form.education_stage])
+const availableClassTypes = computed(() => form.education_stage === '高中'
+  ? ['短期班', '全年班', '集训班', '1V1']
+  : ['短期班', '全年班', '1V1'])
+const schoolYears = Array.from({ length: 81 }, (_, i) => {
+  const start = 2020 + i
+  return `${start}-${start + 1}`
+})
+
+function onStageChange() {
+  form.grade = gradesByStage[form.education_stage][0]
+  // 集训班只属于高中；切换到初中时自动回落到全年班。
+  if (form.education_stage === '初中' && form.class_type === '集训班') form.class_type = '全年班'
+}
+
+function onClassTypeChange() {
+  form.short_term_type = form.class_type === '短期班' ? '暑假班' : null
+}
+
+function onSchoolYearChange(value) {
+  form.school_year_starts_on = defaultStartDate(value)
+  form.school_year_ends_on = defaultEndDate(value)
+}
 
 async function load() {
   loading.value = true
   try {
     classes.value = await listClasses()
+    if (canManageClass.value) {
+      try {
+        teacherOptions.value = await listUsers('teacher', '')
+      } catch {
+        teacherOptions.value = []
+      }
+    }
   } finally {
     loading.value = false
   }
 }
 
+// 兜底：后端已返回 teacher_name；历史缓存无该字段时按名单/当前用户推断
+function teacherNameOf(row) {
+  const hit = teacherOptions.value.find((t) => t.id === row.teacher_id)
+  if (hit) return hit.name
+  if (auth.role === 'teacher' && row.teacher_id === auth.user?.id) return auth.user?.name || ''
+  return ''
+}
+
+// 筛选栏：选项从已加载数据去重生成，随数据更新
+function distinctOptions(rows, pick) {
+  const seen = new Map()
+  for (const r of rows) {
+    const v = pick(r)
+    if (v !== '' && v !== null && v !== undefined && !seen.has(v)) seen.set(v, { text: v, value: v })
+  }
+  return [...seen.values()].sort((a, b) => String(a.value).localeCompare(String(b.value), 'zh-CN'))
+}
+const schoolYearOpts = computed(() => distinctOptions(classes.value, (r) => r.school_year))
+const stageOpts = computed(() => distinctOptions(classes.value, (r) => r.education_stage))
+const gradeOpts = computed(() => distinctOptions(classes.value, (r) => r.grade))
+const teacherNameOpts = computed(() => distinctOptions(classes.value, (r) => r.teacher_name || teacherNameOf(r) || '—'))
+const classTypeOpts = computed(() => distinctOptions(classes.value, (r) => r.class_type))
+
+const filters = reactive({ keyword: '', school_year: '', education_stage: '', grade: '', teacher_name: '', class_type: '' })
+const isFiltering = computed(() => Object.values(filters).some((v) => v !== ''))
+const filteredClasses = computed(() => classes.value.filter((r) => {
+  if (filters.keyword && !String(r.name || '').includes(filters.keyword.trim())) return false
+  if (filters.school_year && r.school_year !== filters.school_year) return false
+  if (filters.education_stage && r.education_stage !== filters.education_stage) return false
+  if (filters.grade && r.grade !== filters.grade) return false
+  if (filters.teacher_name && (r.teacher_name || teacherNameOf(r) || '—') !== filters.teacher_name) return false
+  if (filters.class_type && r.class_type !== filters.class_type) return false
+  return true
+}))
+function resetFilters() {
+  Object.assign(filters, { keyword: '', school_year: '', education_stage: '', grade: '', teacher_name: '', class_type: '' })
+}
+
 function openDialog() {
+  if (!canManageClass.value) {
+    ElMessage.warning('新建班级由德育主任操作')
+    return
+  }
+  editingId.value = null
   form.name = ''
-  form.grade = ''
+  form.education_stage = '高中'
+  form.grade = '高三'
+  form.class_type = '全年班'
+  form.short_term_type = null
+  form.teacher_id = null
+  form.school_year = currentSchoolYear()
+  form.school_year_starts_on = defaultStartDate(form.school_year)
+  form.school_year_ends_on = defaultEndDate(form.school_year)
   dialogVisible.value = true
 }
 
-async function onCreate() {
-  if (!form.name || !form.grade) {
-    ElMessage.warning('请填写班级名称和年级')
+function openEdit(row) {
+  if (!canManageClass.value) {
+    ElMessage.warning('编辑班级由德育主任操作')
     return
   }
-  await createClass({ ...form })
-  ElMessage.success('创建成功')
+  editingId.value = row.id
+  Object.assign(form, {
+    name: row.name,
+    education_stage: row.education_stage,
+    grade: row.grade,
+    class_type: row.class_type,
+    short_term_type: row.short_term_type,
+    teacher_id: row.teacher_id || null,
+    school_year: row.school_year || '未设置',
+    school_year_starts_on: row.school_year_starts_on || defaultStartDate(row.school_year),
+    school_year_ends_on: row.school_year_ends_on || defaultEndDate(row.school_year),
+  })
+  dialogVisible.value = true
+}
+
+async function onSave() {
+  if (!canManageClass.value) {
+    ElMessage.warning('新建/编辑班级由德育主任操作')
+    return
+  }
+  if (!form.name || !form.education_stage || !form.grade || !form.class_type || !form.school_year || !form.school_year_starts_on || !form.school_year_ends_on) {
+    ElMessage.warning('请完整填写学年、起止日期、班级名称、学段、年级和班型')
+    return
+  }
+  if (!editingId.value && !form.teacher_id) {
+    ElMessage.warning('请选择分配的班主任')
+    return
+  }
+  if (form.school_year_ends_on <= form.school_year_starts_on) {
+    ElMessage.warning('结束时间必须晚于开始时间')
+    return
+  }
+  if (form.class_type === '短期班' && !form.short_term_type) {
+    ElMessage.warning('请选择暑假班或寒假班')
+    return
+  }
+  if (editingId.value) await updateClass(editingId.value, { ...form })
+  else await createClass({ ...form })
+  ElMessage.success(editingId.value ? '班级信息已更新' : '班级已创建')
   dialogVisible.value = false
+  load()
+}
+
+async function onDelete(row) {
+  if (!canManageClass.value) {
+    ElMessage.warning('删除班级由德育主任操作')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确认删除班级「${row.name}」？仅未关联档案、作业或反馈数据的班级可以删除。`, '删除班级', { type: 'warning', confirmButtonText: '确认删除' })
+  } catch { return }
+  await deleteClass(row.id)
+  ElMessage.success('班级已删除，学生账号不会被删除')
   load()
 }
 
 onMounted(load)
 </script>
+
+<style scoped>
+.classes-manage-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.page-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.header-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.table-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  box-shadow: none;
+  overflow: hidden;
+  padding: 16px 18px;
+}
+
+.filter-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  box-shadow: none;
+  padding: 14px 18px;
+}
+
+.filter-item { width: 150px; }
+.filter-item.filter-search { width: 210px; }
+.filter-item.filter-short { width: 120px; }
+.filter-count {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.class-name-text {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.sub-type-badge {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.school-year-cell { display: grid; gap: 2px; }
+.school-year-cell strong { color: var(--ink); font-size: 13px; font-weight: 650; }
+.school-year-cell span, .form-help { color: var(--ink-muted); font-size: 11px; }
+.form-help { display: block; margin-top: 6px; line-height: 1.5; }
+</style>

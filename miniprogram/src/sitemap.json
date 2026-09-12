@@ -1,0 +1,8 @@
+{
+  "desc": "sitemap：仅公开页可索引，业务内页全部 disallow",
+  "rules": [
+    { "action": "allow", "page": "pages/login/index" },
+    { "action": "allow", "page": "pages/register/index" },
+    { "action": "disallow", "page": "*" }
+  ]
+}

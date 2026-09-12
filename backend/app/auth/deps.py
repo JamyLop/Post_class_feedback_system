@@ -1,3 +1,5 @@
+"""认证依赖：解析 JWT 获取当前用户、角色校验。"""
+
 from typing import List
 
 import jwt
@@ -22,6 +24,7 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
+    """解析 Bearer Token → 加载用户；未登录/无效/被禁用均抛 401。"""
     if credentials is None:
         raise UNAUTHORIZED
     try:
@@ -38,6 +41,7 @@ def get_current_user(
 
 
 def require_roles(roles: List[str]):
+    """返回依赖函数：仅允许指定角色访问，否则 403。"""
     def checker(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:
             raise HTTPException(

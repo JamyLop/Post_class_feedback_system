@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class LoginRequest(BaseModel):
     username: str
     password: str
+    captcha_id: str = ""
+    captcha_code: str = ""
 
 
 class TokenResponse(BaseModel):
@@ -19,6 +21,7 @@ class UserOut(BaseModel):
     name: str
     role: str
     status: str = "active"
+    subject: str = ""
 
 
 class LoginResponse(BaseModel):

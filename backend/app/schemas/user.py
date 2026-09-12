@@ -8,12 +8,14 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=6, max_length=128)
     name: str = Field(min_length=1, max_length=64)
     role: str = ROLE_STUDENT
+    channel: str = Field(default="", max_length=64)
 
 
 class UserUpdate(BaseModel):
     name: str | None = None
     password: str | None = Field(default=None, min_length=6, max_length=128)
     status: str | None = None
+    channel: str | None = Field(default=None, max_length=64)
 
 
 class UserOut(BaseModel):
@@ -24,3 +26,4 @@ class UserOut(BaseModel):
     name: str
     role: str
     status: str
+    channel: str = ""
