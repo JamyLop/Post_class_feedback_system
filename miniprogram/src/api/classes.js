@@ -26,5 +26,12 @@ export const createStudentAndAdd = createAndEnrollStudent
 export const addStudentsToClass = (classId, studentIds) =>
   http.post(`/classes/${classId}/students`, { student_ids: Array.isArray(studentIds) ? studentIds : studentIds.student_ids })
 
+// 教师仅能读取自己的课表；德育主任可按班级或教师查看全校安排。
+export const myTimetable = () => http.get('/timetables/mine')
+export const listTimetable = (params = {}) => http.get('/timetables', params)
+export const createTimetableEntry = (data) => http.post('/timetables', data)
+export const updateTimetableEntry = (id, data) => http.put(`/timetables/${id}`, data)
+export const deleteTimetableEntry = (id) => http.del(`/timetables/${id}`)
+
 // 用户查询（班主任新建学生时选择咨询老师 / 搜索已有学生）
 export const listUsers = (role = 'student', keyword = '') => http.get('/users', { role, keyword })

@@ -15,6 +15,7 @@ from app.api import (
     points_reports,
     storage_files,
     student_cases,
+    timetables,
     users,
     weekly_scores,
 )
@@ -76,6 +77,7 @@ app.include_router(weekly_scores.router, prefix=settings.api_prefix)
 app.include_router(points_reports.router, prefix=settings.api_prefix)
 app.include_router(monthly_reports.router, prefix=settings.api_prefix)
 app.include_router(storage_files.router, prefix=settings.api_prefix)
+app.include_router(timetables.router, prefix=settings.api_prefix)
 
 
 @app.get("/api/health")

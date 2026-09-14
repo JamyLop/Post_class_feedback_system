@@ -16,6 +16,10 @@
             <el-icon><Check /></el-icon>
             <span>方案审查</span>
           </el-menu-item>
+          <el-menu-item index="/deyu/timetable">
+            <el-icon><Calendar /></el-icon>
+            <span>课表编排</span>
+          </el-menu-item>
           <el-menu-item index="/teacher/classes">
             <el-icon><School /></el-icon>
             <span>新建班级·分配班主任</span>
@@ -74,7 +78,7 @@
 </template>
 
 <script setup>
-import { Check, DataAnalysis, Files, School, TrendCharts } from '@element-plus/icons-vue'
+import { Calendar, Check, DataAnalysis, Files, School, TrendCharts } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 

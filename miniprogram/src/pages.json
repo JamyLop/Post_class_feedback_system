@@ -149,6 +149,10 @@
           "style": { "navigationBarTitleText": "新建学生" }
         },
         {
+          "path": "timetable/index",
+          "style": { "navigationBarTitleText": "课程表" }
+        },
+        {
           "path": "subjectSuggestion/index",
           "style": { "navigationBarTitleText": "学科建议" }
         },

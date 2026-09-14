@@ -13,6 +13,7 @@ const routes = [
       { path: '', redirect: '/admin/case-supervision' },
       { path: 'case-supervision', component: () => import('../views/admin/CaseSupervision.vue') },
       { path: 'cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
+      { path: 'timetable', component: () => import('../views/timetable/Timetable.vue') },
       { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
       { path: 'users', component: () => import('../views/admin/Users.vue') },
       { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },
@@ -30,6 +31,7 @@ const routes = [
       { path: '', redirect: '/deyu/cases' },
       { path: 'cases', component: () => import('../views/deyu/DeyuCases.vue') },
       { path: 'cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
+      { path: 'timetable', component: () => import('../views/timetable/Timetable.vue') },
     ],
   },
   {
@@ -56,6 +58,7 @@ const routes = [
       { path: 'teacher/monthly-reports', component: () => import('../views/teacher/MonthlyReports.vue'), meta: { roles: ['admin', 'teacher'] } },
       { path: 'teacher/task-reminders', component: () => import('../views/teacher/TaskReminders.vue'), meta: { roles: ['teacher'] } },
       { path: 'teacher/points-reports', component: () => import('../views/teacher/PointsReports.vue'), meta: { roles: ['admin', 'teacher', 'deyu_director'] } },
+      { path: 'teacher/timetable', component: () => import('../views/timetable/Timetable.vue'), meta: { roles: ['admin', 'teacher', 'deyu_director'] } },
     ],
   },
   {
@@ -67,6 +70,7 @@ const routes = [
       { path: 'subject/cases', component: () => import('../views/subject/SubjectCases.vue') },
       { path: 'subject/cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'subject/weekly-scores', component: () => import('../views/teacher/WeeklyScores.vue') },
+      { path: 'subject/timetable', component: () => import('../views/timetable/Timetable.vue') },
     ],
   },
   {

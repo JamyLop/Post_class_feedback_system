@@ -20,6 +20,10 @@
             <el-icon><Files /></el-icon>
             <span>周测成绩与评价</span>
           </el-menu-item>
+          <el-menu-item index="/subject/timetable">
+            <el-icon><Calendar /></el-icon>
+            <span>我的课表</span>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
@@ -59,7 +63,7 @@
 </template>
 
 <script setup>
-import { Files } from '@element-plus/icons-vue'
+import { Calendar, Files } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 

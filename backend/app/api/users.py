@@ -15,6 +15,7 @@ from app.models.user import (
     ROLE_CONSULTANT,
     ROLE_DEYU_DIRECTOR,
     ROLE_STUDENT,
+    ROLE_SUBJECT_TEACHER,
     ROLE_TEACHER,
     ROLES,
     USER_STATUS_ACTIVE,
@@ -85,11 +86,11 @@ def list_users(
     if role not in ROLES:
         raise HTTPException(status_code=400, detail="无效角色")
     # 班主任新建学生时需选择咨询老师，允许只读查询 teacher/consultant 名单；
-    # 德育主任新建班级时需选择班主任，允许只读查询 teacher 名单；
+    # 德育主任排班和排课时需选择班主任、任课老师，允许只读查询两类名单；
     # 创建/更新仍受 _require_teacher_student_scope 限制。
     if user.role == ROLE_TEACHER and role in (ROLE_TEACHER, ROLE_CONSULTANT):
         pass
-    elif user.role == ROLE_DEYU_DIRECTOR and role == ROLE_TEACHER:
+    elif user.role == ROLE_DEYU_DIRECTOR and role in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
         pass
     else:
         _require_teacher_student_scope(user, role)
