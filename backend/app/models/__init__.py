@@ -24,6 +24,7 @@ from app.models.case_points import CaseStageCompletion, StudentPointsReport  # n
 from app.models.monthly_report import MonthlyReport  # noqa: F401
 from app.models.user_external_identity import ConsumedWxBindTicket, UserExternalIdentity  # noqa: F401
 from app.models.timetable import TimetableEntry  # noqa: F401
+from app.models.period_time import PeriodTime  # noqa: F401
 from app.models.legacy_knowledge import (  # noqa: F401
     KnowledgePoint,
     Question,

@@ -12,6 +12,7 @@ from app.api import (
     case_tasks,
     classes,
     monthly_reports,
+    period_times,
     points_reports,
     storage_files,
     student_cases,
@@ -78,6 +79,7 @@ app.include_router(points_reports.router, prefix=settings.api_prefix)
 app.include_router(monthly_reports.router, prefix=settings.api_prefix)
 app.include_router(storage_files.router, prefix=settings.api_prefix)
 app.include_router(timetables.router, prefix=settings.api_prefix)
+app.include_router(period_times.router, prefix=settings.api_prefix)
 
 
 @app.get("/api/health")

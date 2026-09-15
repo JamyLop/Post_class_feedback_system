@@ -20,6 +20,7 @@ const routes = [
       { path: 'guardian-links', redirect: '/admin/consultant-links' },
       { path: 'consultant-links', component: () => import('../views/admin/ConsultantLinks.vue') },
       { path: 'subject-links', component: () => import('../views/admin/ClassTeacherLinks.vue') },
+      { path: 'period-times', component: () => import('../views/admin/PeriodTimes.vue') },
       { path: 'points-reports', component: () => import('../views/teacher/PointsReports.vue') },
     ],
   },

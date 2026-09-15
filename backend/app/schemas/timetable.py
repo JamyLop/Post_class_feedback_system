@@ -31,3 +31,5 @@ class TimetableEntryOut(BaseModel):
     weekday: int
     period: int
     classroom: str
+    start_time: str = ""
+    end_time: str = ""

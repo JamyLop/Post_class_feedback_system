@@ -40,6 +40,10 @@
             <el-icon><Files /></el-icon>
             <span>任课老师关联</span>
           </el-menu-item>
+          <el-menu-item index="/admin/period-times">
+            <el-icon><Clock /></el-icon>
+            <span>节次时间配置</span>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
 
@@ -78,7 +82,7 @@
 </template>
 
 <script setup>
-import { Compass, DataBoard, Files, Key, Link, School, TrendCharts, User } from '@element-plus/icons-vue'
+import { Compass, DataBoard, Files, Key, Link, School, TrendCharts, User, Clock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 

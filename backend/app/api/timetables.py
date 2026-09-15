@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.class_ import Class, ClassTeacher
+from app.models.period_time import PeriodTime
 from app.models.timetable import TimetableEntry
 from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.schemas.timetable import TimetableEntryCreate, TimetableEntryOut, TimetableEntryUpdate
@@ -19,9 +20,13 @@ _teacher_roles = (ROLE_TEACHER, ROLE_SUBJECT_TEACHER)
 def _out(db: Session, rows: list[TimetableEntry]) -> list[dict]:
     class_names = {item.id: item.name for item in db.query(Class).filter(Class.id.in_({r.class_id for r in rows})).all()} if rows else {}
     teacher_names = {item.id: item.name for item in db.query(User).filter(User.id.in_({r.teacher_id for r in rows})).all()} if rows else {}
+    period_times = {pt.period: pt for pt in db.query(PeriodTime).all()} if rows else {}
     return [
-        {**TimetableEntryOut.model_validate(row).model_dump(exclude={"class_name", "teacher_name"}),
-         "class_name": class_names.get(row.class_id, ""), "teacher_name": teacher_names.get(row.teacher_id, "")}
+        {**TimetableEntryOut.model_validate(row).model_dump(exclude={"class_name", "teacher_name", "start_time", "end_time"}),
+         "class_name": class_names.get(row.class_id, ""),
+         "teacher_name": teacher_names.get(row.teacher_id, ""),
+         "start_time": period_times[row.period].start_time if row.period in period_times else "",
+         "end_time": period_times[row.period].end_time if row.period in period_times else ""}
         for row in rows
     ]
 

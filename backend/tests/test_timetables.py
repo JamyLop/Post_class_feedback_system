@@ -70,3 +70,23 @@ def test_timetable_rejects_unassigned_teacher_and_slot_conflicts(client, auth, s
         "class_id": class_id, "teacher_id": seed_users["teacher1"], "subject": "自习", "weekday": 1, "period": 1,
     })
     assert duplicate.status_code == 409
+
+
+def test_deyu_can_update_period_times_but_teachers_cannot(client, auth, db):
+    from app.models.period_time import PeriodTime
+
+    db.add(PeriodTime(period=1, start_time="08:00", end_time="08:45"))
+    db.commit()
+    updated = client.put(
+        "/api/period-times/1",
+        headers=auth("deyu1"),
+        json={"start_time": "06:30", "end_time": "07:00"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["start_time"] == "06:30"
+    denied = client.put(
+        "/api/period-times/1",
+        headers=auth("teacher1"),
+        json={"start_time": "06:30", "end_time": "07:00"},
+    )
+    assert denied.status_code == 403
