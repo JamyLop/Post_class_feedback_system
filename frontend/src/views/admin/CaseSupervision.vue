@@ -21,33 +21,8 @@
       </div>
     </div>
 
-    <!-- 筛选 + 分布 -->
+    <!-- 数据分布 -->
     <div class="panel-row">
-      <div class="filter-card">
-        <div class="filter-head">
-          <span class="filter-title">筛选</span>
-          <el-button link size="small" @click="resetFilters">重置</el-button>
-        </div>
-        <div class="filter-grid">
-          <el-select v-model="filterStage" placeholder="学段" clearable size="small" style="width: 100%">
-            <el-option v-for="s in stageOptions" :key="s" :label="s" :value="s" />
-          </el-select>
-          <el-select v-model="filterGrade" placeholder="年级" clearable size="small" style="width: 100%">
-            <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
-          </el-select>
-          <el-select v-model="filterClassId" placeholder="班级" clearable size="small" style="width: 100%">
-            <el-option v-for="c in filteredClassOptions" :key="c.id" :label="c.name" :value="c.id" />
-          </el-select>
-          <el-select v-model="filterStatus" placeholder="状态" clearable size="small" style="width: 100%">
-            <el-option v-for="(label, val) in statuses" :key="val" :label="label" :value="val" />
-          </el-select>
-        </div>
-        <div class="filter-foot">
-          <el-input v-model="keyword" placeholder="搜索学生/班级/目标" clearable size="small" />
-          <span class="filter-count">已筛选 {{ filteredRows.length }} / {{ rows.length }}</span>
-        </div>
-      </div>
-
       <div class="chart-card">
         <div class="chart-head">年级分布 <small>{{ filteredRows.length }} 份档案</small></div>
         <EChart :option="gradeChartOption" height="220px" />
@@ -63,21 +38,61 @@
       <div class="table-head">
         <div>
           <h2>学生总案监控表</h2>
-          <span class="count-tag">实时数据 · 全学段</span>
+          <span class="count-tag">{{ hasActiveFilters ? `已筛选 ${filteredRows.length} / ${rows.length}` : '实时数据 · 全学段' }}</span>
         </div>
-        <el-button :loading="loading" @click="load">刷新数据</el-button>
+        <div class="table-actions">
+          <el-button v-if="hasActiveFilters" text @click="resetFilters">重置筛选</el-button>
+          <el-button :loading="loading" @click="load">刷新数据</el-button>
+        </div>
       </div>
 
       <el-table v-loading="loading" :data="filteredRows" empty-text="尚无学生档案数据" class="supervision-table" row-class-name="is-clickable" @row-click="goDetail">
-        <el-table-column prop="student_name" label="学生姓名" min-width="110" />
+        <el-table-column prop="student_name" min-width="180">
+          <template #header>
+            <div class="column-filter">
+              <span>学生姓名</span>
+              <el-input v-model="keyword" placeholder="搜索姓名" aria-label="搜索学生姓名" clearable size="small" @click.stop />
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="学段 / 年级" min-width="130">
+          <template #header>
+            <div class="column-filter">
+              <span>学段 / 年级</span>
+              <div class="stage-grade-filter">
+                <el-select v-model="filterStage" placeholder="学段" aria-label="筛选学段" clearable size="small" @click.stop>
+                  <el-option v-for="s in stageOptions" :key="s" :label="s" :value="s" />
+                </el-select>
+                <el-select v-model="filterGrade" placeholder="年级" aria-label="筛选年级" clearable size="small" @click.stop>
+                  <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
+                </el-select>
+              </div>
+            </div>
+          </template>
           <template #default="{ row }">
             <span class="cell-sub">{{ classMeta(row.class_id).label }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="class_name" label="所属班级" min-width="130" />
+        <el-table-column prop="class_name" min-width="170">
+          <template #header>
+            <div class="column-filter">
+              <span>所属班级</span>
+              <el-select v-model="filterClassId" placeholder="全部班级" aria-label="筛选所属班级" clearable size="small" @click.stop>
+                <el-option v-for="c in filteredClassOptions" :key="c.id" :label="c.name" :value="c.id" />
+              </el-select>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="admission_target" label="升学目标" min-width="260" show-overflow-tooltip />
         <el-table-column label="当前状态" width="130">
+          <template #header>
+            <div class="column-filter">
+              <span>当前状态</span>
+              <el-select v-model="filterStatus" placeholder="全部状态" aria-label="筛选当前状态" clearable size="small" @click.stop>
+                <el-option v-for="(label, val) in statuses" :key="val" :label="label" :value="val" />
+              </el-select>
+            </div>
+          </template>
           <template #default="{ row }">
             <span class="badge-status" :class="`is-${row.status}`">
               {{ statusLabel(row.status) }}
@@ -142,14 +157,17 @@ const statusLabel = (val) => statuses[val] || val
 
 // 当有筛选时，卡片显示按筛选结果重算（除逾期/长期未督查保持全局）
 const displayProgress = computed(() => {
-  const hasFilter = filterStage.value || filterGrade.value || filterClassId.value || filterStatus.value || keyword.value.trim()
-  if (!hasFilter) return progress.value
+  if (!hasActiveFilters.value) return progress.value
   const counts = { total: filteredRows.value.length, pending_confirmation: 0, revision_required: 0, pending_review: 0, executing: 0, draft: 0, adjusted: 0, archived: 0 }
   for (const r of filteredRows.value) {
     if (counts[r.status] !== undefined) counts[r.status]++
   }
   return { ...progress.value, ...counts, total: filteredRows.value.length }
 })
+
+const hasActiveFilters = computed(() => Boolean(
+  filterStage.value || filterGrade.value || filterClassId.value || filterStatus.value || keyword.value.trim()
+))
 
 const classMap = computed(() => {
   const m = new Map()
@@ -201,10 +219,7 @@ const filteredRows = computed(() => {
   if (filterStatus.value) list = list.filter(r => r.status === filterStatus.value)
   const kw = keyword.value.trim().toLowerCase()
   if (kw) {
-    list = list.filter(r => {
-      const meta = classMeta(r.class_id)
-      return [r.student_name, r.class_name, meta.label, r.admission_target, r.status].join(' ').toLowerCase().includes(kw)
-    })
+    list = list.filter(r => String(r.student_name || '').toLowerCase().includes(kw))
   }
   return list
 })
@@ -367,36 +382,16 @@ onMounted(load)
 
 .panel-row {
   display: grid;
-  grid-template-columns: 340px 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.filter-card, .chart-card {
+.chart-card {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: var(--radius);
   padding: 14px 16px;
 }
-
-.filter-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.filter-title { font-size: 13px; font-weight: 600; color: var(--ink); }
-.filter-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.filter-foot {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.filter-count { font-size: 11px; color: #94a3b8; }
 
 .chart-head {
   display: flex;
@@ -431,6 +426,37 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.column-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.stage-grade-filter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+:deep(.supervision-table .el-table__header-wrapper th) {
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+:deep(.supervision-table .el-table__header-wrapper .cell) {
+  overflow: visible;
+  line-height: normal;
 }
 
 .table-head h2 {
