@@ -47,12 +47,6 @@
         </el-menu>
       </el-scrollbar>
 
-      <div class="switch-block">
-        <el-button class="switch-btn" @click="$router.push('/teacher/student-cases')">
-          <el-icon><School /></el-icon>
-          进入教师端
-        </el-button>
-      </div>
     </el-aside>
 
     <el-container class="main-container">
@@ -82,7 +76,7 @@
 </template>
 
 <script setup>
-import { Compass, DataBoard, Files, Key, Link, School, TrendCharts, User, Clock } from '@element-plus/icons-vue'
+import { Compass, DataBoard, Files, Key, Link, TrendCharts, User, Clock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -152,15 +146,6 @@ function onLogout() {
   background: #5b7cff;
 }
 :deep(.el-menu-item .el-icon) { font-size: 15px; margin-right: 9px; }
-.switch-block { padding: 12px 10px; border-top: 1px solid var(--side-line); }
-.switch-btn {
-  width: 100%;
-  background: #1a2233;
-  border-color: #2a3550;
-  color: #c8d2e3;
-  font-size: 13px;
-}
-.switch-btn:hover { background: #212e4a; color: #fff; }
 .main-container { min-width: 0; display: flex; flex-direction: column; }
 .header {
   position: sticky; top: 0; z-index: 10;
@@ -186,7 +171,7 @@ function onLogout() {
 .workspace { flex: 1; min-width: 0; padding: 0; overflow-x: hidden; overflow-y: auto; background: var(--app-bg); }
 @media (max-width: 900px) {
   .aside { width: 60px !important; }
-  .brand-copy, .nav-label, .switch-block, .user-meta { display: none; }
+  .brand-copy, .nav-label, .user-meta { display: none; }
   .brand { justify-content: center; padding: 0; }
   :deep(.el-menu-item) { justify-content: center; padding: 0 !important; margin: 1px 6px; }
   :deep(.el-menu-item span) { display: none; }
