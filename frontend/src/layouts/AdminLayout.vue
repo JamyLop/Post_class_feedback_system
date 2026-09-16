@@ -24,6 +24,10 @@
             <el-icon><TrendCharts /></el-icon>
             <span>积分周月报</span>
           </el-menu-item>
+          <el-menu-item index="/admin/timetable">
+            <el-icon><Calendar /></el-icon>
+            <span>课表编排</span>
+          </el-menu-item>
           <el-menu-item index="/admin/users">
             <el-icon><User /></el-icon>
             <span>用户管理</span>
@@ -76,7 +80,7 @@
 </template>
 
 <script setup>
-import { Compass, DataBoard, Files, Key, Link, TrendCharts, User, Clock } from '@element-plus/icons-vue'
+import { Calendar, Compass, DataBoard, Files, Key, Link, TrendCharts, User, Clock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 

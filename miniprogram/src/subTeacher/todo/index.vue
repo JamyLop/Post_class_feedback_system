@@ -162,6 +162,7 @@ const navItems = computed(() => {
     items.push({ title: '全部档案', desc: '全局档案查看', action: goCaseList })
     items.push({ title: '班级管理', desc: '管理班级与学生', action: goClassManager })
     items.push({ title: '积分周月报', desc: '查看并生成班级积分报表', action: goPointsReports })
+    items.push({ title: '课表编排', desc: '查看并维护全校课程', action: goTimetable })
   } else if (auth.role === 'consultant') {
     items.push({ title: '关联学生', desc: '查看负责学生档案', action: () => uni.reLaunch({ url: '/subConsultant/caseList/index' }) })
     items.push({ title: '学生周测', desc: '查看负责学生周测成绩', action: goWeeklyScores })

@@ -11,7 +11,7 @@ export const ENTRIES = [
   { roles: ['student'], title: '月度评定', desc: '阅读老师发布的月度评定', route: '/pages/student/monthlyReports/index', group: '学习记录' },
   { roles: ['student'], title: '个人信息', desc: '查看学籍与账号基本信息', route: '/pages/student/profile/index', group: '账号信息' },
   { roles: ['teacher', 'admin', 'subject_teacher', 'deyu_director'], title: '周测成绩', desc: '查看成绩、班级汇总与教师评价', route: '/subTeacher/weeklyScores/index', group: '教学管理' },
-  { roles: ['teacher', 'admin', 'subject_teacher', 'deyu_director'], title: '课程表', desc: '德育主任统一排课，教师查看个人课程安排', route: '/subTeacher/timetable/index', group: '教学管理' },
+  { roles: ['teacher', 'admin', 'subject_teacher', 'deyu_director'], title: '课程表', desc: '管理员、德育主任统一排课，教师查看个人课程安排', route: '/subTeacher/timetable/index', group: '教学管理' },
   { roles: ['consultant'], title: '学生周测', desc: '查看所负责学生的周测成绩', route: '/subTeacher/weeklyScores/index', group: '成长档案' },
   { roles: ['teacher', 'admin'], title: '月度评定', desc: '手动填写、审阅与发布评定', route: '/subTeacher/monthlyReports/index', group: '教学管理' },
   { roles: ['teacher', 'admin', 'deyu_director'], title: '积分周月报', desc: '一键生成并查看班级积分周报、月报', route: '/subTeacher/pointsReports/index', group: '教学管理' },

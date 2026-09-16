@@ -72,6 +72,28 @@ def test_timetable_rejects_unassigned_teacher_and_slot_conflicts(client, auth, s
     assert duplicate.status_code == 409
 
 
+def test_admin_can_schedule_and_manage_school_timetable(client, auth, seed_users):
+    cls = client.post("/api/classes", headers=auth("admin"), json=_class_payload(seed_users["teacher1"]))
+    assert cls.status_code == 200, cls.text
+
+    created = client.post("/api/timetables", headers=auth("admin"), json={
+        "class_id": cls.json()["id"], "teacher_id": seed_users["teacher1"], "subject": "班会", "weekday": 3, "period": 2,
+    })
+    assert created.status_code == 200, created.text
+    entry_id = created.json()["id"]
+
+    listed = client.get("/api/timetables", headers=auth("admin"))
+    assert listed.status_code == 200, listed.text
+    assert [item["id"] for item in listed.json()] == [entry_id]
+
+    updated = client.put(f"/api/timetables/{entry_id}", headers=auth("admin"), json={"subject": "主题班会"})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["subject"] == "主题班会"
+
+    deleted = client.delete(f"/api/timetables/{entry_id}", headers=auth("admin"))
+    assert deleted.status_code == 200, deleted.text
+
+
 def test_deyu_can_update_period_times_but_teachers_cannot(client, auth, db):
     from app.models.period_time import PeriodTime
 

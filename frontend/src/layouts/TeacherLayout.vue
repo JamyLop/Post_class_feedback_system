@@ -74,7 +74,7 @@ const menuItems = computed(() => {
     { index: '/teacher/points-reports', icon: 'TrendCharts', title: '积分周月报', roles: ['admin', 'teacher', 'deyu_director'] },
     { index: '/teacher/monthly-reports', icon: 'Notebook', title: '月度评定', roles: ['admin', 'teacher'] },
     { index: '/teacher/classes', icon: 'School', title: '班级与教师', roles: ['admin', 'teacher', 'deyu_director'] },
-    { index: role === 'deyu_director' ? '/deyu/timetable' : '/teacher/timetable', icon: 'Calendar', title: role === 'deyu_director' ? '课表编排' : '我的课表', roles: ['admin', 'teacher', 'deyu_director'] },
+    { index: role === 'admin' ? '/admin/timetable' : role === 'deyu_director' ? '/deyu/timetable' : '/teacher/timetable', icon: 'Calendar', title: role === 'admin' || role === 'deyu_director' ? '课表编排' : '我的课表', roles: ['admin', 'teacher', 'deyu_director'] },
   ]
   return allItems.filter(item => item.roles.includes(role))
 })
