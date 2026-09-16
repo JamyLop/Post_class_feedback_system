@@ -318,10 +318,10 @@ onMounted(load)
 
 .page-head h1 {
   margin: 0 0 6px;
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
-  letter-spacing: -0.02em;
+  letter-spacing: normal;
 }
 
 .page-head p {
@@ -373,7 +373,7 @@ onMounted(load)
 .metric-num {
   margin-top: 8px;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }

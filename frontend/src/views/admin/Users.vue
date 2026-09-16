@@ -231,8 +231,8 @@ onMounted(load)
 
 .page-title {
   margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
 }
 
@@ -262,9 +262,9 @@ onMounted(load)
 
 .name-text {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--font-weight-heading);
   color: #0f172a;
-  letter-spacing: -0.01em;
+  letter-spacing: normal;
 }
 
 .username-text {

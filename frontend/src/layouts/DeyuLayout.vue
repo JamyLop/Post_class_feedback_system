@@ -124,7 +124,7 @@ function onLogout() {
   border-radius: 7px;
   color: #ffffff;
   background: #0e9f6e;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   font-size: 14px;
 }
 
@@ -250,7 +250,7 @@ function onLogout() {
 }
 
 .role-title {
-  font-weight: 650;
+  font-weight: var(--font-weight-heading);
   font-size: 14px;
   color: var(--ink);
 }

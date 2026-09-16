@@ -93,7 +93,7 @@ function onLogout() {
   border-radius: 7px;
   color: #fff;
   background: #7c3aed;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   font-size: 14px;
 }
 .brand-copy { display: grid; gap: 1px; }
@@ -135,7 +135,7 @@ function onLogout() {
   background: #fff; border-bottom: 1px solid var(--line);
 }
 .header-left { display: flex; align-items: center; gap: 10px; }
-.role-title { font-weight: 650; font-size: 14px; color: var(--ink); }
+.role-title { font-weight: var(--font-weight-heading); font-size: 14px; color: var(--ink); }
 .context-tag { font-size: 11.5px; color: #5b667a; background: #f2f3f5; border: 1px solid #e6e8eb; padding: 2px 7px; border-radius: 6px; }
 .header-right { display: flex; align-items: center; gap: 12px; }
 .user-profile { display: flex; align-items: center; gap: 9px; }

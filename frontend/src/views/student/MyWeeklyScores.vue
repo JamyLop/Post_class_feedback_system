@@ -119,8 +119,8 @@ onMounted(load)
 
 .page-title {
   margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
 }
 
@@ -190,7 +190,7 @@ onMounted(load)
 
 .score-text {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
 }
 

@@ -171,13 +171,13 @@ onMounted(async () => {
 .scope-line { display: flex; gap: 8px; margin-bottom: 8px; }
 .scope-line span { font-size: 11px; font-weight: 600; color: #2f5bff; background: #eff6ff; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; }
 .scope-line span + span { color: #64748b; background: #ffffff; border-color: #e2e8f0; }
-.page-head h1 { margin: 0 0 6px; font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+.page-head h1 { margin: 0 0 6px; font-size: var(--font-size-page-title); font-weight: var(--font-weight-heading); color: var(--ink); letter-spacing: normal; }
 .page-head p { margin: 0; font-size: 13.5px; color: #64748b; max-width: 76ch; line-height: 1.5; }
 .head-actions { display: flex; gap: 10px; }
-.class-points-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; color: #fff; background: linear-gradient(120deg, #1e40af, #2563eb); border-radius: var(--radius); box-shadow: 0 8px 20px rgba(37, 99, 235, .18); }
+.class-points-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; color: #fff; background: #1e40af; border-radius: var(--radius); box-shadow: none; }
 .banner-label { display: block; margin-bottom: 4px; color: #bfdbfe; font-size: 12px; font-weight: 600; }
 .class-points-banner strong { font-size: 17px; }
-.class-total-points { font-size: 30px; font-weight: 750; line-height: 1; }
+.class-total-points { font-size: 30px; font-weight: var(--font-weight-heading); line-height: 1; }
 .class-total-points small { font-size: 14px; font-weight: 500; }
 .filter-surface, .list-surface { background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--radius); padding: 16px 18px; }
 .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }

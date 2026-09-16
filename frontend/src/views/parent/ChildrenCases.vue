@@ -182,8 +182,8 @@ onMounted(load)
   margin: 0 0 20px;
   color: var(--accent);
   font-size: 13px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: normal;
 }
 
 .section-label::before {
@@ -197,11 +197,11 @@ onMounted(load)
 
 .page-intro h1 {
   margin: 0;
-  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-  font-size: 44px;
-  font-weight: 650;
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-heading);
   line-height: 1.2;
-  letter-spacing: 0.04em;
+  letter-spacing: normal;
   text-wrap: balance;
 }
 
@@ -240,7 +240,7 @@ onMounted(load)
 }
 
 .intro-aside strong {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-family-ui);
   color: var(--brand-blue);
   font-size: 26px;
   font-weight: 500;
@@ -365,10 +365,10 @@ onMounted(load)
 }
 
 .section-heading > div { display: grid; gap: 5px; }
-.section-heading h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: 0.04em; }
+.section-heading h2 { margin: 0; font-size: 17px; font-weight: var(--font-weight-heading); letter-spacing: normal; }
 .section-heading p { margin: 0; color: var(--muted); font-size: 12px; }
 .directory-count { color: var(--muted); font-size: 12px; }
-.directory-count strong { color: var(--brand-blue); font-family: Georgia, serif; font-size: 20px; font-weight: 500; }
+.directory-count strong { color: var(--brand-blue); font-family: var(--font-family-ui); font-size: 20px; font-weight: 500; }
 .archive-list { border: 1px solid #d9dee5; border-top: 0; background: #fff; }
 
 .archive-row {
@@ -396,7 +396,7 @@ onMounted(load)
   align-self: start;
   padding-top: 5px;
   color: var(--faint);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-family-ui);
   font-size: 12px;
 }
 
@@ -407,7 +407,7 @@ onMounted(load)
   height: 50px;
   border: 1px solid #b9bbb6;
   color: var(--ink);
-  font-family: "STSong", "SimSun", serif;
+  font-family: var(--font-family-ui);
   font-size: 22px;
 }
 
@@ -420,7 +420,7 @@ onMounted(load)
   gap: 9px 12px;
 }
 
-.title-line strong { font-size: 18px; font-weight: 700; letter-spacing: 0.03em; }
+.title-line strong { font-size: 18px; font-weight: var(--font-weight-heading); letter-spacing: normal; }
 .class-name { color: var(--muted); font-size: 13px; }
 
 .status {
@@ -458,7 +458,7 @@ onMounted(load)
   border-bottom: 1px solid #94978f;
   color: var(--ink);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: var(--font-weight-heading);
   transition: color 180ms ease, border-color 180ms ease;
 }
 
@@ -505,7 +505,7 @@ onMounted(load)
   .archive-page { width: calc(100% - 36px); padding-top: 42px; }
   .page-intro { grid-template-columns: 1fr; }
   .intro-content { padding: 30px 24px; }
-  .page-intro h1 { font-size: 36px; }
+  .page-intro h1 { font-size: var(--font-size-page-title); }
   .intro-aside { margin-top: 30px; }
   .campus-figure { border-top: 1px solid #d9dee5; border-left: 0; }
   .campus-photo { height: 176px; }

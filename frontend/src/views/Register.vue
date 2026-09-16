@@ -167,7 +167,7 @@ async function onSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f2f3f5;
+  background: var(--app-bg);
   padding: 28px 16px;
 }
 
@@ -175,7 +175,7 @@ async function onSubmit() {
   width: 100%;
   max-width: 560px;
   background: #fff;
-  border: 1px solid #e6e8eb;
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 28px 28px 22px;
   position: relative;
@@ -188,7 +188,7 @@ async function onSubmit() {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #2f5bff, #7aa3ff);
+  background: var(--brand);
 }
 
 .brand-row {
@@ -202,12 +202,12 @@ async function onSubmit() {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: #1a2233;
+  background: var(--brand);
   color: #fff;
   display: grid;
   place-items: center;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
 }
 
 .brand-name {
@@ -218,7 +218,7 @@ async function onSubmit() {
 .card-head h1 {
   margin: 0 0 5px;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   color: #1a2233;
 }
 

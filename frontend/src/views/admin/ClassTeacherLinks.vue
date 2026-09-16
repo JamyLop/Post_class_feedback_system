@@ -38,5 +38,5 @@ async function remove(row) { try { await ElMessageBox.confirm(`确认解除「${
 onMounted(load)
 </script>
 <style scoped>
-.admin-subject-page{display:flex;flex-direction:column;gap:20px}.page-header{display:flex;justify-content:space-between;align-items:flex-start}.page-title{margin:0 0 4px;font-size:22px;color:var(--ink)}.header-desc{margin:0;color:#64748b;font-size:13.5px}.table-card{background:#fff;border:1px solid #e2e8f0;border-radius:var(--radius);padding:16px 18px}
+.admin-subject-page{display:flex;flex-direction:column;gap:20px}.page-header{display:flex;justify-content:space-between;align-items:flex-start}.page-title{margin:0 0 4px;font-size: var(--font-size-page-title);color:var(--ink)}.header-desc{margin:0;color:#64748b;font-size:13.5px}.table-card{background:#fff;border:1px solid #e2e8f0;border-radius:var(--radius);padding:16px 18px}
 </style>

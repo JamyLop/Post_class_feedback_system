@@ -234,9 +234,9 @@ onMounted(load)
 
 .page-head h1 {
   margin: 0 0 6px;
-  font-size: 24px;
-  letter-spacing: -0.02em;
-  font-weight: 700;
+  font-size: var(--font-size-page-title);
+  letter-spacing: normal;
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
 }
 
@@ -315,7 +315,7 @@ onMounted(load)
 .kpi-value {
   margin: 8px 0 4px;
   font-size: 26px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
   line-height: 1.1;
   font-variant-numeric: tabular-nums;

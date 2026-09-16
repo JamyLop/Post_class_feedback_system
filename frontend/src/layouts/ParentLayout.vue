@@ -98,7 +98,7 @@ function onLogout() {
 .brand-copy strong {
   color: #173e78;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   letter-spacing: 0.08em;
 }
 
@@ -122,7 +122,7 @@ function onLogout() {
 
 .identity-name {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--font-weight-heading);
 }
 
 .identity-role {

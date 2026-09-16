@@ -242,8 +242,8 @@ onMounted(load)
 
 .page-title {
   margin: 0 0 4px;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
 }
 
@@ -279,7 +279,7 @@ onMounted(load)
 .stat-value {
   margin: 4px 0 2px;
   font-size: 26px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
   line-height: 1.1;
   font-variant-numeric: tabular-nums;

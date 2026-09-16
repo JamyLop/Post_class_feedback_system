@@ -196,8 +196,8 @@ onMounted(load)
 
 .page-title {
   margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
 }
 
@@ -223,7 +223,7 @@ onMounted(load)
 .invite-code-text {
   font-family: 'Courier New', Courier, monospace;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   color: #1e40af;
   background: #eff6ff;
   border: 1px solid #bfdbfe;

@@ -330,8 +330,8 @@ onMounted(load)
 
 .page-title {
   margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-heading);
   color: var(--ink);
 }
 
@@ -383,7 +383,7 @@ onMounted(load)
 }
 
 .school-year-cell { display: grid; gap: 2px; }
-.school-year-cell strong { color: var(--ink); font-size: 13px; font-weight: 650; }
+.school-year-cell strong { color: var(--ink); font-size: 13px; font-weight: var(--font-weight-heading); }
 .school-year-cell span, .form-help { color: var(--ink-muted); font-size: 11px; }
 .form-help { display: block; margin-top: 6px; line-height: 1.5; }
 </style>

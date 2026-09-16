@@ -193,8 +193,8 @@ onMounted(load)
 .banner-main h1 {
   margin: 0 0 8px;
   font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: normal;
 }
 
 .banner-desc {
