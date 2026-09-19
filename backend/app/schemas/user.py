@@ -27,6 +27,7 @@ class UserOut(BaseModel):
     role: str
     status: str
     channel: str = ""
+    dorm_number: str = ""
 
 
 class QuickStudentCreate(BaseModel):
@@ -41,4 +42,5 @@ class QuickStudentCreate(BaseModel):
     grade: str = Field(default="", max_length=32, description="年级")
     source_school: str = Field(default="", max_length=128, description="生源地学校")
     channel: str = Field(default="", max_length=64, description="生源渠道")
+    dorm_number: str = Field(default="", max_length=32, description="宿舍号")
     consultant_id: int | None = Field(default=None, description="咨询老师ID（选填）")

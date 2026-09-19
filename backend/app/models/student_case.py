@@ -89,6 +89,7 @@ class CaseStudentProfile(TimestampMixin, Base):
     ethnicity: Mapped[str] = mapped_column(String(32), default="")
     source_school: Mapped[str] = mapped_column(String(128), default="")
     grade: Mapped[str] = mapped_column(String(32), default="")
+    dorm_number: Mapped[str] = mapped_column(String(32), default="")
     parent_evaluation: Mapped[str] = mapped_column(Text, default="")
     primary_needs: Mapped[str] = mapped_column(Text, default="")
     allergy_history: Mapped[str] = mapped_column(Text, default="")

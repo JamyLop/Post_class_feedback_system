@@ -109,6 +109,7 @@ def quick_create_student(
         source_school=(body.source_school or "").strip(),
         grade=(body.grade or "").strip(),
         channel=(body.channel or "").strip(),
+        dorm_number=(body.dorm_number or "").strip(),
     )
     db.add(stu)
     db.flush()

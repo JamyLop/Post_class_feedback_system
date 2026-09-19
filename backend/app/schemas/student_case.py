@@ -77,6 +77,7 @@ class CaseStudentProfileUpsert(BaseModel):
     ethnicity: str = Field(default="", max_length=32)
     source_school: str = Field(default="", max_length=128)
     grade: str = Field(default="", max_length=32)
+    dorm_number: str = Field(default="", max_length=32)
     parent_evaluation: str = Field(default="", max_length=4000)
     primary_needs: str = Field(default="", max_length=4000)
     allergy_history: str = Field(default="", max_length=2000)

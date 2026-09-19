@@ -48,5 +48,7 @@ class User(TimestampMixin, Base):
     grade: Mapped[str] = mapped_column(String(32), default="", server_default="")
     # 生源渠道（学生自带属性，咨询老师关联表仅展示）
     channel: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    # 宿舍号（学生自带属性，新建学生时录入）
+    dorm_number: Mapped[str] = mapped_column(String(32), default="", server_default="")
     # 任课老师教授学科（注册时填写）
     subject: Mapped[str] = mapped_column(String(32), default="", server_default="")

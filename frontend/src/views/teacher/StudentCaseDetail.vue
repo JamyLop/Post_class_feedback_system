@@ -101,6 +101,7 @@
                   <div><dt>民族</dt><dd>{{ profileValue('ethnicity') }}</dd></div>
                   <div><dt>年级</dt><dd>{{ profileValue('grade') }}</dd></div>
                   <div class="profile-wide"><dt>生源地学校</dt><dd>{{ profileValue('source_school') }}</dd></div>
+                  <div><dt>宿舍号</dt><dd>{{ profileValue('dorm_number') }}</dd></div>
                 </dl>
                 <div class="merged-parent-divider is-entrance"><span>入学成绩</span><small>总分与各科均为选填，留空表示未录入</small></div>
                 <dl class="profile-grid entrance-grid">
@@ -160,6 +161,7 @@
                     </el-select>
                   </el-form-item>
                   <el-form-item label="生源地学校" class="profile-form-wide"><el-input v-model="profileForm.source_school" maxlength="128" placeholder="填写学生原就读学校" /></el-form-item>
+                  <el-form-item label="宿舍号"><el-input v-model="profileForm.dorm_number" maxlength="32" placeholder="例如：3号楼205" /></el-form-item>
                 </div>
                 <div class="merged-parent-divider is-form is-entrance"><span>入学成绩</span><small>总分与各科均为选填，留空表示未录入</small></div>
                 <div class="profile-form-grid entrance-form-grid">
@@ -828,7 +830,7 @@ function createEmptyOverviewForm() {
 
 function createEmptyProfileForm() {
   return {
-    student_name: '', gender: '', ethnicity: '', source_school: '', grade: '',
+    student_name: '', gender: '', ethnicity: '', source_school: '', dorm_number: '', grade: '',
     entrance_scores: '',
     entrance_total_score: null,
     entrance_chinese: null,

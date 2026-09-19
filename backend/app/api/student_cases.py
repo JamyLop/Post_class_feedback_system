@@ -144,6 +144,7 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
         "gender": "",
         "ethnicity": "",
         "source_school": "",
+        "dorm_number": "",
         "grade": cls.grade if cls else "",
         "parent_evaluation": "",
         "primary_needs": "",
@@ -177,7 +178,7 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
         # 展示层兜底 + 惰性回写，下次查询即持久一致。
         student_backfill_fields: list[str] = []
         if student is not None:
-            for fld in ("gender", "ethnicity", "source_school", "grade"):
+            for fld in ("gender", "ethnicity", "source_school", "dorm_number", "grade"):
                 if not (profile_dict.get(fld) or "").strip():
                     val = getattr(student, fld, "") or ""
                     if val:
@@ -216,7 +217,7 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
     else:
         # 尚未建档案明细时也用监护人/学生表兜底，避免新建学生后档案页直接显示空白
         if student is not None:
-            for fld in ("gender", "ethnicity", "source_school"):
+            for fld in ("gender", "ethnicity", "source_school", "dorm_number"):
                 if getattr(student, fld, ""):
                     default_profile[fld] = getattr(student, fld)
             if student.name:
@@ -542,6 +543,7 @@ def create_student_case(
         gender=getattr(student, "gender", "") or "",
         ethnicity=getattr(student, "ethnicity", "") or "",
         source_school=getattr(student, "source_school", "") or "",
+        dorm_number=getattr(student, "dorm_number", "") or "",
         grade=getattr(student, "grade", "") or (cls.grade if cls else "") or "",
         parent_evaluation=body.parent_evaluation.strip(),
         primary_needs=body.primary_needs.strip(),

@@ -125,6 +125,9 @@
         <el-form-item label="生源地学校">
           <el-input v-model="studentForm.source_school" placeholder="填写学生原就读学校" maxlength="128" />
         </el-form-item>
+        <el-form-item label="宿舍号">
+          <el-input v-model="studentForm.dorm_number" placeholder="例如：3号楼205" maxlength="32" />
+        </el-form-item>
         <el-form-item label="了解渠道">
           <el-input v-model="studentForm.channel" placeholder="选填，例如：转介绍 / 线上咨询" maxlength="64" clearable />
         </el-form-item>
@@ -256,7 +259,7 @@ const studentVisible = ref(false)
 const studentCreating = ref(false)
 const studentForm = reactive({
   name: '', gender: '', ethnicity: '', grade: '',
-  source_school: '', channel: '',
+  source_school: '', dorm_number: '', channel: '',
 })
 
 // 新建档案表单（只选学生，班级自动带出）
@@ -304,7 +307,7 @@ async function load() {
 async function openCreateStudent() {
   Object.assign(studentForm, {
     name: '', gender: '', ethnicity: '', grade: '',
-    source_school: '', channel: '',
+    source_school: '', dorm_number: '', channel: '',
   })
   studentVisible.value = true
 }
@@ -319,6 +322,7 @@ async function submitStudent() {
       ethnicity: studentForm.ethnicity?.trim() || '',
       grade: studentForm.grade?.trim() || '',
       source_school: studentForm.source_school?.trim() || '',
+      dorm_number: studentForm.dorm_number?.trim() || '',
       channel: studentForm.channel?.trim() || '',
     })
     ElMessage.success('新建学生成功，账号已自动生成；班主任可在班级名册“选择已有学生”将其加入班级')
