@@ -1,3 +1,5 @@
+"""JSON 结构化日志配置：控制台 + 滚动文件。"""
+
 import json
 import logging
 from datetime import datetime, timezone
@@ -8,6 +10,8 @@ from app.core.config import settings
 
 
 class JsonFormatter(logging.Formatter):
+    """输出单行 JSON 日志，便于采集与检索。"""
+
     def format(self, record: logging.LogRecord) -> str:
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -21,6 +25,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
+    """配置根 logger：JSON 格式输出到控制台与 app.jsonl（滚动文件）。"""
     log_dir = Path(settings.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     formatter = JsonFormatter()
@@ -38,3 +43,4 @@ def configure_logging() -> None:
     root.handlers.clear()
     root.addHandler(stream)
     root.addHandler(file_handler)
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)

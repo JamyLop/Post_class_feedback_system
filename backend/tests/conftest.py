@@ -1,4 +1,4 @@
-"""pytest 全局配置：隔离的 tests schema + Celery eager 模式。
+"""pytest 全局配置：隔离的 tests schema。
 
 测试使用同一 PostgreSQL 的独立 schema `tests`，与开发库 `public` 隔离。
 """
@@ -8,7 +8,6 @@ import os
 os.environ["DATABASE_URL"] = (
     "postgresql+psycopg://pfs:pfs@localhost:5432/pfs?options=-csearch_path%3Dtests"
 )
-os.environ["LLM_PROVIDER"] = "mock"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -16,7 +15,6 @@ from sqlalchemy import create_engine, text  # noqa: E402
 
 from app.core.database import Base, SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
-from app.tasks.celery_app import celery_app  # noqa: E402
 
 TEST_URL = os.environ["DATABASE_URL"]
 
@@ -43,8 +41,6 @@ def _clean_tables(_engine):
 
 @pytest.fixture()
 def client():
-    celery_app.conf.task_always_eager = True
-    celery_app.conf.task_eager_propagates = True
     with TestClient(app) as c:
         yield c
 
@@ -58,10 +54,9 @@ def db():
 
 @pytest.fixture()
 def seed_users(db, _clean_tables):
-    """基线账号：admin / teacher1 / teacher2 / student1 / student2 与一个知识点。"""
+    """基线账号：admin / teacher1 / teacher2 / student1 / student2。"""
     from app.core.security import hash_password
-    from app.models.knowledge import KnowledgePoint
-    from app.models.user import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, User
+    from app.models.user import ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_TEACHER, User
 
     users = [
         ("admin", ROLE_ADMIN, "管理员"),
@@ -70,6 +65,8 @@ def seed_users(db, _clean_tables):
         ("student1", ROLE_STUDENT, "张三"),
         ("student2", ROLE_STUDENT, "李四"),
         ("student3", ROLE_STUDENT, "王五"),
+        ("parent1", ROLE_PARENT, "张三家长"),
+        ("deyu1", ROLE_DEYU_DIRECTOR, "德育主任"),
     ]
     created = {}
     for username, role, name in users:
@@ -82,21 +79,25 @@ def seed_users(db, _clean_tables):
         db.add(u)
         db.flush()
         created[username] = u.id
-    kp = KnowledgePoint(
-        subject="数学", grade="初二", chapter="方程与函数",
-        name="求根公式", code="test_kp_001",
-    )
-    db.add(kp)
-    db.flush()
     db.commit()
-    created["kp"] = kp.id
     return created
+
+
+def _captcha_fields(client):
+    """测试辅助：拉取验证码并从服务端内存读出正确答案。"""
+    r = client.get("/api/auth/captcha")
+    assert r.status_code == 200, r.text
+    captcha_id = r.json()["captcha_id"]
+    from app.services import captcha_service
+
+    code, _exp = captcha_service._store[captcha_id]
+    return {"captcha_id": captcha_id, "captcha_code": code}
 
 
 def login(client, username, password="test123456"):
     r = client.post(
         "/api/auth/login",
-        json={"username": username, "password": password},
+        json={"username": username, "password": password, **_captcha_fields(client)},
     )
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}

@@ -18,12 +18,14 @@ class LocalStorage:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, object_name: str) -> Path:
+        """拼接对象路径，并校验未逃逸出存储根目录。"""
         p = (self.root / object_name).resolve()
         if not p.is_relative_to(self.root):
             raise HTTPException(status_code=400, detail="非法的存储路径")
         return p
 
     def upload_bytes(self, data: bytes, content_type: str, ext: str) -> str:
+        """按日期目录+随机文件名写入，返回对象名。"""
         key = f"{time.strftime('%Y%m%d')}/{uuid.uuid4().hex}{ext}"
         target = self._path(key)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -31,6 +33,7 @@ class LocalStorage:
         return key
 
     def presigned_url(self, object_name: str, expires_seconds: int = 3600) -> str:
+        """本地存储：返回内部文件路由代替预签名 URL。"""
         if not object_name:
             return ""
         return f"/api/storage/files/{object_name}"

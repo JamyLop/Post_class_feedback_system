@@ -1,0 +1,7 @@
+{
+  "desc": "根 sitemap 为 uni 构建兜底，以 src/sitemap.json 为准；此处同步收紧",
+  "rules": [{
+  "action": "disallow",
+  "page": "*"
+  }]
+}

@@ -1,0 +1,136 @@
+{
+  "mockedApi": true,
+  "results": [
+    {
+      "name": "login-320",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "login-390",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "login-430",
+      "width": 430,
+      "scroll": 430
+    },
+    {
+      "name": "home-teacher",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "home-student",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "home-parent",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "home-admin",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "home-deyu_director",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "home-subject_teacher",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "home-consultant",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-todo",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-checkin",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-cases",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-case-detail",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-subject-plan",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-case-edit",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "parent-children",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "parent-case",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "student-case",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "student-monthly",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "admin-stats",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "subject-teacher-cases",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "weekly-scores",
+      "width": 320,
+      "scroll": 320
+    },
+    {
+      "name": "parent-children-error",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-todo-error",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "name": "teacher-caseList-error",
+      "width": 390,
+      "scroll": 390
+    }
+  ],
+  "errors": []
+}
