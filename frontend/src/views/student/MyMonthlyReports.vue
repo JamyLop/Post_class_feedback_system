@@ -22,6 +22,16 @@
           </div>
         </template>
         <div class="monthly-content">{{ r.final_content }}</div>
+        <div v-if="r.evaluations?.length" class="evaluations-block">
+          <div class="evaluations-title">学科老师评价</div>
+          <div v-for="item in r.evaluations" :key="item.id" class="evaluation">
+            <div class="evaluation-meta">
+              <strong>{{ item.teacher_name }}</strong>
+              <span>{{ item.teacher_role === 'head_teacher' ? '班主任' : (item.subject ? `${item.subject}老师` : '学科老师') }}</span>
+            </div>
+            <p>{{ item.content }}</p>
+          </div>
+        </div>
         <div class="monthly-meta">
           <span>发布时间：{{ r.published_at ? new Date(r.published_at).toLocaleString() : '-' }}</span>
         </div>
@@ -130,6 +140,40 @@ onMounted(load)
   line-height: 1.75;
   color: #334155;
   font-size: 14px;
+}
+
+.evaluations-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+  display: grid;
+  gap: 10px;
+}
+
+.evaluations-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.evaluation-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.evaluation-meta span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.evaluation p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  line-height: 1.7;
+  color: #334155;
+  font-size: 13.5px;
 }
 
 .monthly-meta {

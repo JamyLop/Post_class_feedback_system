@@ -27,6 +27,30 @@ class MonthlyReportCreateIn(MonthlyReportScopeIn, MonthlyReportUpdateIn):
     pass
 
 
+class MonthlyEvaluationSave(BaseModel):
+    # 评价人由登录身份和班级任课关系确定，拒绝客户端指定评价人。
+    model_config = ConfigDict(extra="forbid")
+    content: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def strip_content(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class MonthlyEvaluationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    teacher_id: int
+    teacher_name: str
+    teacher_role: str
+    subject: str = ""
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class MonthlyReportOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,3 +79,5 @@ class MonthlyReportOut(BaseModel):
     updated_at: datetime
     student_name: str | None = None
     class_name: str | None = None
+    evaluations: list[MonthlyEvaluationOut] = Field(default_factory=list)
+    can_evaluate: bool = False

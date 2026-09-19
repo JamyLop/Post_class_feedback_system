@@ -71,6 +71,7 @@ const routes = [
       { path: 'subject/cases', component: () => import('../views/subject/SubjectCases.vue') },
       { path: 'subject/cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'subject/weekly-scores', component: () => import('../views/teacher/WeeklyScores.vue') },
+      { path: 'subject/monthly-reports', component: () => import('../views/subject/SubjectMonthlyReports.vue') },
       { path: 'subject/timetable', component: () => import('../views/timetable/Timetable.vue') },
     ],
   },

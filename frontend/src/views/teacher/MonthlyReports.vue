@@ -32,6 +32,9 @@
         <el-table-column prop="class_name" label="班级" min-width="140" />
         <el-table-column prop="period_start" label="周期" min-width="180"><template #default="{ row }">{{ row.period_start }} ~ {{ row.period_end }}</template></el-table-column>
         <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag></template></el-table-column>
+        <el-table-column label="学科评价" min-width="290">
+          <template #default="{ row }"><MonthlyReportEvaluations :report="row" @saved="updated => Object.assign(row, updated)" /></template>
+        </el-table-column>
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">查看/编辑</el-button>
@@ -65,6 +68,8 @@
         <div class="report-sections" >
           <div class="ai-label" style="margin-top: 14px">班主任定稿（可修改）</div>
           <el-input v-model="editContent" type="textarea" :autosize="{minRows:8,maxRows:20}" placeholder="请填写本月学情、德育表现及下月改进建议"  maxlength="8000" show-word-limit />
+          <div class="ai-label" style="margin-top: 14px">学科评价（任课老师独立填写）</div>
+          <MonthlyReportEvaluations v-if="current" :report="current" @saved="updated => { current = updated; editContent = updated.final_content || editContent }" />
         </div>
       </template>
       <template #footer>
@@ -78,6 +83,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { listClasses, listStudents } from '../../api/classes'

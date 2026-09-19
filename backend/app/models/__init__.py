@@ -21,7 +21,7 @@ from app.models.student_case import (  # noqa: F401
 )
 from app.models.weekly_score import WeeklyTestScore, WeeklyScoreEvaluation  # noqa: F401
 from app.models.case_points import CaseStageCompletion, StudentPointsReport  # noqa: F401
-from app.models.monthly_report import MonthlyReport  # noqa: F401
+from app.models.monthly_report import MonthlyReport, MonthlyReportEvaluation  # noqa: F401
 from app.models.user_external_identity import ConsumedWxBindTicket, UserExternalIdentity  # noqa: F401
 from app.models.timetable import TimetableEntry  # noqa: F401
 from app.models.period_time import PeriodTime  # noqa: F401

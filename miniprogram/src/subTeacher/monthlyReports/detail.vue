@@ -21,7 +21,7 @@
         <text v-if="report.error_message" class="error-msg">{{ report.error_message }}</text>
       </view>
 
-      <!-- 评定内容 -->
+      <!-- 评定内容：仅班主任/校长可编辑定稿 -->
       <view class="card">
         <view class="card-header-row">
           <text class="card-title">评定内容</text>
@@ -36,8 +36,14 @@
         </view>
       </view>
 
+      <!-- 学科评价：班主任与所带学科老师各自独立一条 -->
+      <view class="card">
+        <text class="card-title">学科评价</text>
+        <MonthlyReportEvaluations :report="report" @saved="(updated) => { report = updated }" />
+      </view>
+
       <!-- 操作按钮 -->
-      <view class="action-bar">
+      <view v-if="canManage" class="action-bar">
         <template v-if="['generated', 'published', 'generating', 'failed'].includes(report.status)">
           <button v-if="!isEditing" class="btn-outline" @click="startEdit">编辑</button>
           <template v-else>
@@ -53,16 +59,21 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
-import { ref, onMounted } from 'vue'
+import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
+import { ref, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { useAuthStore } from '../../stores/auth'
 import { getMonthlyReport, updateMonthlyReport, publishMonthlyReport } from '../../api/monthlyReports'
 
+const auth = useAuthStore()
 const report = ref(null)
 const loading = ref(false)
 const isEditing = ref(false)
 const editContent = ref('')
 const saving = ref(false)
 const publishing = ref(false)
+// 定稿编辑与发布仅班主任/校长；任课老师只写学科评价
+const canManage = computed(() => ['teacher', 'admin'].includes(auth.role))
 
 function statusLabel(s) {
   return { generating: '待填写', generated: '待发布', published: '已发布', failed: '待补充' }[s] || s
@@ -74,6 +85,12 @@ function formatTime(t) {
 }
 
 onLoad((options) => {
+  if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return }
+  if (!['teacher', 'admin', 'subject_teacher'].includes(auth.role)) {
+    uni.showToast({ title: '当前角色无权限', icon: 'none' })
+    uni.reLaunch({ url: '/pages/index/index' })
+    return
+  }
   loadReport(Number(options.id))
 })
 

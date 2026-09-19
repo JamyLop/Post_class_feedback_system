@@ -17,3 +17,6 @@ export const publishMonthlyReport = (id) => http.post(`/monthly-reports/${id}/pu
 
 // 删除月度评定
 export const deleteMonthlyReport = (id) => http.del(`/monthly-reports/${id}`)
+
+// 保存学科评价（班主任与所带学科老师各自独立一条）
+export const saveMonthlyEvaluation = (id, data) => http.put(`/monthly-reports/${id}/evaluation`, data)

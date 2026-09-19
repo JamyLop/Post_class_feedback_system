@@ -24,6 +24,13 @@
           <view class="report-content">
             <text class="content-text">{{ item.final_content || '暂无内容' }}</text>
           </view>
+          <view v-if="item.evaluations?.length" class="evaluations-block">
+            <text class="evaluations-title">学科老师评价</text>
+            <view v-for="ev in item.evaluations" :key="ev.id" class="evaluation">
+              <text class="evaluation-meta">{{ ev.teacher_name }} · {{ ev.teacher_role === 'head_teacher' ? '班主任' : (ev.subject ? `${ev.subject}老师` : '学科老师') }}</text>
+              <text class="evaluation-content">{{ ev.content }}</text>
+            </view>
+          </view>
         </view>
       </view>
     </template>
@@ -100,4 +107,8 @@ onShow(() => { if (guardRole()) reload() })
 .report-time { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .report-content { margin-top: 16rpx; }
 .content-text { font-size: 26rpx; color: var(--mp-body); line-height: 1.8; white-space: pre-wrap; }
+.evaluations-block { margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid var(--mp-line); display: flex; flex-direction: column; gap: 12rpx; }
+.evaluations-title { font-size: 24rpx; font-weight: 600; color: var(--mp-ink); }
+.evaluation-meta { font-size: 22rpx; color: var(--mp-muted); display: block; }
+.evaluation-content { font-size: 25rpx; color: var(--mp-body); line-height: 1.7; white-space: pre-wrap; display: block; margin-top: 4rpx; }
 </style>

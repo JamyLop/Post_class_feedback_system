@@ -3,7 +3,7 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">月度评定</text>
-      <text class="p">教师手动填写、审阅与发布月度评定</text>
+      <text class="p">{{ isSubjectTeacher ? '查看所带班级评定，填写学科评价' : '教师手动填写、审阅与发布月度评定' }}</text>
     </view>
 
     <!-- 筛选栏 -->
@@ -28,9 +28,9 @@
       </view>
     </view>
 
-    <!-- 操作栏 -->
+    <!-- 操作栏：任课老师仅评价，不展示新建入口 -->
     <view class="action-bar">
-      <button class="btn-primary" @click="goGenerate">新建评定</button>
+      <button v-if="!isSubjectTeacher" class="btn-primary" @click="goGenerate">新建评定</button>
       <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
@@ -39,7 +39,7 @@
       <view v-if="loading" class="loading-bar">
         <text class="loading-text">加载中...</text>
       </view>
-      <EmptyState v-else-if="!reportList.length" title="暂无月度评定" desc="点击「新建评定」开始" />
+      <EmptyState v-else-if="!reportList.length" :title="isSubjectTeacher ? '暂无所带班级的月度评定' : '暂无月度评定'" :desc="isSubjectTeacher ? '班主任发布前的待办评定会显示在这里' : '点击「新建评定」开始'" />
       <view v-else class="report-list">
         <view v-for="(item, idx) in reportList" :key="item.id" class="report-row" :class="{ 'has-border': idx > 0 }" @click="goDetail(item.id)">
           <view class="report-info">
@@ -51,6 +51,7 @@
             </view>
             <text class="report-meta">{{ item.month_label }} · {{ item.class_name || '' }}</text>
             <text v-if="item.final_content" class="report-preview">{{ item.final_content.slice(0, 60) }}...</text>
+            <MonthlyReportEvaluations :report="item" @saved="applyEvaluation" @click.stop />
           </view>
           <text class="report-arrow">›</text>
         </view>
@@ -61,6 +62,7 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
+import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
@@ -80,6 +82,7 @@ const reportList = ref([])
 const classNames = computed(() => ['全部班级', ...classList.value.map(c => c.name)])
 const selectedClassId = computed(() => classIndex.value > 0 ? classList.value[classIndex.value - 1]?.id : null)
 const selectedStatus = computed(() => statusValues[statusIndex.value] || null)
+const isSubjectTeacher = computed(() => auth.role === 'subject_teacher')
 
 function statusLabel(s) {
   return { generating: '待填写', generated: '待发布', published: '已发布', failed: '待补充' }[s] || s
@@ -87,7 +90,7 @@ function statusLabel(s) {
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (!['teacher', 'admin'].includes(auth.role)) {
+  if (!['teacher', 'admin', 'subject_teacher'].includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true
@@ -113,6 +116,10 @@ async function loadData() {
 
 function onClassChange(e) { classIndex.value = e.detail.value; loadData() }
 function onStatusChange(e) { statusIndex.value = e.detail.value; loadData() }
+
+function applyEvaluation(updated) {
+  reportList.value = reportList.value.map(row => row.id === updated.id ? updated : row)
+}
 
 function goGenerate() {
   if (!selectedClassId.value) {

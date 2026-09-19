@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -12,6 +12,10 @@ MONTHLY_STATUS_GENERATING = "generating"
 MONTHLY_STATUS_GENERATED = "generated"
 MONTHLY_STATUS_PUBLISHED = "published"
 MONTHLY_STATUS_FAILED = "failed"
+
+# 评价人角色：班主任定稿 + 学科老师独立评价，互不覆盖。
+MONTHLY_EVAL_ROLE_HEAD = "head_teacher"
+MONTHLY_EVAL_ROLE_SUBJECT = "subject_teacher"
 
 
 class MonthlyReport(Base):
@@ -45,5 +49,28 @@ class MonthlyReport(Base):
     reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    evaluations: Mapped[list["MonthlyReportEvaluation"]] = relationship(
+        cascade="all, delete-orphan", order_by="MonthlyReportEvaluation.id", lazy="selectin"
+    )
+
+
+class MonthlyReportEvaluation(Base):
+    """月度评定学科评价：每位教师独立评价同一份月度评定，互不覆盖。"""
+
+    __tablename__ = "monthly_report_evaluations"
+    __table_args__ = (
+        UniqueConstraint("report_id", "teacher_id", name="uq_monthly_evaluation_report_teacher"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("monthly_reports.id", ondelete="CASCADE"), index=True)
+    teacher_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    teacher_name: Mapped[str] = mapped_column(String(64))
+    teacher_role: Mapped[str] = mapped_column(String(24))
+    # 学科老师所带学科（班主任可为空），用于家长/学生端展示“数学老师评价”。
+    subject: Mapped[str] = mapped_column(String(32), default="")
+    content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

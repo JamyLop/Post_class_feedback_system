@@ -562,13 +562,17 @@
               <div><strong>月度评定</strong><span>{{ monthlyRows.length }} 份</span></div>
               <div class="weekly-actions">
                 <el-button @click="loadMonthly">刷新</el-button>
-                <el-button v-if="auth.role !== 'subject_teacher'" type="primary" plain @click="$router.push('/teacher/monthly-reports')">去管理</el-button>
+                <el-button v-if="auth.role === 'subject_teacher'" type="primary" plain @click="$router.push('/subject/monthly-reports')">去评价</el-button>
+                <el-button v-else-if="auth.role !== 'subject_teacher'" type="primary" plain @click="$router.push('/teacher/monthly-reports')">去管理</el-button>
               </div>
             </div>
             <el-table v-if="monthlyRows.length" :data="monthlyRows" style="margin-top:12px">
               <el-table-column prop="month_label" label="月份" width="110" />
               <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="monthlyStatusType(row.status)">{{ monthlyStatusText(row.status) }}</el-tag></template></el-table-column>
-              <el-table-column label="摘要" min-width="300" show-overflow-tooltip><template #default="{ row }">{{ (row.final_content || '').slice(0,80) }}</template></el-table-column>
+              <el-table-column label="摘要" min-width="240" show-overflow-tooltip><template #default="{ row }">{{ (row.final_content || '').slice(0,80) }}</template></el-table-column>
+              <el-table-column label="学科评价" min-width="290">
+                <template #default="{ row }"><MonthlyReportEvaluations :report="row" @saved="updated => Object.assign(row, updated)" /></template>
+              </el-table-column>
               <el-table-column v-if="auth.role !== 'subject_teacher'" label="操作" width="120"><template #default="{ row }"><el-button link type="primary" @click="$router.push('/teacher/monthly-reports')">查看</el-button></template></el-table-column>
             </el-table>
             <div v-else class="empty-panel"><h3>暂无月度评定</h3><p>班主任可在“月度评定”页面按月手动填写学情、德育表现与改进建议。</p></div>
@@ -650,6 +654,7 @@ import * as echarts from 'echarts'
 import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, decideTaskChange, exportStudentCase, getStudentCase, listCaseVersions, getWeeklyPoints, requestTaskChange, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
+import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import SecureCheckinImage from '../../components/SecureCheckinImage.vue'
 import { listMonthlyReports } from '../../api/monthlyReports'
 import { useAuthStore } from '../../stores/auth'
