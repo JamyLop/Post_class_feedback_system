@@ -26,8 +26,8 @@ router = APIRouter(prefix="/classes", tags=["classes"])
 
 # 班级本身由德育主任（校长兼容）新建并分配班主任；班主任仅负责录入班级学生信息。
 _class_manager = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR])
-# 班级学生名单维护：班主任录入，德育主任/校长可协同。
-_student_manager = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER])
+# 班级学生名单维护：班主任录入，德育主任/校长可协同；咨询老师可新建学生并加入班级。
+_student_manager = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_CONSULTANT])
 
 
 def _classes_out(db: Session, classes: list[Class]) -> list[dict]:
@@ -55,6 +55,10 @@ def _check_class_owner(db: Session, class_id: int, user: User) -> Class:
     if cls is None:
         raise HTTPException(status_code=404, detail="班级不存在")
     if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
+        return cls
+    if user.role == ROLE_CONSULTANT:
+        # 咨询老师可新建学生并维护班级名单：新建时自动建立咨询关联，
+        # 名单查看限定在其可建范围内（前端仅展示关联班级），此处放行写路径。
         return cls
     if cls.teacher_id == user.id:
         return cls
@@ -232,7 +236,7 @@ def add_students(
     user: User = Depends(_student_manager),
 ):
     """向班级批量添加学生（跳过非法/重复的 id）。"""
-    _check_class_owner(db, class_id, user)
+    cls = _check_class_owner(db, class_id, user)
     added = []
     for sid in body.student_ids:
         stu = db.get(User, sid)
@@ -249,6 +253,30 @@ def add_students(
         if exists:
             continue
         db.add(ClassStudent(class_id=class_id, student_id=sid))
+        # 未分班新建的学生年级可能为空，入班时按班级年级兜底
+        if not (stu.grade or "").strip() and (cls.grade or "").strip():
+            stu.grade = cls.grade
+        # 之前建的无班级档案随入班自动挂到本班级名下，归属同步转交班主任
+        from app.models.student_case import StudentCase
+
+        for case in db.query(StudentCase).filter_by(student_id=sid, class_id=None).all():
+            case.class_id = class_id
+            head = db.get(User, cls.teacher_id)
+            if head is not None and head.role == ROLE_TEACHER:
+                case.owner_teacher_id = head.id
+        # 咨询建的临时账号（ZX开头）随入班按班级学号规则重编，位号自动取空位；
+        # 已有正式学号的不动；不传入学月份时仅加入班级、不重编
+        if body.enrollment_month and (stu.username or "").startswith("ZX"):
+            new_username = _first_free_username(db, cls, body.enrollment_month)
+            if new_username:
+                stu.username = new_username
+        # 咨询老师将已有学生加入班级时默认关联自己，保证后续可在咨询侧查看档案。
+        if user.role == ROLE_CONSULTANT:
+            link = db.query(StudentConsultant).filter_by(
+                consultant_id=user.id, student_id=sid
+            ).first()
+            if link is None:
+                db.add(StudentConsultant(consultant_id=user.id, student_id=sid))
         added.append(stu)
     db.commit()
     return added
@@ -298,6 +326,18 @@ def _generate_student_username(db: Session, cls: Class, enrollment_month: int, s
     raise HTTPException(status_code=409, detail=f"学号 {base} 已存在，请更换位号或入学月份")
 
 
+def _first_free_username(db: Session, cls: Class, enrollment_month: int) -> str | None:
+    """按班级学号规则取首个空位学号；规则不可用(422)或位号用尽时返回 None（调用方跳过重编）。"""
+    for seat in range(1, 100):
+        try:
+            return _generate_student_username(db, cls, enrollment_month, seat)
+        except HTTPException as exc:
+            if exc.status_code == 422:
+                return None
+            continue
+    return None
+
+
 @router.post("/{class_id}/students/create", response_model=ClassStudentOut)
 def create_and_add_student(
     class_id: int,
@@ -335,6 +375,14 @@ def create_and_add_student(
     # 咨询老师选填：若传入则自动建立学生-咨询老师关联，方便后续在咨询侧展示
     if consultant is not None:
         db.add(StudentConsultant(consultant_id=consultant.id, student_id=stu.id))
+    # 咨询老师新建学生时默认关联自己，避免建后在咨询侧不可见；
+    # 若同时指定了其他咨询老师则保留双方关联。
+    if user.role == ROLE_CONSULTANT:
+        exists_self = db.query(StudentConsultant).filter_by(
+            consultant_id=user.id, student_id=stu.id
+        ).first()
+        if exists_self is None:
+            db.add(StudentConsultant(consultant_id=user.id, student_id=stu.id))
     db.commit()
     db.refresh(stu)
     return stu

@@ -72,6 +72,7 @@ from app.services.student_case_service import (
     PARENT_VISIBLE_STATUSES,
     STUDENT_VISIBLE_STATUSES,
     audit,
+    can_consultant_manage,
     is_head_teacher,
     require_case_access,
     require_case_manager,
@@ -84,9 +85,12 @@ from app.services.case_export import build_case_export_bytes  # 导出模板变�
 router = APIRouter(prefix="/student-cases", tags=["student-cases"])
 # 校长 + 德育主任 + 班主任 + 咨询老师 + 任课老师均可查看督查进度；仅班主任可写
 _staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER])
-_head_teacher = require_roles([ROLE_TEACHER])
 # 学科建议提出人：非班主任的教师（含任课老师）；班主任请直接维护学科方案
 _suggestion_author = require_roles([ROLE_TEACHER, ROLE_SUBJECT_TEACHER])
+# 新建学生总案：班主任（须为该班班主任）+ 咨询老师（须关联该学生，见函数内校验）
+_case_creator = require_roles([ROLE_TEACHER, ROLE_CONSULTANT])
+# 总案内容维护：班主任（须为该班班主任）+ 咨询老师（仅自己关联的无班级档案，入班前暂代维护）
+_case_maintainer = require_roles([ROLE_TEACHER, ROLE_CONSULTANT])
 _deyu_director = require_roles([ROLE_DEYU_DIRECTOR])
 
 
@@ -124,7 +128,7 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
     task_ids = [task.id for task in tasks]
     profile = db.query(CaseStudentProfile).filter_by(student_case_id=case.id).first()
     student = db.get(User, case.student_id)
-    cls = db.get(Class, case.class_id)
+    cls = db.get(Class, case.class_id) if case.class_id is not None else None
     guardians = db.query(StudentGuardian).filter_by(student_id=case.student_id).all()
     guardian_accounts = []
     for link in guardians:
@@ -267,7 +271,8 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
     result = {
         **_case_out(db, case),
         "viewer_role": user.role,
-        "can_manage": user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id),
+        "can_manage": (user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id))
+        or can_consultant_manage(db, case, user),
         "student_profile": profile_out,
         "guardian_accounts": guardian_accounts,
         "subject_plans": (
@@ -300,7 +305,7 @@ def _case_out(db: Session, case: StudentCase) -> dict:
     data = StudentCaseOut.model_validate(case).model_dump()
     student = db.get(User, case.student_id)
     profile = db.query(CaseStudentProfile).filter_by(student_case_id=case.id).first()
-    cls = db.get(Class, case.class_id)
+    cls = db.get(Class, case.class_id) if case.class_id is not None else None
     data["student_name"] = profile.student_name if profile and profile.student_name else (student.name if student else None)
     data["class_name"] = cls.name if cls else None
     data["class_starts_on"] = cls.school_year_starts_on if cls else None
@@ -458,21 +463,66 @@ def list_import_documents(
     ).all()
 
 
+def _resolve_student_class(db: Session, student_id: int) -> int | None:
+    """按学生所在班级自动归属：仅一个班级直接用，多个取最近加入，无班级返回 None。"""
+    from app.models.class_ import ClassStudent
+
+    memberships = (
+        db.query(ClassStudent)
+        .filter_by(student_id=student_id)
+        .order_by(ClassStudent.joined_at.desc())
+        .all()
+    )
+    if not memberships:
+        return None
+    return memberships[0].class_id
+
+
 @router.post("", response_model=StudentCaseOut)
 def create_student_case(
     body: StudentCaseCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_creator),
 ):
     cycle = db.get(CaseCycle, body.cycle_id)
     if cycle is None:
         raise HTTPException(status_code=404, detail="学年周期不存在")
-    cls = db.get(Class, body.class_id)
-    if cls is None:
+    # 班级可选：不传时按学生所在班级自动归属；无班级则建无班级档案，入班时自动挂靠
+    class_id = body.class_id
+    if class_id is None and user.role == ROLE_CONSULTANT:
+        class_id = _resolve_student_class(db, body.student_id)
+    cls = db.get(Class, class_id) if class_id is not None else None
+    if class_id is not None and cls is None:
         raise HTTPException(status_code=404, detail="班级不存在")
-    if not is_head_teacher(db, body.class_id, user.id):
+    if user.role == ROLE_TEACHER:
+        if class_id is None:
+            raise HTTPException(status_code=422, detail="请选择班级")
+        if not is_head_teacher(db, class_id, user.id):
+            raise HTTPException(status_code=403, detail="仅班主任可建立学生总案")
+    elif user.role == ROLE_CONSULTANT:
+        # 咨询老师新建档案：班级可后补；自动建立咨询关联以便后续查看，
+        # 有班级时归属班主任默认取班级班主任，无班级时暂归自己、入班后转交班主任。
+        from app.models.class_ import StudentConsultant
+
+        student = db.get(User, body.student_id)
+        if student is None or student.role != ROLE_STUDENT:
+            raise HTTPException(status_code=404, detail="学生不存在")
+        if class_id is not None:
+            verify_case_membership(db, body.student_id, class_id)
+        link = db.query(StudentConsultant).filter_by(
+            consultant_id=user.id, student_id=body.student_id
+        ).first()
+        if link is None:
+            db.add(StudentConsultant(consultant_id=user.id, student_id=body.student_id))
+            db.flush()
+        owner = db.get(User, body.owner_teacher_id)
+        if owner is None or owner.role != ROLE_TEACHER:
+            body.owner_teacher_id = cls.teacher_id if cls else user.id
+    else:
         raise HTTPException(status_code=403, detail="仅班主任可建立学生总案")
-    verify_case_membership(db, body.student_id, body.class_id)
+    body.class_id = class_id
+    if class_id is not None:
+        verify_case_membership(db, body.student_id, class_id)
     # 家长反馈属于学生基本资料，不得混入总体问题和升学目标等总案诊断字段。
     case_data = body.model_dump(exclude={"parent_evaluation", "primary_needs"})
     case = StudentCase(**case_data)
@@ -492,7 +542,7 @@ def create_student_case(
         gender=getattr(student, "gender", "") or "",
         ethnicity=getattr(student, "ethnicity", "") or "",
         source_school=getattr(student, "source_school", "") or "",
-        grade=getattr(student, "grade", "") or cls.grade or "",
+        grade=getattr(student, "grade", "") or (cls.grade if cls else "") or "",
         parent_evaluation=body.parent_evaluation.strip(),
         primary_needs=body.primary_needs.strip(),
         parent_name=guardian_parent.name if guardian_parent else "",
@@ -590,7 +640,7 @@ def export_student_case(
     case = require_case_access(db, case_id, user)
     detail = _detail(db, case, user)
     student = db.get(User, case.student_id)
-    cls = db.get(Class, case.class_id)
+    cls = db.get(Class, case.class_id) if case.class_id is not None else None
     cycle = db.get(CaseCycle, case.cycle_id)
     # 正式版式需要档案与教师姓名（档案取 _detail 已脱敏/兜底后的展示版，保证无档案时也能导出）
     teacher_ids = {p.teacher_id for p in detail["subject_plans"] if getattr(p, "teacher_id", None)}
@@ -601,7 +651,7 @@ def export_student_case(
     data = build_case_export_bytes(
         case=case,
         student_name=student.name if student else f"学生#{case.student_id}",
-        class_name=cls.name if cls else f"班级#{case.class_id}",
+        class_name=cls.name if cls else "未分班",
         cycle_name=cycle.name if cycle else "",
         subject_plans=detail["subject_plans"],
         tasks=detail["tasks"],
@@ -633,7 +683,7 @@ def update_student_case(
     case_id: int,
     body: StudentCaseUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     case = require_case_access(db, case_id, user, write=True)
     require_case_manager(db, case, user)
@@ -655,7 +705,7 @@ def upsert_student_profile(
     case_id: int,
     body: CaseStudentProfileUpsert,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     case = require_case_access(db, case_id, user, write=True)
     require_case_manager(db, case, user)
@@ -727,7 +777,7 @@ def change_case_status(
     case_id: int,
     body: StudentCaseTransition,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     case = require_case_access(db, case_id, user, write=True)
     require_case_manager(db, case, user)
@@ -835,7 +885,7 @@ def upsert_subject_plan(
     subject: str,
     body: SubjectPlanUpsert,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     if body.subject != subject:
         raise HTTPException(status_code=400, detail="路径学科与请求内容不一致")
@@ -850,8 +900,8 @@ def upsert_subject_plan(
     else:
         for field, value in body.model_dump().items():
             setattr(plan, field, value)
-    # 自动同步 class_teachers：确保该任课老师与班级关联
-    if body.teacher_id:
+    # 自动同步 class_teachers：确保该任课老师与班级关联（无班级档案暂不同步，入班后由班主任维护）
+    if body.teacher_id and case.class_id is not None:
         exists = db.query(ClassTeacher).filter_by(
             class_id=case.class_id, teacher_id=body.teacher_id, subject=subject
         ).first()
@@ -899,7 +949,7 @@ def create_goal(
     case_id: int,
     body: CaseGoalCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     case = require_case_access(db, case_id, user, write=True, subject=body.subject)
     require_case_manager(db, case, user)
@@ -919,7 +969,7 @@ def create_task(
     case_id: int,
     body: CaseTaskCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     case = require_case_access(db, case_id, user, write=True, subject=body.subject)
     require_case_manager(db, case, user)
@@ -950,7 +1000,7 @@ def update_task(
     task_id: int,
     body: CaseTaskCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     task = db.get(CaseTask, task_id)
     if task is None or task.student_case_id != case_id:
@@ -984,7 +1034,7 @@ def checkin_task(
     task_id: int,
     body: TaskCheckinCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     task = db.get(CaseTask, task_id)
     if task is None:
@@ -1125,7 +1175,7 @@ def request_task_change(
     task_id: int,
     body: TaskChangeRequestCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
     """班主任申请修改已锁定的周任务：生成待德育审批的申请单，不直接改任务。"""
     task = db.get(CaseTask, task_id)
@@ -1185,7 +1235,7 @@ def list_task_change_requests(
         case = db.get(StudentCase, r.student_case_id)
         task = db.get(CaseTask, r.task_id) if r.task_id else None
         student = db.get(User, case.student_id) if case else None
-        cls = db.get(Class, case.class_id) if case else None
+        cls = db.get(Class, case.class_id) if case and case.class_id is not None else None
         result.append(TaskChangeRequestOut(
             id=r.id,
             case_id=r.student_case_id,
@@ -1272,9 +1322,9 @@ def upload_checkin_attachment(
     checkin_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(_head_teacher),
+    user: User = Depends(_case_maintainer),
 ):
-    """为打卡记录上传照片附件（仅班主任可操作）。"""
+    """为打卡记录上传照片附件（总案维护人可操作：班主任，或入班前暂代维护的咨询老师）。"""
     checkin = db.get(TaskCheckin, checkin_id)
     if checkin is None:
         raise HTTPException(status_code=404, detail="打卡记录不存在")

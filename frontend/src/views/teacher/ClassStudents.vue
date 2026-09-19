@@ -70,7 +70,13 @@
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="选择已有学生" name="existing">
+          <el-alert type="info" :closable="false" show-icon title="可搜索咨询老师新建的未分班学生，选中后加入本班级" style="margin-bottom: 14px" />
           <el-input v-model="keyword" placeholder="搜索学生用户名 / 姓名" clearable style="margin-bottom: 14px" @input="onSearch" />
+          <div class="enroll-options">
+            <span class="enroll-label">入学月份</span>
+            <el-input-number v-model="enrollMonth" :min="1" :max="12" />
+            <span class="enroll-hint">咨询建的临时账号（ZX开头）入班时按此月份重编正式学号，位号自动取空位；清空则保持原账号</span>
+          </div>
           <el-table
             :data="candidates"
             height="320"
@@ -110,6 +116,7 @@ const students = ref([])
 const candidates = ref([])
 const keyword = ref('')
 const selected = ref([])
+const enrollMonth = ref(7)
 const loading = ref(false)
 const dialogVisible = ref(false)
 const activeTab = ref('create')
@@ -156,8 +163,13 @@ async function onSearch() {
 
 async function onAdd() {
   try {
-    await addStudents(classId, selected.value.map((s) => s.id))
-    ElMessage.success('添加成功')
+    const extra = enrollMonth.value ? { enrollment_month: enrollMonth.value } : {}
+    const tmpIds = new Set(
+      selected.value.filter((s) => `${s.username || ''}`.startsWith('ZX')).map((s) => s.id),
+    )
+    const added = await addStudents(classId, selected.value.map((s) => s.id), extra)
+    const renamed = (added || []).filter((s) => tmpIds.has(s.id) && !`${s.username || ''}`.startsWith('ZX'))
+    ElMessage.success(renamed.length ? `添加成功，其中 ${renamed.length} 个临时账号已重编正式学号` : '添加成功')
     dialogVisible.value = false
     load()
   } catch (err) {
@@ -274,6 +286,29 @@ onMounted(load)
 
 .no-wrap-btn {
   white-space: nowrap;
+}
+
+.enroll-options {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.enroll-label {
+  font-size: 13px;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.enroll-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
 }
 
 :deep(.el-form-item__label) {

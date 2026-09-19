@@ -15,7 +15,7 @@
           </div>
           <div class="case-meta">
             <span class="status-badge" :class="`is-${detail.status}`"><span class="status-dot"></span>{{ labels[detail.status] || detail.status }}</span>
-            <span>{{ detail.class_name || `班级 #${detail.class_id}` }}</span>
+            <span>{{ detail.class_name || (detail.class_id ? `班级 #${detail.class_id}` : '未分班') }}</span>
             <span>第 {{ detail.version }} 版</span>
             <span>更新于 {{ formatDate(detail.updated_at) }}</span>
           </div>
@@ -1033,7 +1033,7 @@ function selectSubject(subject) {
 
 function addSubject(subject) {
   if (!detail.value?.can_manage) {
-    ElMessage.error('仅班主任可新建教学方案')
+    ElMessage.error('暂无权限新建教学方案')
     return
   }
   if (!manualSubjects.value.includes(subject)) manualSubjects.value.push(subject)

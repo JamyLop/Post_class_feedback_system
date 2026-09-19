@@ -67,6 +67,8 @@ def class_teacher_scope(db: Session, class_id: int, teacher_id: int) -> list[Cla
 
 
 def is_head_teacher(db: Session, class_id: int, teacher_id: int) -> bool:
+    if class_id is None:
+        return False
     cls = db.get(Class, class_id)
     if cls is None:
         return False
@@ -114,14 +116,14 @@ def require_case_access(
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
         return case
     if user.role == ROLE_CONSULTANT:
-        # 咨询老师只能查看关联学生的档案，不能修改
-        if write:
-            raise HTTPException(status_code=403, detail="咨询老师只能查看学生档案，不能修改")
+        # 咨询老师默认只读关联档案；自己关联的无班级档案在入班前可暂代维护
         linked = db.query(StudentConsultant).filter_by(
             consultant_id=user.id, student_id=case.student_id
         ).first()
         if linked is None:
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
+        if write and not can_consultant_manage(db, case, user):
+            raise HTTPException(status_code=403, detail="咨询老师只能查看学生档案，不能修改")
         return case
     if user.role == ROLE_SUBJECT_TEACHER:
         # 任课老师只能查看所带学科班级的档案，不能直接修改；修改意见走学科建议链路
@@ -152,7 +154,24 @@ def require_case_access(
 def require_case_manager(db: Session, case: StudentCase, user: User) -> None:
     if user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id):
         return
+    if can_consultant_manage(db, case, user):
+        return
     raise HTTPException(status_code=403, detail="仅班主任可维护总案内容和过程记录")
+
+
+def can_consultant_manage(db: Session, case: StudentCase, user: User) -> bool:
+    """咨询老师能否维护该档案：仅限自己关联的无班级档案（入班前暂代维护）。
+
+    学生加入班级后档案自动挂靠并转交班主任，咨询即恢复只读。
+    """
+    if user.role != ROLE_CONSULTANT or case.class_id is not None:
+        return False
+    return (
+        db.query(StudentConsultant)
+        .filter_by(consultant_id=user.id, student_id=case.student_id)
+        .first()
+        is not None
+    )
 
 
 def snapshot_payload(db: Session, case: StudentCase) -> dict[str, Any]:

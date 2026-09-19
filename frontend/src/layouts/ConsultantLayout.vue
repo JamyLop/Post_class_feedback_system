@@ -14,7 +14,7 @@
         <el-menu :default-active="$route.path" router>
           <el-menu-item index="/consultant/cases">
             <el-icon><Files /></el-icon>
-            <span>学生档案查阅</span>
+            <span>学生档案管理</span>
           </el-menu-item>
         </el-menu>
       </el-scrollbar>
@@ -22,8 +22,8 @@
       <div class="subject-note">
         <span class="subject-dot"></span>
         <div class="subject-text">
-          <strong>只读协同</strong>
-          <small>查看关联学生档案，辅导建议走督查复盘</small>
+          <strong>咨询建档</strong>
+          <small>可新建学生与档案，辅导建议走督查复盘</small>
         </div>
       </div>
     </el-aside>
@@ -32,7 +32,7 @@
       <el-header class="header">
         <div class="header-left">
           <span class="role-title">咨询老师工作台</span>
-          <span class="context-tag">关联学生 · 档案查阅</span>
+          <span class="context-tag">关联学生 · 建档管理</span>
         </div>
         <div class="header-right">
           <div class="user-profile">

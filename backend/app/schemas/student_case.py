@@ -27,7 +27,8 @@ class CaseCycleOut(CaseCycleCreate):
 class StudentCaseCreate(BaseModel):
     cycle_id: int
     student_id: int
-    class_id: int
+    # 班级可选：咨询老师可先建档后入班；不传时按学生所在班级自动归属，无班级则建无班级档案
+    class_id: int | None = None
     owner_teacher_id: int
     overall_problem: str = ""
     admission_target: str = ""
@@ -56,7 +57,7 @@ class StudentCaseOut(BaseModel):
     id: int
     cycle_id: int
     student_id: int
-    class_id: int
+    class_id: int | None
     owner_teacher_id: int
     overall_problem: str
     admission_target: str

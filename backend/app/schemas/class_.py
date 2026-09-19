@@ -101,6 +101,10 @@ class ClassOut(BaseModel):
 
 class StudentAdd(BaseModel):
     student_ids: list[int] = Field(min_length=1)
+    enrollment_month: int | None = Field(
+        default=None, ge=1, le=12,
+        description="入学月份；传入时临时账号（ZX开头）按班级学号规则重编，位号自动取空位",
+    )
 
 
 class StudentCreateAndEnroll(BaseModel):

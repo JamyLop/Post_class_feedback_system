@@ -65,7 +65,8 @@ class StudentCase(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     cycle_id: Mapped[int] = mapped_column(ForeignKey("case_cycles.id"), index=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    class_id: Mapped[int] = mapped_column(ForeignKey("classes.id"), index=True)
+    # 班级可空：咨询老师可先建档、后入班；学生加入班级时自动挂到班级名下。
+    class_id: Mapped[int | None] = mapped_column(ForeignKey("classes.id"), nullable=True, index=True)
     owner_teacher_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     overall_problem: Mapped[str] = mapped_column(Text, default="")
     admission_target: Mapped[str] = mapped_column(Text, default="")
