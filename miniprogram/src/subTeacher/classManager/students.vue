@@ -35,7 +35,7 @@ import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { listClassStudents } from '../../api/classes'
+import { listClassStudents } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
 const auth = useAuthStore()

@@ -58,7 +58,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { addStudentsToClass, listUsers } from '../../api/classes'
+import { addStudentsToClass, listUsers } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
 const classId = ref(null)

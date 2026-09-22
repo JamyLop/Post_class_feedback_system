@@ -95,8 +95,8 @@ import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { listPointsReports, buildPointsReports } from '../../api/pointsReports'
-import { listClasses } from '../../api/classes'
+import { listPointsReports, buildPointsReports } from '../api/pointsReports'
+import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
 const auth = useAuthStore()

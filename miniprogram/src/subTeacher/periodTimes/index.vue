@@ -48,7 +48,7 @@ import EmptyState from '../../components/EmptyState.vue'
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { listPeriodTimes, updatePeriodTime } from '../../api/periodTimes'
+import { listPeriodTimes, updatePeriodTime } from '../api/periodTimes'
 
 const auth = useAuthStore()
 const loading = ref(false)

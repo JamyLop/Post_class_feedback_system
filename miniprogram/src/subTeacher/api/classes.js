@@ -1,4 +1,4 @@
-import { http } from '../utils/request'
+import { http } from '../../utils/request'
 
 // 班级列表
 export const listClasses = () => http.get('/classes')

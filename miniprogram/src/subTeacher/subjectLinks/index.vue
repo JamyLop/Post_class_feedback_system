@@ -63,7 +63,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listClassTeacherLinks, createClassTeacherLink, deleteClassTeacherLink, listUsers } from '../../api/studentCases'
-import { listClasses } from '../../api/classes'
+import { listClasses } from '../api/classes'
 
 const auth = useAuthStore()
 const loading = ref(false)

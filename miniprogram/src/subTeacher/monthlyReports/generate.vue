@@ -48,7 +48,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { listClassStudents } from '../../api/classes'
+import { listClassStudents } from '../api/classes'
 import { createMonthlyReport } from '../../api/monthlyReports'
 
 const classId = ref(null)

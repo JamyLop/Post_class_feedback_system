@@ -28,8 +28,8 @@ import { onShow } from '@dcloudio/uni-app'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import { useAuthStore } from '../../stores/auth'
-import { createTimetableEntry, deleteTimetableEntry, listClasses, listTimetable, listUsers, myTimetable, updateTimetableEntry } from '../../api/classes'
-import { listPeriodTimes } from '../../api/periodTimes'
+import { createTimetableEntry, deleteTimetableEntry, listClasses, listTimetable, listUsers, myTimetable, updateTimetableEntry } from '../api/classes'
+import { listPeriodTimes } from '../api/periodTimes'
 
 const auth = useAuthStore()
 const isScheduler = computed(() => ['admin', 'deyu_director'].includes(auth.role))

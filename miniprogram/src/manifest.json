@@ -2,14 +2,14 @@
   "name": "一生一案学业发展",
   "appid": "__UNI__PFS_MP",
   "description": "高三一生一案家长/学生/教师轻量端",
-  "versionName": "0.1.0",
-  "versionCode": "100",
+  "versionName": "1.0.2",
+  "versionCode": "102",
   "transformPx": false,
   "app-plus": {
     "usingComponents": true
   },
   "mp-weixin": {
-    "appid": "wx3911ca5507b002a0",
+    "appid": "wx2daff401c1c29656",
     "setting": {
       "urlCheck": false,
       "es6": true,
@@ -18,6 +18,7 @@
       "minified": true
     },
     "usingComponents": true,
+    "lazyCodeLoading": "requiredComponents",
     "permission": {
       "scope.userLocation": {
         "desc": "用于定位校区"

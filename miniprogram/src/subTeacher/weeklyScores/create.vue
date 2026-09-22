@@ -87,7 +87,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { listClassStudents } from '../../api/classes'
+import { listClassStudents } from '../api/classes'
 import { batchCreateWeeklyScores } from '../../api/weeklyScores'
 import EmptyState from '../../components/EmptyState.vue'
 

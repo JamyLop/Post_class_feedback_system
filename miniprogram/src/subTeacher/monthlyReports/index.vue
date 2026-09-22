@@ -67,7 +67,7 @@ import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listMonthlyReports } from '../../api/monthlyReports'
-import { listClasses } from '../../api/classes'
+import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
 const auth = useAuthStore()

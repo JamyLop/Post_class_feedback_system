@@ -99,7 +99,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { createAndEnrollStudent, getClass, listUsers } from '../../api/classes'
+import { createAndEnrollStudent, getClass, listUsers } from '../api/classes'
 
 const classId = ref(null)
 const className = ref('')

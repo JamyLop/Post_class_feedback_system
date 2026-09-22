@@ -121,7 +121,7 @@
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
-import { createClass, listUsers } from '../../api/classes'
+import { createClass, listUsers } from '../api/classes'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
