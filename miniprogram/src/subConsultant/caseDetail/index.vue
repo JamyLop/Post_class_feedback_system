@@ -10,7 +10,7 @@
           <text class="h1">{{ detail.student_name || `学生 #${detail.student_id}` }}</text>
           <CaseStatusTag :status="detail.status" />
         </view>
-        <text class="meta">{{ detail.class_name }} · 第{{ detail.version }}版</text>
+        <text class="meta">{{ detail.class_name || '未分班' }} · 第{{ detail.version }}版</text>
         <view class="state-banner" :class="`is-${detail.status}`">
 
           <text class="state-desc">{{ stateDesc }}</text>
@@ -40,6 +40,7 @@
             <view class="field"><text class="dt">姓名</text><text class="dd">{{ detail.student_profile.student_name || '—' }}</text></view>
             <view class="field"><text class="dt">性别</text><text class="dd">{{ detail.student_profile.gender || '—' }}</text></view>
             <view class="field"><text class="dt">来源学校</text><text class="dd">{{ detail.student_profile.source_school || '—' }}</text></view>
+            <view class="field"><text class="dt">宿舍号</text><text class="dd">{{ detail.student_profile.dorm_number || '—' }}</text></view>
           </view>
         </view>
 

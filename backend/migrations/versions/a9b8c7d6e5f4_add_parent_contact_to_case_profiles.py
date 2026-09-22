@@ -1,7 +1,7 @@
 """add parent contact to case profiles
 
 Revision ID: a9b8c7d6e5f4
-Revises: f0d4e5f6a7b8
+Revises: a2c3d4e5f6a7
 """
 
 from typing import Sequence, Union
@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "a9b8c7d6e5f4"
-down_revision: Union[str, None] = "f0d4e5f6a7b8"
+down_revision: Union[str, None] = "a2c3d4e5f6a7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

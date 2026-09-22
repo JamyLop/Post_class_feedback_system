@@ -292,7 +292,7 @@
             <aside class="case-rail">
               <section class="rail-section"><span class="rail-label">当前状态</span><strong>{{ labels[detail.status] || detail.status }}</strong><p>{{ detail.current_summary || '尚未填写状态说明' }}</p><small v-if="detail.owner_teacher_id" class="rail-owner">负责人：班主任 #{{ detail.owner_teacher_id }}</small></section>
               <section class="rail-section compact">
-                <div><span>教学方案</span><strong>{{ detail.subject_plans.length }}</strong></div>
+                <div><span>入学评定</span><strong>{{ detail.subject_plans.length }}</strong></div>
                 <div><span>阶段目标</span><strong>{{ detail.goals.length }}</strong></div>
                 <div><span>执行任务</span><strong>{{ detail.tasks.length }}</strong></div>
                 <div v-if="auth.role !== 'parent'"><span>督查记录</span><strong>{{ detail.reviews.length }}</strong></div>
@@ -300,7 +300,7 @@
               <section v-if="auth.role !== 'parent'" class="rail-section source-note"><span class="rail-label">数据来源</span><p>历史 DOCX 试导入</p><small>解析内容尚未成为正式方案，需由班主任核对后提交确认。</small></section>
               <section v-if="detail.status === 'draft'" class="rail-section next-steps">
                 <span class="rail-label">确认前检查</span>
-                <ol><li><span>1</span>核对诊断与成绩信息</li><li><span>2</span>确认教学方案负责人</li><li><span>3</span>补充可执行目标与任务</li></ol>
+                <ol><li><span>1</span>核对诊断与成绩信息</li><li><span>2</span>确认入学评定负责人</li><li><span>3</span>补充可执行目标与任务</li></ol>
               </section>
             </aside>
           </div>
@@ -345,7 +345,7 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="教学方案" name="subjects">
+        <el-tab-pane label="入学评定" name="subjects">
           <div v-if="subjectOptions.length" class="subject-workspace">
             <nav class="subject-nav" aria-label="选择学科">
               <div class="subject-nav-heading"><strong>全部科目</strong><span>{{ subjectOptions.length }} 科</span></div>
@@ -480,12 +480,12 @@
           </div>
           <div v-else class="empty-panel subject-empty">
             <template v-if="detail.can_manage">
-              <h3>尚未建立教学方案</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p>
+              <h3>尚未建立入学评定</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p>
               <div class="subject-create-actions"><el-button v-for="subject in subjectOrder" :key="subject" type="primary" plain @click="addSubject(subject)">新建{{ subject }}方案</el-button></div>
             </template>
             <template v-else>
-              <h3>{{ auth.role === 'subject_teacher' ? '所带学科暂未建立方案' : '尚未建立教学方案' }}</h3>
-              <p>{{ auth.role === 'subject_teacher' ? '班主任建立所带教学方案后，可在此查看并提交学科建议。' : '暂无可查看的教学方案。' }}</p>
+              <h3>{{ auth.role === 'subject_teacher' ? '所带学科暂未建立方案' : '尚未建立入学评定' }}</h3>
+              <p>{{ auth.role === 'subject_teacher' ? '班主任建立所带入学评定后，可在此查看并提交学科建议。' : '暂无可查看的入学评定。' }}</p>
             </template>
           </div>
         </el-tab-pane>
@@ -514,7 +514,7 @@
           <div v-if="(auth.role === 'teacher' && !detail.can_manage) || auth.role === 'subject_teacher'" class="review-form-card suggestion-card">
             <div class="review-form-header"><strong>学科建议</strong><span>提交后由班主任查看</span></div>
             <el-form label-position="top" class="review-form">
-              <el-form-item label="补充建议"><el-input v-model="suggestionText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="填写对该生本教学方案的补充建议" /></el-form-item>
+              <el-form-item label="补充建议"><el-input v-model="suggestionText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="填写对该生本入学评定的补充建议" /></el-form-item>
               <div class="review-form-actions"><el-button type="primary" :loading="savingSuggestion" @click="saveSuggestion">提交学科建议</el-button></div>
             </el-form>
           </div>
@@ -585,7 +585,7 @@
               <div class="weekly-actions"><el-button @click="loadVersions">刷新</el-button></div>
             </div>
             <div v-if="versionsLoading" class="empty-panel"><h3>正在读取生涯学案…</h3></div>
-            <div v-else-if="!versions.length" class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>暂无历史快照。阶段复盘确认调整后，旧版本将在这里自动保留（含总体问题、升学目标、教学方案、任务与督查）。</p></div>
+            <div v-else-if="!versions.length" class="empty-panel"><h3>当前为第 {{ detail.version }} 版</h3><p>暂无历史快照。阶段复盘确认调整后，旧版本将在这里自动保留（含总体问题、升学目标、入学评定、任务与督查）。</p></div>
             <div v-else class="version-layout">
               <el-timeline class="review-timeline version-timeline">
                 <el-timeline-item v-for="v in versions" :key="v.id" :timestamp="formatDateTime(v.created_at)" :type="v.id === selectedVersionId ? 'primary' : ''">
@@ -602,9 +602,9 @@
                 <article><span class="rail-label">升学目标</span><p>{{ selectedVersion.snapshot?.case?.admission_target || '未记录' }}</p></article>
                 <article><span class="rail-label">当前状态说明</span><p>{{ selectedVersion.snapshot?.case?.current_summary || '未记录' }}</p></article>
                 <article>
-                  <span class="rail-label">教学方案（{{ (selectedVersion.snapshot?.subject_plans || []).length }}）</span>
+                  <span class="rail-label">入学评定（{{ (selectedVersion.snapshot?.subject_plans || []).length }}）</span>
                   <div v-for="p in (selectedVersion.snapshot?.subject_plans || [])" :key="p.id || p.subject" class="version-plan"><strong>{{ p.subject }}</strong><p>问题：{{ p.problem_location || '—' }}</p><p>目标：{{ p.struggle_goal || '—' }}</p></div>
-                  <p v-if="!(selectedVersion.snapshot?.subject_plans || []).length" class="placeholder-copy">该版本暂无教学方案。</p>
+                  <p v-if="!(selectedVersion.snapshot?.subject_plans || []).length" class="placeholder-copy">该版本暂无入学评定。</p>
                 </article>
                 <article>
                   <span class="rail-label">任务（{{ (selectedVersion.snapshot?.tasks || []).length }}）</span>
@@ -716,7 +716,7 @@ const overviewTargetEdits = ref([])
 const newProblemSubject = ref('')
 const transitionError = ref('')
 const statusCopy = {
-  draft: { title: '历史材料已导入，等待教师核对', desc: '请由班主任核对总体问题、升学目标和教学方案，确认无误后提交德育审查。' },
+  draft: { title: '历史材料已导入，等待教师核对', desc: '请由班主任核对总体问题、升学目标和入学评定，确认无误后提交德育审查。' },
   pending_confirmation: { title: '等待德育主任审查', desc: '已提交德育审查，等待德育主任审核；通过后家长可见正式方案，总览将锁定。' },
   revision_required: { title: '德育已退回，需班主任整改', desc: '德育主任已退回并给出整改要求，请按要求完善后重新提交审查。' },
   executing: { title: '方案正在执行中', desc: '德育已通过，家长已可见当前版本。请通过任务与执行记录跟踪进展，必要时发起阶段复盘。' },
@@ -816,7 +816,7 @@ function addProblemSubject() {
 function removeProblemSubject(index) {
   overviewProblemEdits.value.splice(index, 1)
 }
-// 教学方案缺失时展示总案原文作为参考，不抽取、不概括，避免导入内容被压缩。
+// 入学评定缺失时展示总案原文作为参考，不抽取、不概括，避免导入内容被压缩。
 const subjectProblemText = computed(() => detail.value?.overall_problem || '')
 const subjectTargetText = computed(() => detail.value?.admission_target || '')
 
@@ -1040,7 +1040,7 @@ function selectSubject(subject) {
 
 function addSubject(subject) {
   if (!detail.value?.can_manage) {
-    ElMessage.error('暂无权限新建教学方案')
+    ElMessage.error('暂无权限新建入学评定')
     return
   }
   if (!manualSubjects.value.includes(subject)) manualSubjects.value.push(subject)

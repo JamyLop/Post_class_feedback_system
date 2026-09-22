@@ -3,9 +3,15 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer fonts-noto-cjk \
-    && rm -rf /var/lib/apt/lists/*
+# Office conversion is optional at build time so core API releases are not held
+# hostage by a transient Debian mirror outage; PDF export reports a clear error
+# when no converter is present.
+ARG INSTALL_OFFICE=true
+RUN if [ "$INSTALL_OFFICE" = "true" ]; then \
+      apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update \
+      && apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends libreoffice-writer fonts-noto-cjk \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

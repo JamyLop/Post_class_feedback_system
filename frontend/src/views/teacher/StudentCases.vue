@@ -159,7 +159,7 @@
             v-model="createForm.current_summary"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
-            placeholder="例如：班主任手工建档，待完善教学方案"
+            placeholder="例如：班主任手工建档，待完善入学评定"
           />
         </el-form-item>
       </el-form>
@@ -283,7 +283,7 @@ async function openCreate() {
       student_id: null,
       parent_evaluation: '',
       primary_needs: '',
-      current_summary: '班主任手工建档，待完善教学方案',
+      current_summary: '班主任手工建档，待完善入学评定',
     })
     if (firstClass) await loadClassStudents(firstClass.id)
     createVisible.value = true

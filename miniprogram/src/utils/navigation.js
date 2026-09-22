@@ -7,6 +7,8 @@ export const ENTRIES = [
   { roles: ['parent'], title: '孩子档案', desc: '查看已发布方案与成长记录', route: '/subParent/children/index', group: '成长档案' },
   { roles: ['student'], title: '我的档案', desc: '查看目标、学科方案与执行进展', route: '/pages/student/myCase/index', group: '成长档案' },
   { roles: ['consultant'], title: '关联学生', desc: '查阅所负责学生的学业档案', route: '/subConsultant/caseList/index', group: '成长档案' },
+  { roles: ['consultant'], title: '新建学生', desc: '免班级快捷建学生，自动关联自己', route: '/subConsultant/quickStudent/index', group: '成长档案' },
+  { roles: ['consultant'], title: '新建档案', desc: '为关联学生建档，未分班也可建', route: '/subConsultant/createCase/index', group: '成长档案' },
   { roles: ['student'], title: '学情分析', desc: '查看周测成绩与变化趋势', route: '/pages/student/analytics/index', group: '学习记录' },
   { roles: ['student'], title: '月度评定', desc: '阅读老师发布的月度评定', route: '/pages/student/monthlyReports/index', group: '学习记录' },
   { roles: ['student'], title: '个人信息', desc: '查看学籍与账号基本信息', route: '/pages/student/profile/index', group: '账号信息' },
@@ -18,6 +20,9 @@ export const ENTRIES = [
   { roles: ['teacher', 'admin', 'deyu_director'], title: '积分周月报', desc: '一键生成并查看班级积分周报、月报', route: '/subTeacher/pointsReports/index', group: '教学管理' },
   { roles: ['teacher', 'admin', 'deyu_director'], title: '班级管理', desc: '新建班级、分配班主任、管理学生信息', route: '/subTeacher/classManager/index', group: '教学管理' },
   { roles: ['admin'], title: '系统管理', desc: '查看统计、管理用户与邀请码', route: '/subTeacher/adminStats/index', group: '系统管理' },
+  { roles: ['admin'], title: '咨询关联', desc: '为咨询老师分配负责学生', route: '/subTeacher/consultantLinks/index', group: '系统管理' },
+  { roles: ['admin'], title: '任课关联', desc: '为任课老师分配所带班级与学科', route: '/subTeacher/subjectLinks/index', group: '系统管理' },
+  { roles: ['admin', 'deyu_director'], title: '节次时间', desc: '配置每个节次的上课时间', route: '/subTeacher/periodTimes/index', group: '教学管理' },
 ]
 export function entriesForRole(role) { return ENTRIES.filter(entry => entry.roles.includes(role)) }
 export function groupsForRole(role) {

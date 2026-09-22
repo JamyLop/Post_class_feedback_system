@@ -66,7 +66,7 @@
           </view>
           <view class="field">
             <text class="label">当前状态说明</text>
-            <textarea v-model="createForm.current_summary" placeholder="例如：班主任手工建档，待完善教学方案" class="textarea" />
+            <textarea v-model="createForm.current_summary" placeholder="例如：班主任手工建档，待完善入学评定" class="textarea" />
           </view>
         </view>
         <view class="modal-btns">
@@ -135,7 +135,7 @@ function openStudentCases(student) {
 // ---- 新建档案（对齐网页端 StudentCases.vue） ----
 const createVisible = ref(false), creating = ref(false)
 const cycles = ref([]), allStudents = ref([]), createRoster = ref([])
-const createForm = ref({ cycle_id: null, class_id: null, student_id: null, parent_evaluation: '', primary_needs: '', current_summary: '班主任手工建档，待完善教学方案' })
+const createForm = ref({ cycle_id: null, class_id: null, student_id: null, parent_evaluation: '', primary_needs: '', current_summary: '班主任手工建档，待完善入学评定' })
 const schoolYears = Array.from({ length: 81 }, (_, i) => { const s = 2020 + i; return `${s}-${s + 1}` })
 const cycleOptions = computed(() => {
   const byYear = new Map((cycles.value || []).map(c => [c.school_year, c]))
@@ -185,7 +185,7 @@ async function openCreate() {
     const firstClass = classes.value[0]
     const defaultYear = firstClass?.school_year || activeCycle?.school_year || '2026-2027'
     const defaultCycle = cycles.value.find(c => c.school_year === defaultYear)
-    Object.assign(createForm.value, { cycle_id: defaultCycle ? defaultCycle.id : defaultYear, class_id: firstClass?.id || null, student_id: null, parent_evaluation: '', primary_needs: '', current_summary: '班主任手工建档，待完善教学方案' })
+    Object.assign(createForm.value, { cycle_id: defaultCycle ? defaultCycle.id : defaultYear, class_id: firstClass?.id || null, student_id: null, parent_evaluation: '', primary_needs: '', current_summary: '班主任手工建档，待完善入学评定' })
     if (firstClass) {
       try { createRoster.value = await listClassStudents(firstClass.id) } catch (_) { createRoster.value = [] }
     } else createRoster.value = []

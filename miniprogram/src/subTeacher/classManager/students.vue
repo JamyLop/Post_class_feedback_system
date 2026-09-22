@@ -8,6 +8,7 @@
 
     <view class="action-bar">
       <button class="btn-primary" @click="goAddStudent">新建学生</button>
+      <button class="btn-outline" @click="goAddExisting">选已有学生</button>
       <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
@@ -76,6 +77,10 @@ async function loadData() {
 
 function goAddStudent() {
   uni.navigateTo({ url: `/subTeacher/classManager/addStudent?classId=${classId.value}&className=${encodeURIComponent(className.value)}` })
+}
+
+function goAddExisting() {
+  uni.navigateTo({ url: `/subTeacher/classManager/addExisting?classId=${classId.value}&className=${encodeURIComponent(className.value)}` })
 }
 
 onMounted(() => { if (guardRole()) loadData() })

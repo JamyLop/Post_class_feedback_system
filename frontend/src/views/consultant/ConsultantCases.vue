@@ -187,7 +187,7 @@
             v-model="caseForm.current_summary"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
-            placeholder="例如：咨询老师建档，待完善教学方案"
+            placeholder="例如：咨询老师建档，待完善入学评定"
           />
         </el-form-item>
       </el-form>
@@ -267,7 +267,7 @@ const caseVisible = ref(false)
 const caseCreating = ref(false)
 const caseForm = reactive({
   cycle_id: null, class_id: null, student_id: null,
-  parent_evaluation: '', primary_needs: '', current_summary: '咨询老师建档，待完善教学方案',
+  parent_evaluation: '', primary_needs: '', current_summary: '咨询老师建档，待完善入学评定',
 })
 // 自己关联且已入班的学生（合并所有关联班级名册，附带班级信息）
 const allCaseStudents = ref([])
@@ -353,7 +353,7 @@ async function openCreateCase() {
       student_id: null,
       parent_evaluation: '',
       primary_needs: '',
-      current_summary: '咨询老师建档，待完善教学方案',
+      current_summary: '咨询老师建档，待完善入学评定',
     })
     // 合并所有关联班级的名册，学生选项自带班级，选中后自动带出班级；
     // 仅保留自己关联的学生（同班其他咨询的学生不出现）

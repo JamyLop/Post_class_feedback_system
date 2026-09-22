@@ -149,6 +149,10 @@
           "style": { "navigationBarTitleText": "新建学生" }
         },
         {
+          "path": "classManager/addExisting",
+          "style": { "navigationBarTitleText": "选择已有学生" }
+        },
+        {
           "path": "timetable/index",
           "style": { "navigationBarTitleText": "课程表" }
         },
@@ -159,6 +163,18 @@
         {
           "path": "pointsReports/index",
           "style": { "navigationBarTitleText": "积分周月报" }
+        },
+        {
+          "path": "consultantLinks/index",
+          "style": { "navigationBarTitleText": "咨询关联" }
+        },
+        {
+          "path": "subjectLinks/index",
+          "style": { "navigationBarTitleText": "任课关联" }
+        },
+        {
+          "path": "periodTimes/index",
+          "style": { "navigationBarTitleText": "节次时间" }
         }
       ]
     },
@@ -172,6 +188,14 @@
         {
           "path": "caseDetail/index",
           "style": { "navigationBarTitleText": "档案详情" }
+        },
+        {
+          "path": "quickStudent/index",
+          "style": { "navigationBarTitleText": "新建学生" }
+        },
+        {
+          "path": "createCase/index",
+          "style": { "navigationBarTitleText": "新建档案" }
         }
       ]
     }

@@ -6,6 +6,12 @@
  */
 const BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
 
+// 占位域名保护：生产模板里的 api.example.com 若被原样打包，所有接口都会失败；
+// 本地模拟器调试请用 dev 模式（npm run dev:mp-weixin），不要直接运行生产构建包。
+if (BASE_URL.includes('example.com')) {
+  console.warn('[request] VITE_API_BASE 仍为占位域名(api.example.com)，请检查构建模式：本地调试用 dev 运行，生产发布前替换 .env.production 为真实 HTTPS 地址')
+}
+
 // 供 uploadFile / downloadFile 等需自行拼 URL 的场景复用（含鉴权附件上传下载）
 export function getApiBase() {
   return BASE_URL

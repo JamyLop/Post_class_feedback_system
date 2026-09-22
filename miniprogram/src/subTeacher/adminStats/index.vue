@@ -30,6 +30,18 @@
           <view class="nav-copy"><text class="nav-title">邀请码</text><text class="nav-desc">生成与停用注册邀请码</text></view>
           <text class="nav-arrow" aria-hidden="true">›</text>
         </button>
+        <button class="nav-row" hover-class="nav-row-active" @click="goConsultantLinks">
+          <view class="nav-copy"><text class="nav-title">咨询关联</text><text class="nav-desc">为咨询老师分配负责学生</text></view>
+          <text class="nav-arrow" aria-hidden="true">›</text>
+        </button>
+        <button class="nav-row" hover-class="nav-row-active" @click="goSubjectLinks">
+          <view class="nav-copy"><text class="nav-title">任课关联</text><text class="nav-desc">为任课老师分配所带班级与学科</text></view>
+          <text class="nav-arrow" aria-hidden="true">›</text>
+        </button>
+        <button class="nav-row" hover-class="nav-row-active" @click="goPeriodTimes">
+          <view class="nav-copy"><text class="nav-title">节次时间</text><text class="nav-desc">配置每个节次的上课时间</text></view>
+          <text class="nav-arrow" aria-hidden="true">›</text>
+        </button>
         <button class="nav-row" hover-class="nav-row-active" @click="goClasses">
           <view class="nav-copy"><text class="nav-title">班级管理</text><text class="nav-desc">管理班级信息与学生名单</text></view>
           <text class="nav-arrow" aria-hidden="true">›</text>
@@ -79,6 +91,9 @@ async function load() {
 
 function goUsers() { uni.navigateTo({ url: '/subTeacher/adminUsers/index' }) }
 function goInviteCodes() { uni.navigateTo({ url: '/subTeacher/adminUsers/index?tab=invite' }) }
+function goConsultantLinks() { uni.navigateTo({ url: '/subTeacher/consultantLinks/index' }) }
+function goSubjectLinks() { uni.navigateTo({ url: '/subTeacher/subjectLinks/index' }) }
+function goPeriodTimes() { uni.navigateTo({ url: '/subTeacher/periodTimes/index' }) }
 function goClasses() { uni.navigateTo({ url: '/subTeacher/classManager/index' }) }
 function goCaseList() { uni.navigateTo({ url: '/subTeacher/caseList/index' }) }
 

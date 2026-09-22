@@ -44,6 +44,10 @@
           <input v-model="form.source_school" placeholder="填写学生原就读学校" class="input" />
         </view>
         <view class="field">
+          <text class="field-label">宿舍号</text>
+          <input v-model="form.dorm_number" placeholder="例如：3号楼205" class="input" />
+        </view>
+        <view class="field">
           <text class="field-label">了解渠道</text>
           <input v-model="form.channel" placeholder="选填，例如：转介绍 / 线上咨询" class="input" />
         </view>
@@ -110,6 +114,7 @@ const form = reactive({
   ethnicity: '',
   grade: '',
   source_school: '',
+  dorm_number: '',
   channel: '',
   consultant_id: null,
   enrollment_month: 7,
@@ -195,6 +200,7 @@ async function handleSubmit() {
       ethnicity: form.ethnicity.trim(),
       grade: form.grade.trim(),
       source_school: form.source_school.trim(),
+      dorm_number: form.dorm_number.trim(),
       channel: form.channel.trim(),
       consultant_id: form.consultant_id || null,
       enrollment_month: form.enrollment_month,

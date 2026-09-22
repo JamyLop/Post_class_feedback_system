@@ -22,9 +22,12 @@ export const listClassStudents = (classId) => http.get(`/classes/${classId}/stud
 export const createAndEnrollStudent = (classId, data) => http.post(`/classes/${classId}/students/create`, data)
 export const createStudentAndAdd = createAndEnrollStudent
 
-// 批量添加已有学生到班级（后端期望 { student_ids: [...] }）
-export const addStudentsToClass = (classId, studentIds) =>
-  http.post(`/classes/${classId}/students`, { student_ids: Array.isArray(studentIds) ? studentIds : studentIds.student_ids })
+// 批量添加已有学生到班级（后端期望 { student_ids: [...] }，可选 enrollment_month 触发ZX临时账号重编）
+export const addStudentsToClass = (classId, studentIds, extra = {}) => {
+  const ids = Array.isArray(studentIds) ? studentIds : studentIds.student_ids
+  const rest = Array.isArray(studentIds) ? {} : studentIds
+  return http.post(`/classes/${classId}/students`, { student_ids: ids, ...rest, ...extra })
+}
 
 // 教师仅能读取自己的课表；德育主任可按班级或教师查看全校安排。
 export const myTimetable = () => http.get('/timetables/mine')
@@ -35,3 +38,6 @@ export const deleteTimetableEntry = (id) => http.del(`/timetables/${id}`)
 
 // 用户查询（班主任新建学生时选择咨询老师 / 搜索已有学生）
 export const listUsers = (role = 'student', keyword = '') => http.get('/users', { role, keyword })
+
+// 免班级快捷新建学生（咨询老师用：不入班、ZX临时学号、自动关联自己），与网页端 createQuickStudent 同接口
+export const createQuickStudent = (data) => http.post('/users/quick-student', data)

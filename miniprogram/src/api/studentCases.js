@@ -8,7 +8,11 @@ export const listClassStudents = (classId) => http.get(`/classes/${classId}/stud
 export const listStudentCases = (params = {}) => http.get('/student-cases', params)
 export const listCaseCycles = () => http.get('/student-cases/cycles')
 export const createCaseCycle = (data) => http.post('/student-cases/cycles', data)
-export const addStudentsToClass = (classId, studentIds) => http.post(`/classes/${classId}/students`, { student_ids: studentIds })
+export const addStudentsToClass = (classId, studentIds, extra = {}) => {
+  const ids = Array.isArray(studentIds) ? studentIds : studentIds.student_ids
+  const rest = Array.isArray(studentIds) ? {} : studentIds
+  return http.post(`/classes/${classId}/students`, { student_ids: ids, ...rest, ...extra })
+}
 export const getStudentCase = (id) => http.get(`/student-cases/${id}`)
 export const getTaskReminders = (params = {}) => http.get('/case-tasks/reminders', params)
 export const getFamilyCases = () => http.get('/student-cases/children')
@@ -96,10 +100,25 @@ export const disableInviteCode = (id) => http.post(`/admin/invite-codes/${id}/di
 export const listGuardianLinks = () => http.get('/admin/guardian-links')
 export const createGuardianLink = (data) => http.post('/admin/guardian-links', data)
 export const deleteGuardianLink = (id) => http.del(`/admin/guardian-links/${id}`)
+// 与网页端 ConsultantLinks / ClassTeacherLinks 同接口：仅校长可读写
+export const listConsultantLinks = () => http.get('/admin/consultant-links')
+export const createConsultantLink = (data) => http.post('/admin/consultant-links', data)
+export const deleteConsultantLink = (id) => http.del(`/admin/consultant-links/${id}`)
+export const listClassTeacherLinks = () => http.get('/admin/class-teacher-links')
+export const createClassTeacherLink = (data) => http.post('/admin/class-teacher-links', data)
+export const deleteClassTeacherLink = (id) => http.del(`/admin/class-teacher-links/${id}`)
 export const adminDeleteUser = (id) => http.del(`/admin/users/${id}`)
 
 // ---- 用户管理（admin+teacher） ----
-export const listUsers = (params = {}) => http.get('/users', params)
+// 兼容两种调用：listUsers({ role, keyword }) 与 listUsers('student', '关键词')（与网页端一致）
+export const listUsers = (roleOrParams = {}, keyword = '') => {
+  const params = typeof roleOrParams === 'string'
+    ? { role: roleOrParams, keyword }
+    : (roleOrParams || {})
+  return http.get('/users', params)
+}
+// 免班级快捷新建学生（咨询老师用），与网页端 createQuickStudent 同接口
+export const createQuickStudent = (data) => http.post('/users/quick-student', data)
 export const getUser = (id) => http.get(`/users/${id}`)
 export const createUser = (data) => http.post('/users', data)
 export const updateUser = (id, data) => http.put(`/users/${id}`, data)

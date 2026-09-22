@@ -3,7 +3,15 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">关联学生档案</text>
-      <text class="p">查看您负责的学生的一生一案</text>
+      <text class="p">查看您负责的学生的一生一案；可新建学生并为其建档</text>
+    </view>
+
+    <view class="action-bar">
+      <button class="btn-primary" @click="goQuickStudent">新建学生</button>
+      <button class="btn-outline" @click="goCreateCase">新建档案</button>
+    </view>
+    <view class="search-bar">
+      <input v-model="keyword" placeholder="搜索学生姓名" class="input" @input="onSearch" />
     </view>
 
     <view v-if="loading" class="loading-bar">
@@ -17,11 +25,11 @@
       </view>
 
       <view v-else class="case-list">
-        <view v-for="c in cases" :key="c.id" class="case-card" @click="openCase(c.id)">
+        <view v-for="c in filteredCases" :key="c.id" class="case-card" @click="openCase(c.id)">
           <view class="case-top">
             <view class="case-info">
               <text class="case-name">{{ c.student_name || `学生 #${c.student_id}` }}</text>
-              <text class="case-meta">{{ c.class_name }} · 第{{ c.version }}版</text>
+              <text class="case-meta">{{ c.class_name || '未分班' }} · 第{{ c.version }}版</text>
             </view>
             <CaseStatusTag :status="c.status" />
           </view>
@@ -34,7 +42,7 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listStudentCases } from '../../api/studentCases'
@@ -43,6 +51,12 @@ import CaseStatusTag from '../../components/CaseStatusTag.vue'
 const auth = useAuthStore()
 const loading = ref(false)
 const cases = ref([])
+const keyword = ref('')
+const filteredCases = computed(() => {
+  const q = keyword.value.trim().toLowerCase()
+  if (!q) return cases.value
+  return cases.value.filter((c) => `${c.student_name || ''}${c.class_name || ''}`.toLowerCase().includes(q))
+})
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
@@ -63,6 +77,16 @@ async function refresh() {
 function openCase(id) {
   uni.navigateTo({ url: `/subConsultant/caseDetail/index?id=${id}` })
 }
+
+function goQuickStudent() {
+  uni.navigateTo({ url: '/subConsultant/quickStudent/index' })
+}
+
+function goCreateCase() {
+  uni.navigateTo({ url: '/subConsultant/createCase/index' })
+}
+
+function onSearch() {}
 
 onShow(() => { if (guardRole()) refresh() })
 </script>
@@ -93,4 +117,17 @@ onShow(() => { if (guardRole()) refresh() })
 .case-name { font-size: 28rpx; font-weight: 600; color: var(--mp-ink); display: block; }
 .case-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 .case-time { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 10rpx; }
+.action-bar { display: flex; gap: 16rpx; }
+.btn-primary {
+  flex: 1; background: var(--mp-primary); color: #fff; border-radius: 8rpx;
+  padding: 18rpx 0; font-size: 28rpx; font-weight: 600; border: none;
+}
+.btn-primary::after { border: none; }
+.btn-outline {
+  flex: 1; background: #fff; color: var(--mp-primary); border: 1rpx solid #C6D0DE;
+  border-radius: 8rpx; padding: 18rpx 0; font-size: 28rpx;
+}
+.btn-outline::after { border: none; }
+.search-bar { margin-top: 4rpx; }
+.input { border: 1rpx solid #C6D0DE; border-radius: 8rpx; padding: 18rpx 22rpx; font-size: 28rpx; background: #fff; }
 </style>
