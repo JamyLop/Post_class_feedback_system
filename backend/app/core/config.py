@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     cors_origins: List[str] = ["http://localhost:5173"]
 
     database_url: str = "postgresql+psycopg://pfs:pfs@localhost:5432/pfs"
+    # 登录、注册验证码必须跨 Uvicorn worker 共享；生产 Compose 注入该地址。
+    redis_url: str = ""
 
     # 打卡附件仍需兼容历史本地文件及当前 OSS 对象；缺少这些字段会让照片读取链路在运行时失败。
     storage_backend: str = "local"

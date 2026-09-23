@@ -14,7 +14,8 @@ RUN if [ "$INSTALL_OFFICE" = "true" ]; then \
     fi
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# 公网构建偶发 PyPI 读超时不应中断发布；安装仍保持无缓存镜像层。
+RUN pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt
 COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations

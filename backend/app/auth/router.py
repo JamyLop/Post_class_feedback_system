@@ -74,7 +74,11 @@ def _check_captcha(captcha_id: str | None, captcha_code: str | None) -> None:
     """登录/注册共用：缺失或错误均 400，且错误时提示刷新。"""
     if not (captcha_id or "").strip() or not (captcha_code or "").strip():
         raise HTTPException(status_code=400, detail="请输入验证码")
-    if not captcha_service.verify_captcha(captcha_id, captcha_code):
+    try:
+        valid = captcha_service.verify_captcha(captcha_id, captcha_code)
+    except captcha_service.CaptchaStorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not valid:
         raise HTTPException(status_code=400, detail="验证码错误或已过期，请刷新后重试")
 
 
@@ -109,7 +113,10 @@ def _consume_invite(invite: InviteCode, user_id: int) -> None:
 @router.get("/captcha")
 def get_captcha():
     """获取图形验证码：返回 captcha_id + base64 图片，前端登录/注册时回传 id 与用户输入。"""
-    captcha_id, _code, image_b64 = captcha_service.create_captcha()
+    try:
+        captcha_id, _code, image_b64 = captcha_service.create_captcha()
+    except captcha_service.CaptchaStorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {
         "captcha_id": captcha_id,
         "image": f"data:image/png;base64,{image_b64}",
