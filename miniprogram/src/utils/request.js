@@ -1,7 +1,7 @@
 /**
  * uni.request 封装，复刻 frontend/src/api/index.js 的拦截器语义
  * - 注入 Authorization: Bearer <token>
- * - 401 自动清 token 并跳转 /pages/login/index
+ * - 仅当前会话请求返回 401 时清 token 并跳转 /pages/login/index
  * - 统一错误提示（uni.showToast）
  */
 const BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
@@ -63,7 +63,7 @@ function handleLogout() {
   const pages = getCurrentPages()
   const cur = pages[pages.length - 1]?.route || ''
   if (!cur.includes('pages/login/index')) {
-    uni.reShowToast && uni.showToast({ title: '登录已过期', icon: 'none' })
+    uni.showToast({ title: '登录已过期', icon: 'none' })
     uni.reLaunch({ url: '/pages/login/index' })
   } else {
     uni.showToast({ title: '登录已过期', icon: 'none' })
@@ -88,8 +88,16 @@ function request({ url, method = 'GET', data, header = {}, showError = true, tim
       },
       success(res) {
         if (res.statusCode === 401) {
-          handleLogout()
-          reject({ status: 401, message: res.data?.detail || '未登录', data: res.data })
+          const detail = res.data?.detail || '未登录'
+          // 退出前发出的请求可能在新登录后才返回 401。只有请求携带的 token
+          // 仍是本地当前 token，才允许它清理会话，避免旧响应踢掉新登录用户。
+          if (token && token === getToken()) {
+            handleLogout()
+          } else if (!token && showError) {
+            // 登录接口本身没有 token；账号密码错误不能被误提示为“登录已过期”。
+            uni.showToast({ title: String(detail).slice(0, 40), icon: 'none' })
+          }
+          reject({ status: 401, message: detail, data: res.data })
           return
         }
         if (res.statusCode >= 200 && res.statusCode < 300) {
