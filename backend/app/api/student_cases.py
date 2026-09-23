@@ -317,7 +317,7 @@ def _case_out(db: Session, case: StudentCase) -> dict:
 def create_cycle(
     body: CaseCycleCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles([ROLE_ADMIN])),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_CONSULTANT])),
 ):
     cycle = CaseCycle(**body.model_dump(), grade="高三")
     db.add(cycle)

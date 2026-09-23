@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 
+from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher
 from app.models.student_case import (
     CaseAuditLog,
@@ -11,6 +12,7 @@ from app.models.student_case import (
     CaseVersion,
     TaskCheckin,
 )
+from app.models.user import ROLE_CONSULTANT, User
 
 
 def _setup_high3(db, seed_users):
@@ -63,6 +65,31 @@ def _create_cycle_and_case(client, auth, class_id, seed_users):
     )
     assert case.status_code == 200, case.text
     return cycle.json()["id"], case.json()["id"]
+
+
+def test_consultant_can_create_case_cycle(client, auth, db, seed_users):
+    consultant = User(
+        username="consultant-cycle",
+        password_hash=hash_password("test123456"),
+        name="咨询老师",
+        role=ROLE_CONSULTANT,
+    )
+    db.add(consultant)
+    db.commit()
+
+    response = client.post(
+        "/api/student-cases/cycles",
+        headers=auth("consultant-cycle"),
+        json={
+            "name": "2026-2027学年",
+            "school_year": "2026-2027",
+            "starts_on": "2026-08-01",
+            "ends_on": "2027-06-30",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["school_year"] == "2026-2027"
 
 
 def _submit_and_approve(client, auth, case_id):
