@@ -76,7 +76,18 @@
           </view>
         </view>
       </view>
-      <button class="btn-primary" :loading="loading" :disabled="loading" @click="handleRegister">注册</button>
+      <view class="agreement-row" @click="agreed = !agreed">
+        <view class="agreement-checkbox" :class="{ checked: agreed }">
+          <text v-if="agreed" class="agreement-checkmark">✓</text>
+        </view>
+        <view class="agreement-copy">
+          <text>我已阅读并同意</text>
+          <text class="agreement-link" @click.stop="openLegal('user-agreement')">《用户服务协议》</text>
+          <text>和</text>
+          <text class="agreement-link" @click.stop="openLegal('privacy-policy')">《隐私政策》</text>
+        </view>
+      </view>
+      <button class="btn-primary" :loading="loading" :disabled="loading || !agreed" @click="handleRegister">注册</button>
       <view class="login-row">
         <text class="login-text">已有账号？</text>
         <text class="login-link" @click="goLogin">返回登录</text>
@@ -94,6 +105,7 @@ import { getCaptcha } from '../../api/auth'
 
 const auth = useAuthStore()
 const loading = ref(false)
+const agreed = ref(false)
 const captcha = reactive({ id: '', image: '' })
 
 async function fetchCaptcha() {
@@ -140,6 +152,10 @@ function onSubjectChange(e) {
 }
 
 function validate() {
+  if (!agreed.value) {
+    uni.showToast({ title: '请先阅读并同意相关协议', icon: 'none' })
+    return false
+  }
   if (!form.invite_code.trim()) {
     uni.showToast({ title: '请输入邀请码', icon: 'none' })
     return false
@@ -220,6 +236,10 @@ async function handleRegister() {
 
 function goLogin() {
   uni.navigateBack()
+}
+
+function openLegal(page) {
+  uni.navigateTo({ url: `/pages/legal/${page}/index` })
 }
 </script>
 

@@ -57,6 +57,7 @@ try {
     await page.goto(`${base}/#/pages/login/index`); await page.locator('.hero-title').waitFor()
     await capture(page, `login-${width}`)
     await page.locator('input').nth(0).fill('preview'); await page.locator('input').nth(1).fill('preview-only')
+    await page.locator('.agreement-row').click()
     await page.locator('.btn-primary').first().click(); await page.locator('.focus-title').waitFor()
     assert.equal(await page.locator('.focus-title').innerText(), '我的档案')
     await context.close()

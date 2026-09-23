@@ -22,26 +22,41 @@ export function getApiHost() {
 }
 
 // 真机 localhost 检测：mp 平台上 localhost 指向手机自身，必然不可达
-function isPhysicalDevice() {
+// 注意：wx.getSystemInfoSync 已废弃，优先使用 getDeviceInfo / getWindowInfo 等新 API
+function getPlatformCompat() {
   try {
-    const platform = uni.getSystemInfoSync().platform
-    return platform === 'ios' || platform === 'android'
+    if (typeof uni !== 'undefined' && typeof uni.getDeviceInfo === 'function') {
+      const platform = uni.getDeviceInfo()?.platform
+      if (platform) return platform
+    }
+  } catch (_) {}
+  try {
+    if (typeof wx !== 'undefined' && typeof wx.getDeviceInfo === 'function') {
+      const platform = wx.getDeviceInfo()?.platform
+      if (platform) return platform
+    }
+  } catch (_) {}
+  // 兜底：仅在新 API 不可用（极老基础库）时才调用旧 API
+  try {
+    return uni.getSystemInfoSync().platform
   } catch (_) {
-    return false
+    return ''
   }
+}
+function isPhysicalDevice() {
+  const platform = getPlatformCompat()
+  return platform === 'ios' || platform === 'android'
 }
 let _warnedLocalhost = false
 function warnIfLocalhostOnDevice() {
   if (_warnedLocalhost) return
   if (BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')) {
-    try {
-      const info = uni.getSystemInfoSync()
-      // 开发者工具也上报，但仅在真机时提示更醒目
-      const isDevtools = info.platform === 'devtools'
-      if (!isDevtools) {
-        console.warn('[request] VITE_API_BASE 仍为 localhost，真机无法访问本机服务，请改为局域网 IP 或 HTTPS 域名')
-      }
-    } catch (_) {}
+    // 开发者工具也上报，但仅在真机时提示更醒目
+    const platform = getPlatformCompat()
+    const isDevtools = platform === 'devtools'
+    if (!isDevtools) {
+      console.warn('[request] VITE_API_BASE 仍为 localhost，真机无法访问本机服务，请改为局域网 IP 或 HTTPS 域名')
+    }
     _warnedLocalhost = true
   }
 }

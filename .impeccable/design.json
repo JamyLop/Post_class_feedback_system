@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-16T17:10:00+08:00",
+  "title": "Design System: 一生一案学业发展管理系统",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "工作台蓝",
+        "canonical": "#2878f5",
+        "tonalRamp": ["#eaf3ff", "#b9d5ff", "#2878f5", "#1762d4"]
+      },
+      "app-background": {
+        "role": "neutral",
+        "displayName": "页面雾灰",
+        "canonical": "#f4f7fb",
+        "tonalRamp": ["#ffffff", "#f8fafd", "#f4f7fb", "#e5eaf2"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "主文字",
+        "canonical": "#172033",
+        "tonalRamp": ["#6e7c91", "#445269", "#172033"]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "页面标题",
+        "purpose": "工作页面的一级标题。"
+      },
+      "body": {
+        "displayName": "界面正文",
+        "purpose": "表格、表单和说明文本。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "header-low",
+        "value": "0 2px 10px rgba(23, 32, 51, 0.06)",
+        "purpose": "区分固定顶部栏与滚动内容。"
+      },
+      {
+        "name": "overlay",
+        "value": "0 8px 24px rgba(23, 32, 51, 0.10)",
+        "purpose": "下拉菜单与弹窗。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-change",
+        "value": "180ms ease",
+        "purpose": "按钮、导航和输入框状态切换。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-navigation",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "用于页面唯一的主要提交操作。",
+      "html": "<button class=\"ds-btn-primary\">保存更改</button>",
+      "css": ".ds-btn-primary{height:40px;padding:0 18px;border:0;border-radius:8px;background:var(--brand,#2878f5);color:#fff;font:500 14px system-ui;transition:background-color 180ms ease}.ds-btn-primary:hover{background:#1762d4}.ds-btn-primary:focus-visible{outline:2px solid rgba(40,120,245,.35);outline-offset:2px}"
+    },
+    {
+      "name": "Active Navigation",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "白色侧栏中的当前页面状态。",
+      "html": "<div class=\"ds-nav-active\">系统概览</div>",
+      "css": ".ds-nav-active{display:flex;align-items:center;height:44px;padding:0 14px;border-radius:10px;background:var(--brand-soft,#eaf3ff);color:var(--brand,#2878f5);font:650 14px system-ui}"
+    },
+    {
+      "name": "Data Surface",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "数据、筛选和表格的基础容器。",
+      "html": "<section class=\"ds-data-surface\"><strong>本周数据</strong><p>内容区域</p></section>",
+      "css": ".ds-data-surface{padding:16px;border:1px solid var(--line,#e5eaf2);border-radius:10px;background:#fff;color:var(--ink,#172033);font:14px system-ui}.ds-data-surface p{margin:8px 0 0;color:#6e7c91}"
+    }
+  ],
+  "narrative": {
+    "northStar": "清晰的校园工作台",
+    "overview": "白色导航框架、浅灰内容背景和克制的工作台蓝共同承载高频校园管理任务。视觉层级服务于学生、班级、任务和数据的快速扫读。",
+    "keyCharacteristics": [
+      "白色侧栏与顶部栏",
+      "浅蓝选中态",
+      "低阴影数据表面",
+      "一致的角色工作台"
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "蓝色只用于主要操作、当前导航和关键状态。",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "静态内容面板默认依靠边框和背景分层。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use #2878F5 for primary actions and active navigation.",
+      "Do preserve clear focus states and text labels for status."
+    ],
+    "donts": [
+      "Don't use gradients, glassmorphism, neon accents, or decorative motion.",
+      "Don't use a large dark sidebar.",
+      "Don't wrap every block in a floating card."
+    ]
+  }
+}

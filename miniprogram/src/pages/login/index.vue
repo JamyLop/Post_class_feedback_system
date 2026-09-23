@@ -43,7 +43,18 @@
           </view>
         </view>
       </view>
-      <button class="btn-primary" :loading="pwdLoading" :disabled="pwdLoading" @click="handlePasswordLogin">登录</button>
+      <view class="agreement-row" @click="agreed = !agreed">
+        <view class="agreement-checkbox" :class="{ checked: agreed }">
+          <text v-if="agreed" class="agreement-checkmark">✓</text>
+        </view>
+        <view class="agreement-copy">
+          <text>我已阅读并同意</text>
+          <text class="agreement-link" @click.stop="openLegal('user-agreement')">《用户服务协议》</text>
+          <text>和</text>
+          <text class="agreement-link" @click.stop="openLegal('privacy-policy')">《隐私政策》</text>
+        </view>
+      </view>
+      <button class="btn-primary" :loading="pwdLoading" :disabled="pwdLoading || !agreed" @click="handlePasswordLogin">登录</button>
       <view class="register-row">
         <text class="register-text">还没有账号？</text>
         <text class="register-link" @click="goRegister">邀请码注册</text>
@@ -61,6 +72,7 @@ import { getCaptcha } from '../../api/auth'
 
 const auth = useAuthStore()
 const pwdLoading = ref(false)
+const agreed = ref(false)
 const form = reactive({ username: '', password: '', captcha_code: '' })
 const captcha = reactive({ id: '', image: '' })
 
@@ -81,6 +93,7 @@ function routeByRole() { return '/pages/index/index' }
 
 async function handlePasswordLogin() {
   if (pwdLoading.value) return
+  if (!agreed.value) return uni.showToast({ title: '请先阅读并同意相关协议', icon: 'none' })
   if (!form.username?.trim() || !form.password) return uni.showToast({ title: '请填写用户名和密码', icon: 'none' })
   if (!form.captcha_code) return uni.showToast({ title: '请输入验证码', icon: 'none' })
   pwdLoading.value = true
@@ -97,6 +110,10 @@ async function handlePasswordLogin() {
 
 function goRegister() {
   uni.navigateTo({ url: '/pages/register/index' })
+}
+
+function openLegal(page) {
+  uni.navigateTo({ url: `/pages/legal/${page}/index` })
 }
 </script>
 

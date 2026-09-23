@@ -15,6 +15,9 @@
 
           <text class="state-desc">{{ stateDesc }}</text>
         </view>
+        <view v-if="detail.can_manage" class="actions-bar">
+          <view class="action-btn primary" @click="goEdit"><text>编辑档案</text></view>
+        </view>
       </view>
 
       <view class="tabs">
@@ -49,12 +52,18 @@
           <view v-for="plan in detail.subject_plans" :key="plan.id" class="plan-card">
             <view class="plan-head">
               <text class="subject-chip">{{ plan.subject }}</text>
+              <text v-if="detail.can_manage" class="edit-link" @click="goEditPlan(plan.subject)">编辑</text>
             </view>
             <view class="field"><text class="dt">问题定位</text><text class="dd">{{ plan.problem_location || '—' }}</text></view>
             <view class="field"><text class="dt">原因剖析</text><text class="dd">{{ plan.cause_analysis || '—' }}</text></view>
             <view class="field"><text class="dt">奋斗目标</text><text class="dd">{{ plan.struggle_goal || '—' }}</text></view>
             <view class="field"><text class="dt">高考要求</text><text class="dd">{{ plan.gaokao_requirement || '—' }}</text></view>
             <view class="field"><text class="dt">具体强化</text><text class="dd">{{ plan.reinforcement || '—' }}</text></view>
+          </view>
+          <view v-if="detail.can_manage && availableSubjects.length" class="add-plan">
+            <picker :range="availableSubjects" @change="onAddPlan">
+              <text class="add-link">+ 新增学科方案</text>
+            </picker>
           </view>
         </view>
 
@@ -103,6 +112,11 @@ const tabs = [
   { key: 'subjects', label: '学科' },
   { key: 'tasks', label: '任务' },
 ]
+const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理']
+const availableSubjects = computed(() => {
+  const used = new Set((detail.value?.subject_plans || []).map(plan => plan.subject))
+  return allSubjects.filter(subject => !used.has(subject))
+})
 
 const statusCopy = {
   draft: ['草稿', '等待教师完善'],
@@ -131,6 +145,19 @@ function caseId() {
   const pages = getCurrentPages()
   const cur = pages[pages.length - 1]
   return cur.options?.id || cur.$page?.options?.id
+}
+
+function goEdit() {
+  uni.navigateTo({ url: `/subTeacher/caseEdit/index?caseId=${caseId()}` })
+}
+
+function goEditPlan(subject) {
+  uni.navigateTo({ url: `/subTeacher/caseEdit/index?caseId=${caseId()}&tab=subjects&subject=${encodeURIComponent(subject)}` })
+}
+
+function onAddPlan(e) {
+  const subject = availableSubjects.value[e.detail.value]
+  if (subject) goEditPlan(subject)
 }
 
 async function load() {
@@ -196,6 +223,7 @@ onShow(() => load())
   font-size: 24rpx; font-weight: 600; color: var(--mp-primary);
   background: var(--mp-soft); padding: 6rpx 16rpx; border-radius: 16rpx;
 }
+.add-plan { text-align: center; padding: 14rpx; }
 
 .task-card { background: #F7F8FA; border-radius: 14rpx; padding: 18rpx; }
 .task-head { display: flex; gap: 10rpx; align-items: center; flex-wrap: wrap; }
