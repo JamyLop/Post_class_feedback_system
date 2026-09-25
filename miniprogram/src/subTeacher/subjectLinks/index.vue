@@ -23,7 +23,8 @@
       <button class="btn-primary" @click="openCreate">+ 新增关联</button>
     </template>
 
-    <view v-if="visible" class="modal-mask" @click.self="visible = false">
+    <!-- 原生 input/picker 交互时可能发生 tap 穿透；关联表单只允许通过明确按钮关闭。 -->
+    <view v-if="visible" class="modal-mask">
       <view class="modal">
         <view class="modal-header">
           <text class="modal-title">新增任课关联</text>

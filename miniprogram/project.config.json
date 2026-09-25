@@ -1,7 +1,7 @@
 {
-  "miniprogramRoot": "dist/dev/mp-weixin/",
+  "miniprogramRoot": "dist/build/mp-weixin/",
   "compileType": "miniprogram",
-  "libVersion": "trial",
+  "libVersion": "",
   "packOptions": {
     "ignore": [],
     "include": []
@@ -26,5 +26,5 @@
     "tabSize": 2
   },
   "appid": "wx2daff401c1c29656",
-  "srcMiniprogramRoot": "dist/dev/mp-weixin/"
+  "srcMiniprogramRoot": "dist/build/mp-weixin/"
 }

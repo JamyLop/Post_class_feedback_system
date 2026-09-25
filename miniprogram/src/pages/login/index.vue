@@ -3,7 +3,7 @@
     <view class="hero">
       <view class="hero-top">
         <text class="hero-logo">一生一案</text>
-        <text class="hero-badge">高三学业发展记录</text>
+        <text class="hero-badge">学生学业发展记录</text>
       </view>
       <text class="hero-title">登录工作台</text>
       <text class="hero-desc">查看档案，跟进每一阶段的成长</text>

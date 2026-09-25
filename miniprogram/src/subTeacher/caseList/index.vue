@@ -30,7 +30,8 @@
         </view>
       </view>
     </template>
-    <view v-if="createVisible" class="modal-mask" @click.self="createVisible=false">
+    <!-- 微信原生 textarea 聚焦或键盘切换时可能把 tap 冒泡到遮罩层；建档表单只允许显式关闭，避免输入内容时误退出。 -->
+    <view v-if="createVisible" class="modal-mask">
       <view class="modal">
         <view class="modal-header">
           <text class="modal-title">新建学生总案</text>
@@ -83,6 +84,7 @@ import { onShow, onLoad } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listStudentCases, listClasses, listClassStudents, listCaseCycles, createCaseCycle, createStudentCase, addStudentsToClass, listUsers } from '../../api/studentCases'
 import { CASE_STATUS_LABELS } from '../utils/constants'
+import { currentSchoolYear } from '../../utils/schoolYear'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 import EmptyState from '../../components/EmptyState.vue'
@@ -183,7 +185,7 @@ async function openCreate() {
     allStudents.value = Array.isArray(studentList) ? studentList : []
     const activeCycle = cycles.value.find(c => c.is_active) || cycles.value[0]
     const firstClass = classes.value[0]
-    const defaultYear = firstClass?.school_year || activeCycle?.school_year || '2026-2027'
+    const defaultYear = firstClass?.school_year || activeCycle?.school_year || currentSchoolYear()
     const defaultCycle = cycles.value.find(c => c.school_year === defaultYear)
     Object.assign(createForm.value, { cycle_id: defaultCycle ? defaultCycle.id : defaultYear, class_id: firstClass?.id || null, student_id: null, parent_evaluation: '', primary_needs: '', current_summary: '班主任手工建档，待完善入学评定' })
     if (firstClass) {

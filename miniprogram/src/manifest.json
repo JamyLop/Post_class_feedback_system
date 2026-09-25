@@ -19,11 +19,6 @@
     },
     "usingComponents": true,
     "lazyCodeLoading": "requiredComponents",
-    "permission": {
-      "scope.userLocation": {
-        "desc": "用于定位校区"
-      }
-    },
     "requiredPrivateInfos": []
   },
   "h5": {

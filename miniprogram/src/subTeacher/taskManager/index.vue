@@ -42,7 +42,8 @@
 
       <button class="btn-primary" @click="addTask">+ 新建任务</button>
 
-      <view v-if="showApply" class="modal-mask" @click.self="showApply=false">
+      <!-- 原生输入控件聚焦时可能发生 tap 穿透；任务表单只允许通过明确按钮关闭。 -->
+      <view v-if="showApply" class="modal-mask">
         <view class="modal">
           <view class="modal-header">
             <text class="modal-title">申请修改周任务</text>
@@ -63,7 +64,7 @@
         </view>
       </view>
 
-      <view v-if="showForm" class="modal-mask" @click.self="showForm=false">
+      <view v-if="showForm" class="modal-mask">
         <view class="modal">
           <view class="modal-header">
             <text class="modal-title">{{ editingTask ? '编辑任务' : '新建任务' }}</text>

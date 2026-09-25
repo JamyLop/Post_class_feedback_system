@@ -268,7 +268,7 @@ def _add_header_footer(doc: Document, cycle_name: str = "") -> None:
     p = header.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(2)
-    run = p.add_run("白粉高级英才中学  ·  一生一案  " + (f"·  {cycle_name}" if cycle_name else ""))
+    run = p.add_run("易飞特菁英全日制学校  ·  一生一案  " + (f"·  {cycle_name}" if cycle_name else ""))
     _set_fonts(run, size=7, bold=False, color=MUTED)
     # 页脚：页码
     footer = sec.footer
@@ -299,7 +299,7 @@ def _add_cover(doc: Document, student_name: str, class_name: str, cycle_name: st
     p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p0.paragraph_format.space_before = Pt(36)
     p0.paragraph_format.space_after = Pt(6)
-    r0 = p0.add_run("白粉高级英才中学")
+    r0 = p0.add_run("易飞特菁英全日制学校")
     _set_fonts(r0, size=10, bold=False, color=MUTED, name="微软雅黑")
     # 字母间距通过字符间距实现（w:spacing）
     r0._element.get_or_add_rPr().append(_spacing_el(80))
@@ -1163,7 +1163,7 @@ def build_case_export_bytes(
         run = p.add_run(b); _set_fonts(run, size=7.5, color=MUTED)
 
     _add_para(doc, f"版本信息：V{case.version}  ·  {_status_label(case.status)}  ·  创建 {_format_date(case.created_at)}  ·  更新 {_format_date(case.updated_at)}", size=7, color=MUTED, space_before=8, align=WD_ALIGN_PARAGRAPH.CENTER)
-    _add_para(doc, "白粉高级英才中学  ·  高三一生一案工作组", size=7, color=MUTED, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=1)
+    _add_para(doc, "易飞特菁英全日制学校  ·  高三一生一案工作组", size=7, color=MUTED, align=WD_ALIGN_PARAGRAPH.CENTER, space_before=1)
 
     bio = BytesIO()
     doc.save(bio)
@@ -1274,7 +1274,7 @@ def _native_pdf_page(canvas, doc, font_name: str) -> None:
     canvas.saveState()
     canvas.setFont(font_name, 8)
     canvas.setFillColor(colors.HexColor("#64748B"))
-    canvas.drawString(2 * cm, 1.15 * cm, "白粉高级英才中学 · 高三一生一案工作组")
+    canvas.drawString(2 * cm, 1.15 * cm, "易飞特菁英全日制学校 · 高三一生一案工作组")
     canvas.drawRightString(A4[0] - 2 * cm, 1.15 * cm, f"第 {doc.page} 页")
     canvas.restoreState()
 

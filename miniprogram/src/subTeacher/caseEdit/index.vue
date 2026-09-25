@@ -45,7 +45,8 @@
         </view>
       </view>
 
-      <view v-if="showPlanForm" class="modal-mask" @click.self="showPlanForm=false">
+      <!-- 微信原生 textarea 聚焦或键盘切换时可能把 tap 冒泡到遮罩层；编辑方案时只允许显式关闭。 -->
+      <view v-if="showPlanForm" class="modal-mask">
         <view class="modal">
           <view class="modal-header">
             <text class="modal-title">{{ editingPlan.subject }} 方案</text>

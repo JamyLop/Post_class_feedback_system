@@ -54,6 +54,7 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { currentSchoolYear } from '../../utils/schoolYear'
 import {
   listClasses, listClassStudents,
   listCaseCycles, createCaseCycle, createStudentCase, listStudentCases, listUsers,
@@ -129,7 +130,7 @@ async function loadMeta() {
     cycles.value = Array.isArray(cycleList) ? cycleList : []
     existingCases.value = Array.isArray(cases) ? cases : []
     const activeCycle = cycles.value.find((item) => item.is_active) || cycles.value[0]
-    const defaultYear = activeCycle?.school_year || '2026-2027'
+    const defaultYear = activeCycle?.school_year || currentSchoolYear()
     const defaultCycle = cycles.value.find((c) => c.school_year === defaultYear)
     form.value.cycle_id = defaultCycle ? defaultCycle.id : defaultYear
     // 合并所有关联班级名册 + 未分班关联学生（后端 listUsers 已限定仅返回自己关联的学生）

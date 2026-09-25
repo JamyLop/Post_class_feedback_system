@@ -47,17 +47,19 @@ export function uploadCheckinAttachment(checkinId, filePath, opts = {}) {
       header: token ? { Authorization: `Bearer ${token}` } : {},
       success(res) {
         if (res.statusCode === 401) {
-          try {
-            uni.removeStorageSync('token')
-            uni.removeStorageSync('user')
-          } catch (_) {}
-          const pages = getCurrentPages()
-          const cur = pages[pages.length - 1]?.route || ''
-          if (!cur.includes('pages/login/index')) {
+          const currentToken = uni.getStorageSync('token') || ''
+          // 旧上传请求可能在重新登录后才返回；仅允许携带当前 token 的请求清理会话。
+          if (token && token === currentToken) {
+            try {
+              uni.removeStorageSync('token')
+              uni.removeStorageSync('user')
+            } catch (_) {}
+            const pages = getCurrentPages()
+            const cur = pages[pages.length - 1]?.route || ''
             uni.showToast({ title: '登录已过期', icon: 'none' })
-            uni.reLaunch({ url: '/pages/login/index' })
-          } else {
-            uni.showToast({ title: '登录已过期', icon: 'none' })
+            if (!cur.includes('pages/login/index')) {
+              uni.reLaunch({ url: '/pages/login/index' })
+            }
           }
           reject({ status: 401, message: '未登录' })
           return

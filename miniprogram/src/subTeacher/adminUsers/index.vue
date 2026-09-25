@@ -90,7 +90,8 @@
       </view>
     </view>
 
-    <view v-if="showCreateUser" class="modal-mask" @click.self="showCreateUser=false">
+    <!-- 原生输入控件聚焦时可能发生 tap 穿透；用户表单只允许通过明确按钮关闭。 -->
+    <view v-if="showCreateUser" class="modal-mask">
       <view class="modal">
         <view class="modal-header">
           <text class="modal-title">新建用户</text>
@@ -123,7 +124,7 @@
       </view>
     </view>
 
-    <view v-if="editingUser" class="modal-mask" @click.self="editingUser=null">
+    <view v-if="editingUser" class="modal-mask">
       <view class="modal">
         <view class="modal-header">
           <text class="modal-title">编辑 {{ editingUser.name }}</text>

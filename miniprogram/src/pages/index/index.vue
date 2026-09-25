@@ -1,6 +1,6 @@
 <template>
   <view class="page home-page">
-    <view class="masthead"><text class="brand">一生一案</text><text class="edition">高三学业发展</text></view>
+    <view class="masthead"><text class="brand">一生一案</text><text class="edition">学生学业发展记录</text></view>
     <view class="welcome">
       <view class="welcome-copy"><text class="welcome-title">{{ auth.isLoggedIn ? `${auth.user?.name || '您好'}，您好` : '欢迎使用' }}</text><text class="welcome-desc">{{ roleHint }}</text></view>
       <view class="identity"><text>{{ roleLabel }}</text></view>
