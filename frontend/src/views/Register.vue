@@ -54,20 +54,22 @@
 
         <el-form-item label="验证码">
           <div class="captcha-row">
-            <el-input v-model="form.captcha_code" placeholder="输入右侧验证码" clearable maxlength="8" />
+            <el-input v-model="form.captcha_code" :disabled="captchaLoading" placeholder="输入右侧验证码" clearable maxlength="8" />
             <img
-              v-if="captcha.image"
+              v-if="captcha.image && !captchaLoading"
               :src="captcha.image"
               class="captcha-img"
               alt="验证码"
               title="看不清？点击刷新"
-              @click="fetchCaptcha"
+              @click="refreshCaptcha"
             />
-            <el-link v-else type="primary" :underline="false" @click="fetchCaptcha">获取验证码</el-link>
+            <el-link v-else type="primary" :underline="false" :disabled="captchaLoading" @click="refreshCaptcha">
+              {{ captchaLoading ? '刷新中...' : '获取验证码' }}
+            </el-link>
           </div>
         </el-form-item>
 
-        <el-button type="primary" :loading="loading" class="submit-btn" @click="onSubmit">完成注册</el-button>
+        <el-button type="primary" :loading="loading" :disabled="captchaLoading" class="submit-btn" @click="onSubmit">完成注册</el-button>
 
         <div class="card-foot">
           <span>已有账号？</span>
@@ -86,6 +88,7 @@ import { getCaptcha, register as registerApi } from '../api/auth'
 
 const router = useRouter()
 const loading = ref(false)
+const captchaLoading = ref(false)
 const form = reactive({
   role: 'student',
   invite_code: '',
@@ -98,15 +101,32 @@ const form = reactive({
 })
 const captcha = reactive({ id: '', image: '' })
 
-async function fetchCaptcha() {
-  try {
-    const data = await getCaptcha()
-    captcha.id = data.captcha_id
-    captcha.image = data.image
-    form.captcha_code = ''
-  } catch (e) {
-    /* 拦截器已提示 */
-  }
+let captchaRequest = null
+function fetchCaptcha() {
+  if (captchaRequest) return captchaRequest
+  captchaLoading.value = true
+  captcha.id = ''
+  captcha.image = ''
+  form.captcha_code = ''
+  captchaRequest = (async () => {
+    try {
+      const data = await getCaptcha()
+      captcha.id = data.captcha_id
+      captcha.image = data.image
+      return true
+    } catch (e) {
+      /* 拦截器已提示 */
+      return false
+    } finally {
+      captchaLoading.value = false
+      captchaRequest = null
+    }
+  })()
+  return captchaRequest
+}
+
+function refreshCaptcha() {
+  if (!loading.value) fetchCaptcha()
 }
 
 onMounted(fetchCaptcha)
@@ -114,6 +134,7 @@ onMounted(fetchCaptcha)
 const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
 
 async function onSubmit() {
+  if (loading.value || captchaLoading.value) return
   if (!form.invite_code || !form.username || !form.name || !form.password) {
     ElMessage.warning('请填写完整信息')
     return
@@ -129,6 +150,10 @@ async function onSubmit() {
   }
   if (form.password !== form.confirm) {
     ElMessage.warning('两次输入的密码不一致')
+    return
+  }
+  if (!captcha.id) {
+    ElMessage.warning('验证码尚未加载，请点击刷新')
     return
   }
   if (!form.captcha_code) {
@@ -153,8 +178,8 @@ async function onSubmit() {
     ElMessage.success('注册成功，请登录')
     router.push('/login')
   } catch (e) {
-    /* 验证码一次性消费，失败后自动刷新 */
-    fetchCaptcha()
+    /* 等待一次性验证码刷新完成后再恢复注册按钮。 */
+    await fetchCaptcha()
   } finally {
     loading.value = false
   }

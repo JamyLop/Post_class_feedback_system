@@ -64,15 +64,15 @@
         <view class="field">
           <text class="field-label">验证码 <text class="required">*</text></text>
           <view class="captcha-row">
-            <input v-model="form.captcha_code" placeholder="输入右侧验证码" class="input captcha-input" maxlength="8" />
+            <input v-model="form.captcha_code" :disabled="captchaLoading" placeholder="输入右侧验证码" class="input captcha-input" maxlength="8" />
             <image
-              v-if="captcha.image"
+              v-if="captcha.image && !captchaLoading"
               :src="captcha.image"
               class="captcha-img"
               mode="aspectFill"
-              @click="fetchCaptcha"
+              @click="refreshCaptcha"
             />
-            <text v-else class="captcha-link" @click="fetchCaptcha">获取验证码</text>
+            <text v-else class="captcha-link" @click="refreshCaptcha">{{ captchaLoading ? '刷新中...' : '获取验证码' }}</text>
           </view>
         </view>
       </view>
@@ -87,7 +87,7 @@
           <text class="agreement-link" @click.stop="openLegal('privacy-policy')">《隐私政策》</text>
         </view>
       </view>
-      <button class="btn-primary" :loading="loading" :disabled="loading || !agreed" @click="handleRegister">注册</button>
+      <button class="btn-primary" :loading="loading" :disabled="loading || captchaLoading || !agreed" @click="handleRegister">注册</button>
       <view class="login-row">
         <text class="login-text">已有账号？</text>
         <text class="login-link" @click="goLogin">返回登录</text>
@@ -105,18 +105,37 @@ import { getCaptcha } from '../../api/auth'
 
 const auth = useAuthStore()
 const loading = ref(false)
+const captchaLoading = ref(false)
 const agreed = ref(false)
 const captcha = reactive({ id: '', image: '' })
 
-async function fetchCaptcha() {
-  try {
-    const data = await getCaptcha()
-    captcha.id = data.captcha_id
-    captcha.image = data.image
-    form.captcha_code = ''
-  } catch (e) {
-    // 错误已由 request 拦截器处理
-  }
+let captchaRequest = null
+function fetchCaptcha() {
+  if (captchaRequest) return captchaRequest
+  captchaLoading.value = true
+  // 注册失败后旧验证码同样已被消费，刷新期间不保留可再次提交的旧值。
+  captcha.id = ''
+  captcha.image = ''
+  form.captcha_code = ''
+  captchaRequest = (async () => {
+    try {
+      const data = await getCaptcha()
+      captcha.id = data.captcha_id
+      captcha.image = data.image
+      return true
+    } catch (e) {
+      // 错误已由 request 拦截器处理
+      return false
+    } finally {
+      captchaLoading.value = false
+      captchaRequest = null
+    }
+  })()
+  return captchaRequest
+}
+
+function refreshCaptcha() {
+  if (!loading.value) fetchCaptcha()
 }
 
 onMounted(fetchCaptcha)
@@ -189,6 +208,10 @@ function validate() {
     uni.showToast({ title: '两次密码不一致', icon: 'none' })
     return false
   }
+  if (!captcha.id) {
+    uni.showToast({ title: '验证码尚未加载，请点击刷新', icon: 'none' })
+    return false
+  }
   if (!form.captcha_code.trim()) {
     uni.showToast({ title: '请输入验证码', icon: 'none' })
     return false
@@ -197,6 +220,7 @@ function validate() {
 }
 
 async function handleRegister() {
+  if (loading.value || captchaLoading.value) return
   if (!validate()) return
   loading.value = true
   try {
@@ -227,8 +251,8 @@ async function handleRegister() {
       }
     })
   } catch (e) {
-    // 验证码一次性消费，失败后自动刷新；错误已由 request 拦截器处理
-    fetchCaptcha()
+    // 等待新验证码加载完成后再恢复注册按钮，避免重复提交已消费的验证码。
+    await fetchCaptcha()
   } finally {
     loading.value = false
   }

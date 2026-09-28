@@ -20,20 +20,22 @@
         </el-form-item>
         <el-form-item label="验证码">
           <div class="captcha-row">
-            <el-input v-model="form.captcha_code" placeholder="输入右侧验证码" clearable maxlength="8" />
+            <el-input v-model="form.captcha_code" :disabled="captchaLoading" placeholder="输入右侧验证码" clearable maxlength="8" />
             <img
-              v-if="captcha.image"
+              v-if="captcha.image && !captchaLoading"
               :src="captcha.image"
               class="captcha-img"
               alt="验证码"
               title="看不清？点击刷新"
-              @click="fetchCaptcha"
+              @click="refreshCaptcha"
             />
-            <el-link v-else type="primary" :underline="false" @click="fetchCaptcha">获取验证码</el-link>
+            <el-link v-else type="primary" :underline="false" :disabled="captchaLoading" @click="refreshCaptcha">
+              {{ captchaLoading ? '刷新中...' : '获取验证码' }}
+            </el-link>
           </div>
         </el-form-item>
 
-        <el-button type="primary" :loading="loading" class="login-btn" @click="onSubmit">登录</el-button>
+        <el-button type="primary" :loading="loading" :disabled="captchaLoading" class="login-btn" @click="onSubmit">登录</el-button>
 
         <div class="card-foot">
           <span>还没有账号？</span>
@@ -56,25 +58,48 @@ import { homeForRole } from '../router/roleHome'
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
+const captchaLoading = ref(false)
 const form = reactive({ username: '', password: '', captcha_code: '' })
 const captcha = reactive({ id: '', image: '' })
 
-async function fetchCaptcha() {
-  try {
-    const data = await getCaptcha()
-    captcha.id = data.captcha_id
-    captcha.image = data.image
-    form.captcha_code = ''
-  } catch (e) {
-    /* 拦截器已提示 */
-  }
+let captchaRequest = null
+function fetchCaptcha() {
+  if (captchaRequest) return captchaRequest
+  captchaLoading.value = true
+  captcha.id = ''
+  captcha.image = ''
+  form.captcha_code = ''
+  captchaRequest = (async () => {
+    try {
+      const data = await getCaptcha()
+      captcha.id = data.captcha_id
+      captcha.image = data.image
+      return true
+    } catch (e) {
+      /* 拦截器已提示 */
+      return false
+    } finally {
+      captchaLoading.value = false
+      captchaRequest = null
+    }
+  })()
+  return captchaRequest
+}
+
+function refreshCaptcha() {
+  if (!loading.value) fetchCaptcha()
 }
 
 onMounted(fetchCaptcha)
 
 async function onSubmit() {
+  if (loading.value || captchaLoading.value) return
   if (!form.username?.trim() || !form.password) {
     ElMessage.warning('请输入用户名和密码')
+    return
+  }
+  if (!captcha.id) {
+    ElMessage.warning('验证码尚未加载，请点击刷新')
     return
   }
   if (!form.captcha_code) {
@@ -86,8 +111,8 @@ async function onSubmit() {
     const user = await auth.login(form.username.trim(), form.password, captcha.id, form.captcha_code)
     router.push(homeForRole(user.role))
   } catch (e) {
-    /* 验证码一次性消费，失败后自动刷新 */
-    fetchCaptcha()
+    /* 等待一次性验证码刷新完成后再恢复登录按钮。 */
+    await fetchCaptcha()
   } finally {
     loading.value = false
   }

@@ -31,15 +31,15 @@
         <view class="field">
           <text class="field-label">验证码</text>
           <view class="captcha-row">
-            <input v-model="form.captcha_code" placeholder="输入右侧验证码" class="input captcha-input" maxlength="8" />
+            <input v-model="form.captcha_code" :disabled="captchaLoading" placeholder="输入右侧验证码" class="input captcha-input" maxlength="8" />
             <image
-              v-if="captcha.image"
+              v-if="captcha.image && !captchaLoading"
               :src="captcha.image"
               class="captcha-img"
               mode="aspectFill"
-              @click="fetchCaptcha"
+              @click="refreshCaptcha"
             />
-            <text v-else class="captcha-link" @click="fetchCaptcha">获取验证码</text>
+            <text v-else class="captcha-link" @click="refreshCaptcha">{{ captchaLoading ? '刷新中...' : '获取验证码' }}</text>
           </view>
         </view>
       </view>
@@ -54,7 +54,7 @@
           <text class="agreement-link" @click.stop="openLegal('privacy-policy')">《隐私政策》</text>
         </view>
       </view>
-      <button class="btn-primary" :loading="pwdLoading" :disabled="pwdLoading || !agreed" @click="handlePasswordLogin">登录</button>
+      <button class="btn-primary" :loading="pwdLoading" :disabled="pwdLoading || captchaLoading || !agreed" @click="handlePasswordLogin">登录</button>
       <view class="register-row">
         <text class="register-text">还没有账号？</text>
         <text class="register-link" @click="goRegister">邀请码注册</text>
@@ -72,19 +72,38 @@ import { getCaptcha } from '../../api/auth'
 
 const auth = useAuthStore()
 const pwdLoading = ref(false)
+const captchaLoading = ref(false)
 const agreed = ref(false)
 const form = reactive({ username: '', password: '', captcha_code: '' })
 const captcha = reactive({ id: '', image: '' })
 
-async function fetchCaptcha() {
-  try {
-    const data = await getCaptcha()
-    captcha.id = data.captcha_id
-    captcha.image = data.image
-    form.captcha_code = ''
-  } catch (e) {
-    // 错误已由 request 拦截器处理
-  }
+let captchaRequest = null
+function fetchCaptcha() {
+  if (captchaRequest) return captchaRequest
+  captchaLoading.value = true
+  // 旧验证码可能已被服务端消费，刷新开始后立即作废，不能继续提交。
+  captcha.id = ''
+  captcha.image = ''
+  form.captcha_code = ''
+  captchaRequest = (async () => {
+    try {
+      const data = await getCaptcha()
+      captcha.id = data.captcha_id
+      captcha.image = data.image
+      return true
+    } catch (e) {
+      // 错误已由 request 拦截器处理
+      return false
+    } finally {
+      captchaLoading.value = false
+      captchaRequest = null
+    }
+  })()
+  return captchaRequest
+}
+
+function refreshCaptcha() {
+  if (!pwdLoading.value) fetchCaptcha()
 }
 
 onMounted(fetchCaptcha)
@@ -92,17 +111,18 @@ onMounted(fetchCaptcha)
 function routeByRole() { return '/pages/index/index' }
 
 async function handlePasswordLogin() {
-  if (pwdLoading.value) return
+  if (pwdLoading.value || captchaLoading.value) return
   if (!agreed.value) return uni.showToast({ title: '请先阅读并同意相关协议', icon: 'none' })
   if (!form.username?.trim() || !form.password) return uni.showToast({ title: '请填写用户名和密码', icon: 'none' })
+  if (!captcha.id) return uni.showToast({ title: '验证码尚未加载，请点击刷新', icon: 'none' })
   if (!form.captcha_code) return uni.showToast({ title: '请输入验证码', icon: 'none' })
   pwdLoading.value = true
   try {
     const user = await auth.login(form.username.trim(), form.password, captcha.id, form.captcha_code)
     uni.reLaunch({ url: routeByRole(user.role) })
   } catch (e) {
-    // 验证码一次性消费，失败后自动刷新
-    fetchCaptcha()
+    // 验证码一次性消费；等待新验证码就绪后再允许提交，避免重复使用旧验证码。
+    await fetchCaptcha()
   } finally {
     pwdLoading.value = false
   }
