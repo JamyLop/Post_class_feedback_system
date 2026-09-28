@@ -15,3 +15,6 @@ export const ROLE_LABELS = {
   deyu_director: '德育主任',
   admin: '校长',
 }
+
+// 班级管理入口与学生名册必须共用同一角色范围，避免能进入班级列表却被子页面退回首页。
+export const CLASS_MANAGEMENT_ROLES = Object.freeze(['teacher', 'admin', 'deyu_director'])

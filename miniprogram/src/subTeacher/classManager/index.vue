@@ -41,6 +41,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
+import { CLASS_MANAGEMENT_ROLES } from '../utils/constants'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -49,7 +50,7 @@ const classList = ref([])
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
   // 新建班级由德育主任操作并分配班主任；班主任仅录入学生信息（可查看名册）。
-  if (!['teacher', 'admin', 'deyu_director'].includes(auth.role)) {
+  if (!CLASS_MANAGEMENT_ROLES.includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true

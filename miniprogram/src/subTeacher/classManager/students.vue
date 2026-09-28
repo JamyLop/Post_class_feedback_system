@@ -37,6 +37,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listClassStudents } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
+import { CLASS_MANAGEMENT_ROLES } from '../utils/constants'
 
 const auth = useAuthStore()
 const classId = ref(null)
@@ -52,7 +53,7 @@ function getAvatarColor(name) {
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (!['teacher', 'admin'].includes(auth.role)) {
+  if (!CLASS_MANAGEMENT_ROLES.includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false
   }
   return true

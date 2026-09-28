@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { ENTRIES, entriesForRole, groupsForRole } from '../src/utils/navigation.js'
+import { CLASS_MANAGEMENT_ROLES } from '../src/subTeacher/utils/constants.js'
 
 test('菜单路由全部对应已注册的小程序页面', () => {
   const config = JSON.parse(fs.readFileSync(new URL('../src/pages.json', import.meta.url), 'utf8'))
@@ -27,4 +28,11 @@ test('任课老师有档案入口，学生档案入口可达，各角色菜单�
     assert.equal(new Set(entries.map(e => e.route)).size, entries.length)
     assert.ok(entries.length > 0)
   }
+})
+
+test('班级管理入口角色均可进入学生名册子页面', () => {
+  const entry = ENTRIES.find(e => e.route === '/subTeacher/classManager/index')
+  assert.ok(entry)
+  assert.deepEqual(new Set(CLASS_MANAGEMENT_ROLES), new Set(entry.roles))
+  assert.ok(CLASS_MANAGEMENT_ROLES.includes('deyu_director'))
 })
