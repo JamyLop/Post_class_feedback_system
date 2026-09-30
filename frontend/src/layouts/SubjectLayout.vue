@@ -18,7 +18,7 @@
           </el-menu-item>
           <el-menu-item index="/subject/weekly-scores">
             <el-icon><Files /></el-icon>
-            <span>周测成绩与评价</span>
+            <span>月考成绩与评价</span>
           </el-menu-item>
           <el-menu-item index="/subject/monthly-reports">
             <el-icon><Files /></el-icon>
@@ -35,7 +35,7 @@
         <span class="subject-dot"></span>
         <div class="subject-text">
           <strong>教学协同</strong>
-          <small>查看学科方案，提交教学建议、周测评价与月度学科评价</small>
+          <small>查看学科方案，提交教学建议、月考评价与月度学科评价</small>
         </div>
       </div>
     </el-aside>

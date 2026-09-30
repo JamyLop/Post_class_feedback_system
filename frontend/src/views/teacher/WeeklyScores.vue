@@ -2,9 +2,9 @@
   <section class="page weekly-page">
     <header class="page-head">
       <div>
-        <div class="scope-line"><span>高三试点</span><span>周测成绩</span></div>
-        <h1>周测成绩与评价</h1>
-        <p>查看周测分数与趋势，由班主任和对应学科老师分别记录评价与学习建议。</p>
+        <div class="scope-line"><span>高三试点</span><span>月考成绩</span></div>
+        <h1>月考成绩与评价</h1>
+        <p>查看月考分数与趋势，由班主任和对应学科老师分别记录评价与学习建议。</p>
       </div>
       <div v-if="canManageScores" class="head-actions">
         <el-button type="primary" @click="openBatchDialog"><el-icon><Plus /></el-icon>批量录入</el-button>
@@ -20,26 +20,27 @@
         <el-select v-model="filters.subject" placeholder="学科" clearable style="width: 130px" @change="load">
           <el-option v-for="s in subjects" :key="s" :label="s" :value="s" />
         </el-select>
+        <el-date-picker v-model="filters.exam_month" type="month" placeholder="考试月份" value-format="YYYY-MM" style="width: 160px" @change="load" />
         <el-date-picker v-model="filters.start_date" type="date" placeholder="开始日期" value-format="YYYY-MM-DD" style="width: 160px" @change="load" />
         <el-date-picker v-model="filters.end_date" type="date" placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 160px" @change="load" />
         <el-input v-model="keyword" placeholder="搜索学生" clearable style="width: 180px" :prefix-icon="Search" />
         <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
       </div>
       <div v-if="summary.length" class="summary-row">
-        <span v-for="item in summary" :key="`${item.exam_date}-${item.subject}`" class="summary-chip">
-          {{ item.exam_date }} {{ item.subject }} · 均分 {{ item.avg_score }} · 共 {{ item.count }} 人
+        <span v-for="item in summary" :key="`${item.exam_month}-${item.subject}`" class="summary-chip">
+          {{ item.exam_month }} {{ item.subject }} · 均分 {{ item.avg_score }} · 共 {{ item.count }} 人
         </span>
       </div>
     </section>
 
     <section class="list-surface">
-      <el-table v-loading="loading" :data="filteredRows" empty-text="暂无周测成绩" style="width: 100%">
+      <el-table v-loading="loading" :data="filteredRows" empty-text="暂无月考成绩" style="width: 100%">
         <el-table-column label="学生 / 班级" min-width="140">
           <template #default="{ row }"><strong>{{ row.student_name || `学生#${row.student_id}` }}</strong><div class="score-secondary">{{ row.class_name }}</div></template>
         </el-table-column>
         <el-table-column prop="subject" label="学科" width="80" />
-        <el-table-column label="周测 / 日期" min-width="140">
-          <template #default="{ row }">{{ row.exam_name || '周测' }}<div class="score-secondary">{{ row.exam_date }}</div></template>
+        <el-table-column label="月考 / 月份" min-width="140">
+          <template #default="{ row }">{{ row.exam_name || '月考' }}<div class="score-secondary">{{ row.exam_month }} · {{ row.exam_date }}</div></template>
         </el-table-column>
         <el-table-column label="分数" width="105">
           <template #default="{ row }">{{ row.score }} / {{ row.max_score }}</template>
@@ -65,14 +66,15 @@
     <el-dialog v-model="singleVisible" :title="editingId ? '编辑成绩' : '单条录入'" width="520px" destroy-on-close>
       <el-form label-position="top">
         <div class="form-grid">
-          <el-form-item label="班级"><el-select v-model="singleForm.class_id" style="width: 100%" @change="onSingleClassChange"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
-          <el-form-item label="学生"><el-select v-model="singleForm.student_id" filterable style="width: 100%"><el-option v-for="s in singleClassStudents" :key="s.id" :label="s.name" :value="s.id" /></el-select></el-form-item>
+          <el-form-item label="班级"><el-select v-model="singleForm.class_id" :disabled="!!editingId" style="width: 100%" @change="onSingleClassChange"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
+          <el-form-item label="学生"><el-select v-model="singleForm.student_id" :disabled="!!editingId" filterable style="width: 100%"><el-option v-for="s in singleClassStudents" :key="s.id" :label="s.name" :value="s.id" /></el-select></el-form-item>
         </div>
         <div class="form-grid">
           <el-form-item label="学科"><el-select v-model="singleForm.subject" style="width: 100%"><el-option v-for="s in subjects" :key="s" :label="s" :value="s" /></el-select></el-form-item>
           <el-form-item label="考试日期"><el-date-picker v-model="singleForm.exam_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         </div>
-        <el-form-item label="周次/名称"><el-input v-model="singleForm.exam_name" placeholder="如：第3周周测" /></el-form-item>
+        <el-form-item label="考试月份"><el-date-picker v-model="singleForm.exam_month" type="month" value-format="YYYY-MM" /></el-form-item>
+        <el-form-item label="月考名称"><el-input v-model="singleForm.exam_name" placeholder="如：2026年9月月考" /></el-form-item>
         <div class="form-grid">
           <el-form-item label="得分"><el-input-number v-model="singleForm.score" :min="0" :max="singleForm.max_score || 1000" :step="1" style="width: 100%" /></el-form-item>
           <el-form-item label="考试满分（必填）"><el-input-number v-model="singleForm.max_score" :min="1" :max="1000" :step="10" placeholder="请录入满分" style="width: 100%" /></el-form-item>
@@ -86,7 +88,7 @@
     </el-dialog>
 
     <!-- 批量录入 -->
-    <el-dialog v-model="batchVisible" title="批量录入周测成绩" width="760px" destroy-on-close>
+    <el-dialog v-model="batchVisible" title="批量录入月考成绩" width="760px" destroy-on-close>
       <el-form label-position="top">
         <div class="form-grid-3">
           <el-form-item label="班级"><el-select v-model="batchForm.class_id" style="width: 100%" @change="loadBatchStudents"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
@@ -94,10 +96,11 @@
           <el-form-item label="考试日期"><el-date-picker v-model="batchForm.exam_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         </div>
         <div class="form-grid">
-          <el-form-item label="周次/名称"><el-input v-model="batchForm.exam_name" placeholder="如：第5周周测" /></el-form-item>
+          <el-form-item label="考试月份"><el-date-picker v-model="batchForm.exam_month" type="month" value-format="YYYY-MM" /></el-form-item>
+          <el-form-item label="月考名称"><el-input v-model="batchForm.exam_name" placeholder="如：2026年9月月考" /></el-form-item>
           <el-form-item label="考试满分（必填）"><el-input-number v-model="batchForm.max_score" :min="1" :max="1000" :step="10" placeholder="请录入满分" style="width: 100%" /></el-form-item>
         </div>
-        <div class="batch-note">为下方每名学生填写分数，留空则跳过该生；已存在的同日同科成绩将被覆盖。</div>
+        <div class="batch-note">为下方每名学生填写分数，留空则跳过该生；已存在的同月同科成绩将被覆盖。</div>
         <el-table :data="batchStudents" max-height="360" border>
           <el-table-column label="学生" min-width="160"><template #default="{ row }">{{ row.name }}（{{ row.username }}）</template></el-table-column>
           <el-table-column label="分数" width="160"><template #default="{ row }"><el-input-number v-model="row._score" :min="0" :max="batchForm.max_score" :step="1" controls-position="right" style="width: 130px" placeholder="分数" /></template></el-table-column>
@@ -113,8 +116,8 @@
       <div v-if="trendData.length" ref="trendChartRef" style="height: 300px"></div>
       <el-empty v-else description="暂无趋势数据" />
       <el-table :data="trendData" style="margin-top: 12px" max-height="260">
-        <el-table-column prop="exam_date" label="日期" width="120" />
-        <el-table-column prop="exam_name" label="周次" min-width="140" />
+        <el-table-column prop="exam_month" label="月份" width="120" />
+        <el-table-column prop="exam_name" label="月考名称" min-width="140" />
         <el-table-column label="分数" width="120"><template #default="{ row }">{{ row.score }} / {{ row.max_score }}</template></el-table-column>
       </el-table>
     </el-dialog>
@@ -141,7 +144,7 @@ const saving = ref(false)
 const keyword = ref('')
 const summary = ref([])
 
-const filters = ref({ class_id: null, subject: '', start_date: '', end_date: '' })
+const filters = ref({ class_id: null, subject: '', exam_month: '', start_date: '', end_date: '' })
 
 const filteredRows = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -152,10 +155,10 @@ const filteredRows = computed(() => {
 const singleVisible = ref(false)
 const editingId = ref(null)
 const singleClassStudents = ref([])
-const singleForm = ref({ class_id: null, student_id: null, subject: '数学', exam_date: new Date().toISOString().slice(0,10), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' })
+const singleForm = ref({ class_id: null, student_id: null, subject: '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' })
 
 const batchVisible = ref(false)
-const batchForm = ref({ class_id: null, subject: '数学', exam_date: new Date().toISOString().slice(0,10), exam_name: '', max_score: null })
+const batchForm = ref({ class_id: null, subject: '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', max_score: null })
 const batchStudents = ref([])
 
 const trendVisible = ref(false)
@@ -171,20 +174,21 @@ async function load() {
     if (filters.value.subject) params.subject = filters.value.subject
     if (filters.value.start_date) params.start_date = filters.value.start_date
     if (filters.value.end_date) params.end_date = filters.value.end_date
+    if (filters.value.exam_month) params.exam_month = filters.value.exam_month
     rows.value = await listWeeklyScores(params)
     if (filters.value.class_id) {
-      const sParams = { class_id: filters.value.class_id }
+      const sParams = { ...params }
       if (filters.value.subject) sParams.subject = filters.value.subject
       summary.value = await getClassWeeklySummary(sParams)
     } else summary.value = []
   } finally { loading.value = false }
 }
 
-function todayStr() { return new Date().toISOString().slice(0,10) }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` }
 
 async function openSingleDialog() {
   editingId.value = null
-  singleForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, student_id: null, subject: filters.value.subject || '数学', exam_date: todayStr(), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' }
+  singleForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, student_id: null, subject: filters.value.subject || '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' }
   if (singleForm.value.class_id) singleClassStudents.value = await listStudents(singleForm.value.class_id)
   singleVisible.value = true
 }
@@ -196,14 +200,14 @@ async function onSingleClassChange(cid) {
 
 async function editRow(row) {
   editingId.value = row.id
-  singleForm.value = { class_id: row.class_id, student_id: row.student_id, subject: row.subject, exam_date: row.exam_date, exam_name: row.exam_name, score: row.score, max_score: row.max_score, rank_in_class: row.rank_in_class, remark: row.remark }
+  singleForm.value = { class_id: row.class_id, student_id: row.student_id, subject: row.subject, exam_month: row.exam_month, exam_date: row.exam_date, exam_name: row.exam_name, score: row.score, max_score: row.max_score, rank_in_class: row.rank_in_class, remark: row.remark }
   singleClassStudents.value = await listStudents(row.class_id)
   singleVisible.value = true
 }
 
 async function submitSingle() {
-  if (!singleForm.value.class_id || !singleForm.value.student_id || !singleForm.value.subject || !singleForm.value.exam_date) {
-    ElMessage.warning('请完整填写班级、学生、学科和日期')
+  if (!singleForm.value.class_id || !singleForm.value.student_id || !singleForm.value.subject || !singleForm.value.exam_date || !singleForm.value.exam_month) {
+    ElMessage.warning('请完整填写班级、学生、学科、考试月份和日期')
     return
   }
   if (!singleForm.value.max_score) {
@@ -232,7 +236,7 @@ async function removeRow(row) {
 }
 
 async function openBatchDialog() {
-  batchForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, subject: filters.value.subject || '数学', exam_date: todayStr(), exam_name: '', max_score: null }
+  batchForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, subject: filters.value.subject || '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', max_score: null }
   batchStudents.value = []
   if (batchForm.value.class_id) await loadBatchStudents()
   batchVisible.value = true
@@ -245,8 +249,8 @@ async function loadBatchStudents() {
 }
 
 async function submitBatch() {
-  if (!batchForm.value.class_id || !batchForm.value.subject || !batchForm.value.exam_date) {
-    ElMessage.warning('请选择班级、学科和日期')
+  if (!batchForm.value.class_id || !batchForm.value.subject || !batchForm.value.exam_date || !batchForm.value.exam_month) {
+    ElMessage.warning('请选择班级、学科、考试月份和日期')
     return
   }
   if (!batchForm.value.max_score) {
@@ -275,7 +279,7 @@ async function viewTrend(row) {
     chartInstance = echarts.init(trendChartRef.value)
     chartInstance.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: trendData.value.map(d => d.exam_date) },
+      xAxis: { type: 'category', data: trendData.value.map(d => d.exam_month) },
       yAxis: { type: 'value', name: '分数' },
       series: [{ type: 'line', smooth: true, data: trendData.value.map(d => d.score), areaStyle: {}, markLine: { data: [{ type: 'average', name: '平均分' }] } }],
       grid: { left: 40, right: 20, top: 20, bottom: 30 }

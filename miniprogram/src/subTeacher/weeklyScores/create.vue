@@ -2,8 +2,8 @@
   <view class="page">
     <WorkspaceLink />
     <view class="head">
-      <text class="h1">录入周测成绩</text>
-      <text class="p">{{ className }}</text>
+      <text class="h1">录入月考成绩</text>
+      <text class="p">{{ className }} · 同月同科重复录入会更新已有成绩</text>
     </view>
 
     <!-- 考试信息 -->
@@ -20,8 +20,14 @@
           </picker>
         </view>
         <view class="field">
+          <text class="field-label">考试月份 <text class="required">*</text></text>
+          <picker mode="date" fields="month" :value="form.exam_month" @change="form.exam_month = $event.detail.value">
+            <view class="picker-box"><text>{{ form.exam_month || '选择月份' }}</text></view>
+          </picker>
+        </view>
+        <view class="field">
           <text class="field-label">考试名称</text>
-          <input v-model="form.exam_name" placeholder="如：第五周周测" class="input" />
+          <input v-model="form.exam_name" placeholder="如：2026年9月月考" class="input" />
         </view>
         <view class="field">
           <text class="field-label">考试日期 <text class="required">*</text></text>
@@ -103,9 +109,10 @@ const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生�
 const subjectIndex = ref(0)
 
 const form = reactive({
+  exam_month: '',
   exam_name: '',
   exam_date: '',
-  max_score: '100',
+  max_score: '',
 })
 
 onLoad((options) => {
@@ -114,6 +121,7 @@ onLoad((options) => {
   // 默认日期为今天
   const now = new Date()
   form.exam_date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  form.exam_month = form.exam_date.slice(0, 7)
   loadStudents()
 })
 
@@ -133,8 +141,8 @@ function validate() {
     uni.showToast({ title: '请选择科目', icon: 'none' })
     return false
   }
-  if (!form.exam_date) {
-    uni.showToast({ title: '请选择考试日期', icon: 'none' })
+  if (!form.exam_date || !form.exam_month) {
+    uni.showToast({ title: '请选择考试月份和日期', icon: 'none' })
     return false
   }
   const maxScore = parseFloat(form.max_score)
@@ -171,8 +179,9 @@ async function handleSubmit() {
     await batchCreateWeeklyScores({
       class_id: classId.value,
       subject: subjectOptions[subjectIndex.value],
+      exam_month: form.exam_month,
       exam_date: form.exam_date,
-      exam_name: form.exam_name || `${subjectOptions[subjectIndex.value]}周测`,
+      exam_name: form.exam_name || `${form.exam_month}月考`,
       max_score: parseFloat(form.max_score),
       records,
     })

@@ -228,7 +228,7 @@
                       <span>{{ item.label }}</span><p>{{ item.text }}</p><el-icon><ArrowRight /></el-icon>
                     </button>
                     <div v-if="expandedTargetIndex === index" class="target-progress-panel">
-                      <div v-if="targetScoresLoading" class="target-progress-skeleton" aria-label="正在读取最新周测成绩"><span v-for="n in 6" :key="n"></span></div>
+                      <div v-if="targetScoresLoading" class="target-progress-skeleton" aria-label="正在读取最新月考成绩"><span v-for="n in 6" :key="n"></span></div>
                       <template v-else-if="subjectTargets(item).length">
                         <section v-if="!isGaokaoStage(item, index)" class="goal-axis" :aria-label="`${item.label}各科目标进度`">
                           <header class="goal-axis-legend"><span><i class="is-current"></i>当前成绩</span><span><i class="is-target"></i>阶段目标</span></header>
@@ -279,7 +279,7 @@
                             </div>
                           </div>
                         </section>
-                        <p class="target-progress-note">{{ isGaokaoStage(item, index) ? `时间轴从班级学年开始日期（${detail.class_starts_on || '未设置'}）起算，任务区间依据已确认任务的开始和截止日期生成。` : '当前成绩取各科最新一次周测；具体任务来自已确认的学科任务，目标分数来自本阶段升学目标。' }}</p>
+                        <p class="target-progress-note">{{ isGaokaoStage(item, index) ? `时间轴从班级学年开始日期（${detail.class_starts_on || '未设置'}）起算，任务区间依据已确认任务的开始和截止日期生成。` : '当前成绩取各科最新一次月考；具体任务来自已确认的学科任务，目标分数来自本阶段升学目标。' }}</p>
                       </template>
                       <div v-else class="target-progress-loading">该阶段目标中尚未识别到各科目标分数。</div>
                     </div>
@@ -531,10 +531,10 @@
           </el-timeline>
           <div v-else class="empty-panel"><h3>暂无督查记录</h3><p>方案进入执行阶段后，班主任记录过程，管理员提交校级督查。</p></div>
         </el-tab-pane>
-        <el-tab-pane label="周测成绩" name="weekly">
+        <el-tab-pane label="月考成绩" name="weekly">
           <div class="weekly-section">
             <div class="weekly-header">
-              <div><strong>周测成绩趋势</strong><span>{{ weeklyRows.length }} 条记录</span></div>
+              <div><strong>月考成绩趋势</strong><span>{{ weeklyRows.length }} 条记录</span></div>
               <div class="weekly-actions">
                 <el-select v-model="weeklySubject" placeholder="全部学科" clearable style="width: 140px" @change="loadWeekly"><el-option v-for="s in subjectOrder.slice(0,9)" :key="s" :label="s" :value="s" /></el-select>
                 <el-button @click="loadWeekly">刷新</el-button>
@@ -544,8 +544,8 @@
             <div v-if="weeklyRows.length" ref="weeklyChartRef" style="height: 260px; margin: 12px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px"></div>
             <el-table v-if="weeklyRows.length" :data="weeklyRows" max-height="360">
               <el-table-column prop="subject" label="学科" width="100" />
-              <el-table-column prop="exam_date" label="日期" width="120" />
-              <el-table-column prop="exam_name" label="周次" min-width="140" show-overflow-tooltip />
+              <el-table-column prop="exam_month" label="月份" width="120" />
+              <el-table-column prop="exam_name" label="月考名称" min-width="140" show-overflow-tooltip />
               <el-table-column label="分数" width="120"><template #default="{ row }">{{ row.score }} / {{ row.max_score }}</template></el-table-column>
               <el-table-column prop="rank_in_class" label="排名" width="90"><template #default="{ row }">{{ row.rank_in_class || '-' }}</template></el-table-column>
               <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
@@ -553,7 +553,7 @@
                 <template #default="{ row }"><WeeklyScoreEvaluations :score="row" @saved="updated => Object.assign(row, updated)" /></template>
               </el-table-column>
             </el-table>
-            <div v-else class="empty-panel"><h3>暂无周测成绩</h3><p>班主任可在“周测成绩”页面按班级批量录入，该生的历次周测将在此汇聚并展示趋势。</p></div>
+            <div v-else class="empty-panel"><h3>暂无月考成绩</h3><p>班主任可在“月考成绩”页面按班级批量录入，该生的历次月考将在此汇聚并展示趋势。</p></div>
           </div>
         </el-tab-pane>
         <el-tab-pane label="月度评定" name="monthly">
@@ -1225,7 +1225,7 @@ function subjectTargets(stage) {
 function latestSubjectScore(subject) {
   const latest = targetScoreRows.value
     .filter((item) => item.subject === subject)
-    .sort((a, b) => String(b.exam_date).localeCompare(String(a.exam_date)))[0]
+    .sort((a, b) => String(b.exam_month).localeCompare(String(a.exam_month)))[0]
   return latest ? { score: Number(latest.score), maxScore: Number(latest.max_score) || null, examDate: latest.exam_date, examName: latest.exam_name } : null
 }
 
@@ -1396,7 +1396,7 @@ async function toggleTargetStage(index) {
       targetScoresLoaded.value = true
     }
   } catch (error) {
-    ElMessage.error(error?.response?.data?.detail || '周测成绩读取失败')
+    ElMessage.error(error?.response?.data?.detail || '月考成绩读取失败')
   } finally {
     targetScoresLoading.value = false
   }
@@ -1495,13 +1495,16 @@ async function loadWeekly() {
   if (weeklyChartRef.value && weeklyRows.value.length) {
     if (weeklyChart) weeklyChart.dispose()
     weeklyChart = echarts.init(weeklyChartRef.value)
-    const sorted = [...weeklyRows.value].sort((a,b) => a.exam_date.localeCompare(b.exam_date))
+    const sorted = [...weeklyRows.value].sort((a,b) => a.exam_month.localeCompare(b.exam_month))
+    const months = [...new Set(sorted.map(r => r.exam_month))]
+    const scoreSubjects = [...new Set(sorted.map(r => r.subject))]
     weeklyChart.setOption({
+      legend: { data: scoreSubjects },
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: sorted.map(d => d.exam_date) },
+      xAxis: { type: 'category', data: months },
       yAxis: { type: 'value' },
-      series: [{ type: 'line', smooth: true, data: sorted.map(d => d.score), areaStyle: {}, itemStyle: { color: '#4a86ff' } }],
-      grid: { left: 36, right: 16, top: 16, bottom: 28 }
+      series: scoreSubjects.map(name => ({ name, type: 'line', smooth: true, data: months.map(month => sorted.find(r => r.subject === name && r.exam_month === month)?.score ?? null) })),
+      grid: { left: 36, right: 16, top: 40, bottom: 28 }
     })
   }
 }

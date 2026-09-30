@@ -14,7 +14,7 @@
         <el-menu :default-active="$route.path" router>
           <el-menu-item index="/student/my-weekly-scores">
             <el-icon><DataAnalysis /></el-icon>
-            <span>周测成绩</span>
+            <span>月考成绩</span>
           </el-menu-item>
           <el-menu-item index="/student/my-monthly-reports">
             <el-icon><Notebook /></el-icon>

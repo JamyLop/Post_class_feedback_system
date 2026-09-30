@@ -1,4 +1,4 @@
-"""周测成绩模型：班级维度按学科、日期记录学生分数，支持批量录入与趋势分析。"""
+"""月考成绩模型：班级维度按学科、日期记录学生分数，支持批量录入与趋势分析。"""
 
 from datetime import date, datetime
 
@@ -9,17 +9,20 @@ from app.core.database import Base
 
 
 class WeeklyTestScore(Base):
-    """周测成绩表：一次周测对应一名学生一门学科的一条记录。"""
+    """月考成绩表：一次月考对应一名学生一门学科的一条记录。"""
 
     __tablename__ = "weekly_test_scores"
     __table_args__ = (
-        UniqueConstraint("class_id", "student_id", "subject", "exam_date", name="uq_weekly_score_student_subject_date"),
+        UniqueConstraint("class_id", "student_id", "subject", "exam_month", name="uq_monthly_score_student_subject_month"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     class_id: Mapped[int] = mapped_column(ForeignKey("classes.id", ondelete="CASCADE"), index=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     subject: Mapped[str] = mapped_column(String(32), index=True)
+    # 空月份仅用于保留迁移前同月的较早历史记录，不进入月考统计。
+    exam_month: Mapped[str | None] = mapped_column(String(7), nullable=True, index=True,
+        default=lambda ctx: ctx.get_current_parameters()["exam_date"].strftime("%Y-%m"))
     exam_date: Mapped[date] = mapped_column(Date, index=True)
     exam_name: Mapped[str] = mapped_column(String(64), default="")
     score: Mapped[float] = mapped_column(Float)

@@ -126,7 +126,7 @@
         },
         {
           "path": "weeklyScores/index",
-          "style": { "navigationBarTitleText": "周测成绩" }
+          "style": { "navigationBarTitleText": "月考成绩" }
         },
         {
           "path": "weeklyScores/create",

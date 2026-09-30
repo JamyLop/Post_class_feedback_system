@@ -8,7 +8,7 @@
     <button v-if="score.can_evaluate && !editing" class="edit-btn" size="mini" @click="openEditor">{{ ownEvaluation ? '修改我的评价' : '添加评价' }}</button>
     <view v-if="editing" class="editor">
       <text class="editor-label">评价内容</text>
-      <textarea v-model="content" class="evaluation-input" :maxlength="2000" :disabled="saving" placeholder="填写周测表现、需改进的问题和学习建议" />
+      <textarea v-model="content" class="evaluation-input" :maxlength="2000" :disabled="saving" placeholder="填写月考表现、需改进的问题和学习建议" />
       <text class="empty">{{ content.length }}/2000</text>
       <view class="editor-actions">
         <button size="mini" :disabled="saving" @click="editing = false">取消</button>

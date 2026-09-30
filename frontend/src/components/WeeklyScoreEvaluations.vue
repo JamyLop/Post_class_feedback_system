@@ -12,11 +12,11 @@
     <el-button v-if="score.can_evaluate" link type="primary" @click="openEditor">
       {{ ownEvaluation ? '修改我的评价' : '添加评价' }}
     </el-button>
-    <el-dialog v-model="visible" title="周测评价" width="min(520px, 92vw)" append-to-body :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving">
+    <el-dialog v-model="visible" title="月考评价" width="min(520px, 92vw)" append-to-body :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving">
       <p class="exam-context">{{ score.student_name }} · {{ score.subject }} · {{ score.exam_name || score.exam_date }} · {{ score.score }} / {{ score.max_score }}</p>
       <el-form label-position="top" @submit.prevent="save">
         <el-form-item label="评价内容">
-          <el-input v-model="content" type="textarea" :rows="5" maxlength="2000" show-word-limit :disabled="saving" placeholder="填写本次周测表现、需改进的问题和学习建议" />
+          <el-input v-model="content" type="textarea" :rows="5" maxlength="2000" show-word-limit :disabled="saving" placeholder="填写本次月考表现、需改进的问题和学习建议" />
         </el-form-item>
       </el-form>
       <template #footer>

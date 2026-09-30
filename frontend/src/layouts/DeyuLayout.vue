@@ -30,7 +30,7 @@
           </el-menu-item>
           <el-menu-item index="/teacher/weekly-scores">
             <el-icon><DataAnalysis /></el-icon>
-            <span>周测成绩（查阅）</span>
+            <span>月考成绩（查阅）</span>
           </el-menu-item>
           <el-menu-item index="/teacher/student-cases">
             <el-icon><Files /></el-icon>

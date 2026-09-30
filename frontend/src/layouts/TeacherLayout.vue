@@ -69,7 +69,7 @@ const menuItems = computed(() => {
   const role = auth.role
   const allItems = [
     { index: '/teacher/student-cases', icon: 'Files', title: '学生档案', roles: ['admin', 'teacher', 'deyu_director'] },
-    { index: '/teacher/weekly-scores', icon: 'DataAnalysis', title: '周测成绩', roles: ['admin', 'teacher', 'deyu_director'] },
+    { index: '/teacher/weekly-scores', icon: 'DataAnalysis', title: '月考成绩', roles: ['admin', 'teacher', 'deyu_director'] },
     { index: '/teacher/task-reminders', icon: 'Bell', title: '任务提醒', roles: ['admin', 'teacher'] },
     { index: '/teacher/points-reports', icon: 'TrendCharts', title: '积分周月报', roles: ['admin', 'teacher', 'deyu_director'] },
     { index: '/teacher/monthly-reports', icon: 'Notebook', title: '月度评定', roles: ['admin', 'teacher'] },
@@ -82,7 +82,7 @@ const menuItems = computed(() => {
 const pageContext = computed(() => {
   if (route.path.includes('/student-cases/')) return '档案详情'
   if (route.path === '/teacher/student-cases') return '档案库'
-  if (route.path === '/teacher/weekly-scores') return '周测'
+  if (route.path === '/teacher/weekly-scores') return '月考'
   if (route.path === '/teacher/task-reminders') return '任务提醒'
   if (route.path === '/teacher/points-reports') return '积分周月报'
   if (route.path === '/teacher/monthly-reports') return '月度评定'

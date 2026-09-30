@@ -1,4 +1,4 @@
-"""周测成绩 API：单条录入、批量录入、查询、修改、删除与趋势。"""
+"""月考成绩 API：单条录入、批量录入、查询、修改、删除与趋势。"""
 
 from datetime import date
 
@@ -23,7 +23,7 @@ from app.schemas.weekly_score import (
     WeeklyTestTrendPoint,
 )
 
-router = APIRouter(prefix="/weekly-test-scores", tags=["weekly-test-scores"])
+router = APIRouter(tags=["monthly-exam-scores"])
 
 
 def _enrich(row: WeeklyTestScore, db: Session, user: User) -> dict:
@@ -63,7 +63,7 @@ def _can_manage_class(db: Session, class_id: int, user: User) -> bool:
 
 def _check_can_write(db: Session, class_id: int, user: User):
     if not _can_manage_class(db, class_id, user):
-        raise HTTPException(status_code=403, detail="无权录入该班级周测成绩")
+        raise HTTPException(status_code=403, detail="无权录入该班级月考成绩")
 
 
 def _verify_membership(db: Session, student_id: int, class_id: int):
@@ -73,16 +73,16 @@ def _verify_membership(db: Session, student_id: int, class_id: int):
 
 def _filter_scope(query, db: Session, user: User):
     if user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
-        # 德育主任与校长同为全局督查角色，可查看全校周测。
+        # 德育主任与校长同为全局督查角色，可查看全校月考。
         return query
     if user.role == ROLE_CONSULTANT:
-        # 咨询老师仅可见自己关联学生的周测。
+        # 咨询老师仅可见自己关联学生的月考。
         student_ids = [r.student_id for r in db.query(StudentConsultant).filter_by(consultant_id=user.id).all()]
         if not student_ids:
             return query.filter(WeeklyTestScore.id == -1)
         return query.filter(WeeklyTestScore.student_id.in_(student_ids))
     if user.role == ROLE_SUBJECT_TEACHER:
-        # 任课账号仅能读取自己任教班级的对应学科，所有周测读取接口共用此边界。
+        # 任课账号仅能读取自己任教班级的对应学科，所有月考读取接口共用此边界。
         relations = db.query(ClassTeacher).filter_by(teacher_id=user.id).all()
         scopes = [and_(WeeklyTestScore.class_id == r.class_id, WeeklyTestScore.subject == r.subject)
                   for r in relations if r.role == "subject_teacher" and r.subject]
@@ -114,6 +114,7 @@ def list_scores(
     class_id: int | None = Query(default=None),
     student_id: int | None = Query(default=None),
     subject: str | None = Query(default=None),
+    exam_month: str | None = Query(default=None, pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$"),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=MAX_LIMIT),
@@ -122,18 +123,20 @@ def list_scores(
     user: User = Depends(get_current_user),
 ):
     q = db.query(WeeklyTestScore)
-    q = _filter_scope(q, db, user)
+    q = _filter_scope(q, db, user).filter(WeeklyTestScore.exam_month.is_not(None))
     if class_id is not None:
         q = q.filter(WeeklyTestScore.class_id == class_id)
     if student_id is not None:
         q = q.filter(WeeklyTestScore.student_id == student_id)
     if subject:
         q = q.filter(WeeklyTestScore.subject == subject)
+    if exam_month:
+        q = q.filter(WeeklyTestScore.exam_month == exam_month)
     if start_date:
         q = q.filter(WeeklyTestScore.exam_date >= start_date)
     if end_date:
         q = q.filter(WeeklyTestScore.exam_date <= end_date)
-    rows = q.order_by(WeeklyTestScore.exam_date.desc(), WeeklyTestScore.id.desc()).offset(offset).limit(limit).all()
+    rows = q.order_by(WeeklyTestScore.exam_month.desc(), WeeklyTestScore.exam_date.desc(), WeeklyTestScore.id.desc()).offset(offset).limit(limit).all()
     return [_enrich(r, db, user) for r in rows]
 
 
@@ -141,46 +144,59 @@ def list_scores(
 def trend(
     student_id: int = Query(...),
     subject: str | None = Query(default=None),
+    exam_month: str | None = Query(default=None, pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     q = db.query(WeeklyTestScore).filter(WeeklyTestScore.student_id == student_id)
-    q = _filter_scope(q, db, user)
+    q = _filter_scope(q, db, user).filter(WeeklyTestScore.exam_month.is_not(None))
     if subject:
         q = q.filter(WeeklyTestScore.subject == subject)
-    rows = q.order_by(WeeklyTestScore.exam_date.asc()).all()
-    return [WeeklyTestTrendPoint(exam_date=r.exam_date, exam_name=r.exam_name, score=r.score, max_score=r.max_score) for r in rows]
+    if exam_month:
+        q = q.filter(WeeklyTestScore.exam_month == exam_month)
+    rows = q.order_by(WeeklyTestScore.exam_month.asc(), WeeklyTestScore.subject.asc()).all()
+    return [WeeklyTestTrendPoint(subject=r.subject, exam_month=r.exam_month, exam_date=r.exam_date, exam_name=r.exam_name, score=r.score, max_score=r.max_score) for r in rows]
 
 
 @router.get("/class-summary", response_model=list[ClassWeeklySummary])
 def class_summary(
     class_id: int = Query(...),
     subject: str | None = Query(default=None),
+    exam_month: str | None = Query(default=None, pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     q = db.query(WeeklyTestScore).filter(WeeklyTestScore.class_id == class_id)
-    q = _filter_scope(q, db, user)
+    q = _filter_scope(q, db, user).filter(WeeklyTestScore.exam_month.is_not(None))
     if subject:
         q = q.filter(WeeklyTestScore.subject == subject)
-    # 按 (exam_date, subject, exam_name) 分组统计
+    if exam_month:
+        q = q.filter(WeeklyTestScore.exam_month == exam_month)
+    if start_date:
+        q = q.filter(WeeklyTestScore.exam_date >= start_date)
+    if end_date:
+        q = q.filter(WeeklyTestScore.exam_date <= end_date)
+    # 月份和学科确定同一次月考，录入日期或名称的差异不拆分汇总。
     rows = (
         q.with_entities(
-            WeeklyTestScore.exam_date,
-            WeeklyTestScore.exam_name,
+            func.max(WeeklyTestScore.exam_date),
+            func.max(WeeklyTestScore.exam_name),
             WeeklyTestScore.subject,
             func.avg(WeeklyTestScore.score),
             func.max(WeeklyTestScore.score),
             func.min(WeeklyTestScore.score),
             func.count(WeeklyTestScore.id),
+            WeeklyTestScore.exam_month,
         )
-        .group_by(WeeklyTestScore.exam_date, WeeklyTestScore.exam_name, WeeklyTestScore.subject)
-        .order_by(WeeklyTestScore.exam_date.desc())
+        .group_by(WeeklyTestScore.exam_month, WeeklyTestScore.subject)
+        .order_by(WeeklyTestScore.exam_month.desc())
         .all()
     )
     return [
         ClassWeeklySummary(
-            exam_date=r[0], exam_name=r[1], subject=r[2],
+            exam_date=r[0], exam_name=r[1], subject=r[2], exam_month=r[7],
             avg_score=round(float(r[3] or 0), 2), max_score=float(r[4] or 0),
             min_score=float(r[5] or 0), count=int(r[6]),
         )
@@ -198,14 +214,24 @@ def create_score(
     _verify_membership(db, body.student_id, body.class_id)
     if body.score > body.max_score:
         raise HTTPException(status_code=400, detail="得分不能超过满分")
-    row = WeeklyTestScore(**body.model_dump(), recorded_by=user.id)
-    db.add(row)
+    row = db.query(WeeklyTestScore).filter_by(
+        class_id=body.class_id, student_id=body.student_id,
+        subject=body.subject, exam_month=body.exam_month,
+    ).first()
+    if row is None:
+        row = WeeklyTestScore(**body.model_dump(), recorded_by=user.id)
+        db.add(row)
+    else:
+        # 保留记录 ID 和各教师评价，重新录入仅更新当月成绩信息。
+        for key, value in body.model_dump().items():
+            setattr(row, key, value)
+        row.recorded_by = user.id
     try:
         db.commit()
         db.refresh(row)
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="该学生该科目当日已有成绩，请编辑而非重复录入") from exc
+        raise HTTPException(status_code=409, detail="该学生该科目当月成绩发生并发更新，请刷新重试") from exc
     return _enrich(row, db, user)
 
 
@@ -235,9 +261,10 @@ def batch_upsert(
         rank = item.get("rank_in_class")
         remark = item.get("remark", "")
         existing = db.query(WeeklyTestScore).filter_by(
-            class_id=body.class_id, student_id=student_id, subject=body.subject, exam_date=body.exam_date
+            class_id=body.class_id, student_id=student_id, subject=body.subject, exam_month=body.exam_month
         ).first()
         if existing:
+            existing.exam_date = body.exam_date
             existing.score = score_val
             existing.max_score = max_score
             existing.rank_in_class = rank
@@ -248,7 +275,7 @@ def batch_upsert(
         else:
             row = WeeklyTestScore(
                 class_id=body.class_id, student_id=student_id, subject=body.subject,
-                exam_date=body.exam_date, exam_name=body.exam_name, score=score_val,
+                exam_date=body.exam_date, exam_month=body.exam_month, exam_name=body.exam_name, score=score_val,
                 max_score=max_score, rank_in_class=rank, remark=remark or "", recorded_by=user.id
             )
             db.add(row)
@@ -275,6 +302,8 @@ def update_score(
         raise HTTPException(status_code=404, detail="成绩记录不存在")
     _check_can_write(db, row.class_id, user)
     changes = body.model_dump(exclude_none=True)
+    if "exam_date" in changes and "exam_month" not in changes:
+        changes["exam_month"] = changes["exam_date"].strftime("%Y-%m")
     if "score" in changes or "max_score" in changes:
         new_score = changes.get("score", row.score)
         new_max = changes.get("max_score", row.max_score)

@@ -2,8 +2,8 @@
   <section class="page student-weekly-page">
     <div class="page-header">
       <div>
-        <h1 class="page-title">周测表现与学科趋势</h1>
-        <p class="header-desc">查阅各科每周滚动测试分数、班级排名及学科成绩走势曲线。</p>
+        <h1 class="page-title">月考表现与学科趋势</h1>
+        <p class="header-desc">查阅各科每月考试分数、班级排名及学科成绩走势曲线。</p>
       </div>
       <div class="filter-bar">
         <el-select v-model="subject" placeholder="全部学科" clearable style="width: 140px" @change="load">
@@ -16,20 +16,20 @@
     <div v-if="trend.length" class="chart-card">
       <div class="card-head">
         <span class="dot"></span>
-        <span class="title">周测分数趋势图</span>
+        <span class="title">月考分数趋势图</span>
       </div>
       <div ref="chartRef" class="chart-container"></div>
     </div>
 
     <div class="table-card">
-      <el-table :data="rows" v-loading="loading" empty-text="暂无周测成绩记录" style="width: 100%">
+      <el-table :data="rows" v-loading="loading" empty-text="暂无月考成绩记录" style="width: 100%">
         <el-table-column prop="subject" label="学科" width="100">
           <template #default="{ row }">
             <span class="subject-badge">{{ row.subject }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="exam_date" label="考试日期" width="120" />
-        <el-table-column prop="exam_name" label="测试周次" min-width="150" />
+        <el-table-column prop="exam_month" label="考试日期" width="120" />
+        <el-table-column prop="exam_name" label="月考名称" min-width="150" />
         <el-table-column label="得分" width="130">
           <template #default="{ row }">
             <strong class="score-text">{{ row.score }}</strong>
@@ -82,19 +82,17 @@ function render() {
   if (!chartRef.value || !trend.value.length) return
   if (chart) chart.dispose()
   chart = echarts.init(chartRef.value)
+  const months = [...new Set(trend.value.map(r => r.exam_month))].sort()
+  const trendSubjects = [...new Set(trend.value.map(r => r.subject))]
   chart.setOption({
+    legend: { data: trendSubjects },
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: trend.value.map((d) => d.exam_date) },
+    xAxis: { type: 'category', data: months },
     yAxis: { type: 'value', name: '分数' },
-    series: [
-      {
-        type: 'line',
-        smooth: true,
-        data: trend.value.map((d) => d.score),
-        itemStyle: { color: '#2f5bff' },
-        areaStyle: { color: 'rgba(37,99,235,0.08)' },
-      },
-    ],
+    series: trendSubjects.map(name => ({
+      name, type: 'line', smooth: true,
+      data: months.map(month => trend.value.find(r => r.subject === name && r.exam_month === month)?.score ?? null),
+    })),
     grid: { left: 40, right: 20, top: 30, bottom: 30 },
   })
 }

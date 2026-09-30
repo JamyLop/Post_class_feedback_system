@@ -2,8 +2,8 @@
   <view class="page">
     <WorkspaceLink />
     <view class="head">
-      <text class="h1">周测成绩与评价</text>
-      <text class="p">查看周测表现，记录教师评价与学习建议</text>
+      <text class="h1">月考成绩与评价</text>
+      <text class="p">查看月考表现，记录教师评价与学习建议</text>
     </view>
 
     <!-- 筛选栏 -->
@@ -26,6 +26,13 @@
           </view>
         </picker>
       </view>
+      <view class="filter-item">
+        <text class="filter-label">月份</text>
+        <picker mode="date" fields="month" :value="examMonth" @change="examMonth = $event.detail.value; loadData()">
+          <view class="picker-box"><text>{{ examMonth || '全部月份' }}</text></view>
+        </picker>
+        <text v-if="examMonth" @click="examMonth = ''; loadData()">清除月份</text>
+      </view>
     </view>
 
     <!-- 操作栏：德育主任/咨询老师仅只读查看，不展示录入入口 -->
@@ -40,8 +47,8 @@
       <view class="summary-list">
         <view v-for="(item, idx) in summaryList" :key="idx" class="summary-row" :class="{ 'has-border': idx > 0 }">
           <view class="summary-info">
-            <text class="summary-name">{{ item.exam_name || item.subject }}</text>
-            <text class="summary-date">{{ item.exam_date }}</text>
+            <text class="summary-name">{{ item.subject }} · {{ item.exam_name || "月考" }}</text>
+            <text class="summary-date">{{ item.exam_month }}</text>
           </view>
           <view class="summary-scores">
             <view class="score-chip avg">
@@ -67,7 +74,7 @@
       <view v-if="loading" class="loading-bar">
         <text class="loading-text">加载中...</text>
       </view>
-      <EmptyState v-else-if="!scoreList.length" title="暂无成绩记录" :desc="canWrite ? '点击上方「录入成绩」添加' : '暂无可见的周测成绩'" />
+      <EmptyState v-else-if="!scoreList.length" title="暂无成绩记录" :desc="canWrite ? '点击上方「录入成绩」添加' : '暂无可见的月考成绩'" />
       <view v-else class="score-list">
         <view v-for="(item, idx) in scoreList" :key="item.id" class="score-entry" :class="{ 'has-border': idx > 0 }">
           <view class="score-row">
@@ -76,7 +83,7 @@
               <text class="student-name">{{ item.student_name || `学生#${item.student_id}` }}</text>
               <text class="subject-tag">{{ item.subject }}</text>
             </view>
-            <text class="score-meta">{{ item.exam_name }} · {{ item.exam_date }}</text>
+            <text class="score-meta">{{ item.exam_name }} · {{ item.exam_month }}</text>
           </view>
           <view class="score-right">
             <text class="score-value">{{ item.score }}<text class="score-max">/{{ item.max_score }}</text></text>
@@ -105,6 +112,7 @@ const loading = ref(false)
 const classList = ref([])
 const classIndex = ref(0)
 const subjectIndex = ref(0)
+const examMonth = ref('')
 const subjectOptions = ['全部科目', '语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
 const summaryList = ref([])
 const scoreList = ref([])
@@ -138,17 +146,18 @@ async function loadData() {
   loading.value = true
   try {
     const params = {}
+    if (examMonth.value) params.exam_month = examMonth.value
     if (selectedClassId.value) params.class_id = selectedClassId.value
     if (selectedSubject.value) params.subject = selectedSubject.value
 
     const [scores, summary] = await Promise.all([
       listWeeklyScores(params),
-      selectedClassId.value ? getClassSummary({ class_id: selectedClassId.value, subject: selectedSubject.value }).catch(() => []) : Promise.resolve([]),
+      selectedClassId.value ? getClassSummary(params).catch(() => []) : Promise.resolve([]),
     ])
     scoreList.value = Array.isArray(scores) ? scores : []
     summaryList.value = Array.isArray(summary) ? summary : []
   } catch (error) {
-    uni.showToast({ title: '周测成绩加载失败，请刷新重试', icon: 'none' })
+    uni.showToast({ title: '月考成绩加载失败，请刷新重试', icon: 'none' })
   } finally {
     loading.value = false
   }

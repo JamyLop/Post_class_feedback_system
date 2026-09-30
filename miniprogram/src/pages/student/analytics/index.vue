@@ -3,7 +3,7 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">学情分析</text>
-      <text class="p">周测成绩、变化趋势与月度评定</text>
+      <text class="p">月考成绩、变化趋势与月度评定</text>
       <view class="filter-row">
         <picker :range="subjectOptions" @change="onSubjectChange">
           <view class="filter-btn">
@@ -26,7 +26,7 @@
       <view v-else-if="weeklyRows.length" class="list">
         <view v-for="r in weeklyRows" :key="r.id" class="card">
           <view class="card-head">
-            <text class="card-title">{{ r.exam_name || r.subject }} · {{ r.exam_date }}</text>
+            <text class="card-title">{{ r.exam_name || r.subject }} · {{ r.exam_month }}</text>
             <text class="score">{{ r.score }}/{{ r.max_score }}</text>
           </view>
           <text class="card-meta">{{ r.subject }} {{ r.class_name ? '· ' + r.class_name : '' }} {{ r.rank_in_class ? `· 班级排名 ${r.rank_in_class}` : '' }}</text>
@@ -34,7 +34,7 @@
           <WeeklyScoreEvaluations :score="r" />
         </view>
       </view>
-      <EmptyState v-else title="暂无周测" desc="教师尚未录入周考成绩" />
+      <EmptyState v-else title="暂无月考" desc="教师尚未录入月考成绩" />
     </template>
 
     <template v-if="active==='trend'">
@@ -45,9 +45,9 @@
         <view class="trend-head">
           <text class="trend-title">{{ subject || '全科' }} 趋势 · {{ trendRows.length }} 次</text>
         </view>
-        <view v-for="p in trendRows" :key="p.exam_date + p.exam_name" class="card">
-          <text class="card-title">{{ p.exam_name || p.exam_date }}</text>
-          <text class="card-meta">{{ p.exam_date }} · {{ p.score }}/{{ p.max_score }} · {{ percent(p.score, p.max_score) }}%</text>
+        <view v-for="p in trendRows" :key="p.exam_month + p.subject" class="card">
+          <text class="card-title">{{ p.exam_name || p.exam_month }}</text>
+          <text class="card-meta">{{ p.exam_month }} · {{ p.subject }} · {{ p.score }}/{{ p.max_score }} · {{ percent(p.score, p.max_score) }}%</text>
           <view class="bar-wrap">
             <view class="bar" :style="{ width: percent(p.score, p.max_score) + '%' }"></view>
           </view>
@@ -82,7 +82,7 @@ import { http } from '../../../utils/request'
 import EmptyState from '../../../components/EmptyState.vue'
 
 const tabs = [
-  { key:'weekly', label:'周测' },
+  { key:'weekly', label:'月考' },
   { key:'trend', label:'趋势' },
   { key:'monthly', label:'月度' },
 ]

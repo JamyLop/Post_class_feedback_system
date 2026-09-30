@@ -1,6 +1,6 @@
 # 一生一案学业发展管理系统
 
-学生学业发展管理系统，以**学生总案、周测成绩、月度评定、过程任务**为核心。
+学生学业发展管理系统，以**学生总案、月考成绩、月度评定、过程任务**为核心。
 
 业务闭环：
 
@@ -144,7 +144,7 @@ npm run build:mp-weixin  # 构建微信小程序，再用微信开发者工具�
 - `users` / `admin` / `classes`：用户、班级、任课关系管理
 - `student_cases`：学生总案（含家长可见版本 `PARENT_VISIBLE_STATUSES` 越权 403）
 - `case_tasks`（+ stage）：日周月任务、打卡、督查
-- `weekly_scores` / `points_reports`：周测成绩与积分报表
+- `weekly_scores` / `points_reports`：月考成绩与积分报表
 - `monthly_reports`：月度评定
 - `storage_files`：附件上传（本地 / MinIO / OSS，注意 `MAX_UPLOAD_BYTES` 默认 10MB）
 
@@ -170,3 +170,9 @@ pytest            # 配置见 pytest.ini
 - **前端 401 / CORS 报错**：检查 `VITE_API_BASE` 与后端 `CORS_ORIGINS` 是否包含当前前端地址。
 - **微信登录失败**：开发期确认 `WX_MOCK=true`；生产需配置真实 `WX_APPID/WX_SECRET`。
 - **附件过大**：调整 `MAX_UPLOAD_BYTES`；生产确认 OSS bucket / endpoint / key 配置正确。
+
+### 月考成绩
+
+成绩按考试月份（YYYY-MM）管理，同班同生同科每月一条，单条及批量重复录入更新当月成绩，保留教师评价。考试日期单独记录，可与考试月份跨月。网页与小程序支持月份筛选，班级汇总按月份和学科，趋势按月份分科展示。月考成绩与月度评定是两个独立功能。
+
+后端部署前执行 `alembic upgrade head`；新接口为 `/api/monthly-exam-scores`，原 `/api/weekly-test-scores` 兼容入口共用月考逻辑。迁移保留全部历史记录，同月较早记录不纳入月考统计。
