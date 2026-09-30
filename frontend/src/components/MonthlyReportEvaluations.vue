@@ -8,20 +8,19 @@
       </div>
       <p>{{ item.content }}</p>
     </div>
-    <span v-if="!report.evaluations?.length" class="empty">暂无学科评价</span>
-    <el-button v-if="report.can_evaluate" link type="primary" @click="openEditor">
+    <span v-if="!report.evaluations?.length" class="empty">暂无月度评定</span>
+    <el-button v-if="report.can_evaluate && report.evaluation_subject" link type="primary" @click="openEditor">
       {{ ownEvaluation ? '修改我的评价' : '添加评价' }}
     </el-button>
-    <el-dialog v-model="visible" title="月度学科评价" width="min(520px, 92vw)" append-to-body :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving">
+    <el-dialog v-model="visible" title="月度评定 · 总结、问题、计划" width="min(520px, 92vw)" append-to-body :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving">
       <p class="report-context">{{ report.student_name }} · {{ report.class_name }} · {{ report.month_label }} 月度评定</p>
+      <p class="report-context">{{ report.evaluation_subject }} · 请填写总结、问题、计划</p>
       <el-form label-position="top" @submit.prevent="save">
-        <el-form-item label="评价内容">
-          <el-input v-model="content" type="textarea" :rows="5" maxlength="2000" show-word-limit :disabled="saving" placeholder="填写本月该生在你所带学科的表现、存在问题和改进建议" />
-        </el-form-item>
+        <MonthlyReviewForm v-model="content" :limit="600" :disabled="saving" />
       </el-form>
       <template #footer>
         <el-button :disabled="saving" @click="visible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" :disabled="!content.trim()" @click="save">保存评价</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!completeReview(content)" @click="save">保存评价</el-button>
       </template>
     </el-dialog>
   </div>
@@ -29,6 +28,8 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import MonthlyReviewForm from './MonthlyReviewForm.vue'
+import { completeReview } from '../utils/monthlyReview'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { saveMonthlyEvaluation } from '../api/monthlyReports'
@@ -42,7 +43,7 @@ const content = ref('')
 const ownEvaluation = computed(() => props.report.evaluations?.find(item => item.teacher_id === auth.user?.id))
 
 function roleLabel(item) {
-  if (item.teacher_role === 'head_teacher') return '班主任'
+  if (item.teacher_role === 'head_teacher') return '德育 · 班主任'
   return item.subject ? `${item.subject}老师` : '学科老师'
 }
 
@@ -56,7 +57,7 @@ function openEditor() {
 }
 
 async function save() {
-  if (saving.value || !content.value.trim()) return
+  if (saving.value || !completeReview(content.value)) return
   saving.value = true
   try {
     const updated = await saveMonthlyEvaluation(props.report.id, { content: content.value.trim() })

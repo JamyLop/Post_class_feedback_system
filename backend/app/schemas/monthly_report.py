@@ -1,7 +1,18 @@
+import re
 from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def validate_review(value: str) -> str:
+    value = value.strip()
+    # 新版三项格式必须完整；旧客户端的自由文本仍可读取、保存。
+    if value.startswith("【总结】"):
+        match = re.fullmatch(r"【总结】\n([\s\S]*?)\n\n【问题】\n([\s\S]*?)\n\n【计划】\n([\s\S]*)", value)
+        if not match or not all(part.strip() for part in match.groups()):
+            raise ValueError("请完整填写总结、问题、计划")
+    return value
 
 
 class MonthlyReportScopeIn(BaseModel):
@@ -20,7 +31,7 @@ class MonthlyReportUpdateIn(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("请填写评定内容")
-        return value
+        return validate_review(value)
 
 
 class MonthlyReportCreateIn(MonthlyReportScopeIn, MonthlyReportUpdateIn):
@@ -35,7 +46,7 @@ class MonthlyEvaluationSave(BaseModel):
     @field_validator("content", mode="before")
     @classmethod
     def strip_content(cls, value):
-        return value.strip() if isinstance(value, str) else value
+        return validate_review(value) if isinstance(value, str) else value
 
 
 class MonthlyEvaluationOut(BaseModel):
@@ -81,3 +92,6 @@ class MonthlyReportOut(BaseModel):
     class_name: str | None = None
     evaluations: list[MonthlyEvaluationOut] = Field(default_factory=list)
     can_evaluate: bool = False
+    can_manage: bool = False
+    can_publish: bool = False
+    evaluation_subject: str = ""

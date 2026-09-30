@@ -3,7 +3,7 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">月度评定</text>
-      <text class="p">{{ isSubjectTeacher ? '查看所带班级评定，填写学科评价' : '教师手动填写、审阅与发布月度评定' }}</text>
+      <text class="p">{{ isSubjectTeacher ? '对应老师填写学科总结、问题、计划' : '教师手动填写、审阅与发布月度评定' }}</text>
     </view>
 
     <!-- 筛选栏 -->
@@ -30,7 +30,7 @@
 
     <!-- 操作栏：任课老师仅评价，不展示新建入口 -->
     <view class="action-bar">
-      <button v-if="!isSubjectTeacher" class="btn-primary" @click="goGenerate">新建评定</button>
+      <button class="btn-primary" @click="goGenerate">新建评定</button>
       <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
@@ -39,7 +39,7 @@
       <view v-if="loading" class="loading-bar">
         <text class="loading-text">加载中...</text>
       </view>
-      <EmptyState v-else-if="!reportList.length" :title="isSubjectTeacher ? '暂无所带班级的月度评定' : '暂无月度评定'" :desc="isSubjectTeacher ? '班主任发布前的待办评定会显示在这里' : '点击「新建评定」开始'" />
+      <EmptyState v-else-if="!reportList.length" :title="isSubjectTeacher ? '暂无所带班级的月度评定' : '暂无月度评定'" :desc="isSubjectTeacher ? '点击「新建评定」开始填写对应学科' : '点击「新建评定」开始'" />
       <view v-else class="report-list">
         <view v-for="(item, idx) in reportList" :key="item.id" class="report-row" :class="{ 'has-border': idx > 0 }" @click="goDetail(item.id)">
           <view class="report-info">

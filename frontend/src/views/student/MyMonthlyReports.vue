@@ -2,8 +2,8 @@
   <section class="page student-monthly-page">
     <div class="page-header">
       <div>
-        <h1 class="page-title">月度学情诊断与总结</h1>
-        <p class="header-desc">查阅班主任每月发布的综合学情报告、德育日常表现与后续攻坚方案。</p>
+        <h1 class="page-title">月度评定</h1>
+        <p class="header-desc">查看德育与各学科的月度总结、问题和计划。</p>
       </div>
       <el-button :loading="loading" @click="load">刷新月度评定</el-button>
     </div>
@@ -16,18 +16,19 @@
           <div class="card-head">
             <div class="head-title">
               <span class="month-chip">{{ r.month_label }}</span>
-              <strong class="report-title">学情综合诊断月度评定</strong>
+              <strong class="report-title">月度评定</strong>
             </div>
             <span class="period-text">{{ r.period_start }} ~ {{ r.period_end }}</span>
           </div>
         </template>
+        <div class="evaluations-title">德育月度评定 · 班主任</div>
         <div class="monthly-content">{{ r.final_content }}</div>
         <div v-if="r.evaluations?.length" class="evaluations-block">
           <div class="evaluations-title">学科老师评价</div>
           <div v-for="item in r.evaluations" :key="item.id" class="evaluation">
             <div class="evaluation-meta">
               <strong>{{ item.teacher_name }}</strong>
-              <span>{{ item.teacher_role === 'head_teacher' ? '班主任' : (item.subject ? `${item.subject}老师` : '学科老师') }}</span>
+              <span>{{ item.teacher_role === 'head_teacher' ? '德育 · 班主任' : (item.subject ? `${item.subject}老师` : '学科老师') }}</span>
             </div>
             <p>{{ item.content }}</p>
           </div>

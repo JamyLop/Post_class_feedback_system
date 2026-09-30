@@ -4,15 +4,14 @@
       <text class="evaluation-meta">{{ item.teacher_name }} · {{ roleLabel(item) }} · {{ formatTime(item.updated_at) }}</text>
       <text class="evaluation-content">{{ item.content }}</text>
     </view>
-    <text v-if="!report.evaluations?.length" class="empty">暂无学科评价</text>
-    <button v-if="report.can_evaluate && !editing" class="edit-btn" size="mini" @click="openEditor">{{ ownEvaluation ? '修改我的评价' : '添加评价' }}</button>
+    <text v-if="!report.evaluations?.length" class="empty">暂无月度评定</text>
+    <button v-if="report.can_evaluate && report.evaluation_subject && !editing" class="edit-btn" size="mini" @click="openEditor">{{ ownEvaluation ? '修改我的评价' : '添加评价' }}</button>
     <view v-if="editing" class="editor">
-      <text class="editor-label">评价内容</text>
-      <textarea v-model="content" class="evaluation-input" :maxlength="2000" :disabled="saving" placeholder="填写本月该生在你所带学科的表现、存在问题和改进建议" />
-      <text class="empty">{{ content.length }}/2000</text>
+      <text class="editor-label">{{ report.evaluation_subject }}月度评定</text>
+      <MonthlyReviewForm v-model="content" :limit="600" :disabled="saving" />
       <view class="editor-actions">
         <button size="mini" :disabled="saving" @click="editing = false">取消</button>
-        <button class="save-btn" size="mini" :loading="saving" :disabled="saving || !content.trim()" @click="save">保存评价</button>
+        <button class="save-btn" size="mini" :loading="saving" :disabled="saving || !completeReview(content)" @click="save">保存评价</button>
       </view>
     </view>
   </view>
@@ -20,6 +19,8 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import MonthlyReviewForm from './MonthlyReviewForm.vue'
+import { completeReview } from '../utils/monthlyReview'
 import { useAuthStore } from '../stores/auth'
 import { saveMonthlyEvaluation } from '../api/monthlyReports'
 
@@ -31,7 +32,7 @@ const saving = ref(false)
 const content = ref('')
 const ownEvaluation = computed(() => props.report.evaluations?.find(item => item.teacher_id === auth.user?.id))
 function roleLabel(item) {
-  if (item.teacher_role === 'head_teacher') return '班主任'
+  if (item.teacher_role === 'head_teacher') return '德育 · 班主任'
   return item.subject ? `${item.subject}老师` : '学科老师'
 }
 function formatTime(value) {
@@ -45,7 +46,7 @@ function openEditor() {
   editing.value = true
 }
 async function save() {
-  if (saving.value || !content.value.trim()) return
+  if (saving.value || !completeReview(content.value)) return
   saving.value = true
   try {
     const updated = await saveMonthlyEvaluation(props.report.id, { content: content.value.trim() })

@@ -4,7 +4,7 @@
       <div>
         <div class="scope-line"><span>高三试点</span><span>月度评定 · 教师填写</span></div>
         <h1>月度评定管理</h1>
-        <p>按自然月手动填写学情、德育表现与改进建议，保存后审阅并发布给家长和学生。</p>
+        <p>任课老师填写对应学科，班主任填写德育；均按总结、问题、计划填写，审阅后发布。</p>
       </div>
       <el-button type="primary" @click="openGenerate"><el-icon><Plus /></el-icon>新建月度评定</el-button>
     </header>
@@ -38,8 +38,8 @@
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">查看/编辑</el-button>
-            <el-button v-if="row.status==='generated'" link type="success" @click="publishRow(row)">发布</el-button>
-            <el-button link type="danger" @click="removeRow(row)">删除</el-button>
+            <el-button v-if="row.can_publish && row.status==='generated'" link type="success" @click="publishRow(row)">发布</el-button>
+            <el-button v-if="row.can_publish" link type="danger" @click="removeRow(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -52,7 +52,7 @@
         <el-form-item label="班级"><el-select v-model="genForm.class_id" style="width: 100%" @change="onGenClassChange"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
         <el-form-item label="学生"><el-select v-model="genForm.student_id" filterable style="width: 100%"><el-option v-for="s in genStudents" :key="s.id" :label="`${s.name}（${s.username}）`" :value="s.id" /></el-select></el-form-item>
         <el-form-item label="月份"><el-date-picker v-model="genForm.month_label" type="month" placeholder="选择月份" value-format="YYYY-MM" style="width: 100%" /></el-form-item>
-        <el-form-item label="评定内容" required><el-input v-model="genForm.final_content" type="textarea" :rows="8" maxlength="8000" show-word-limit placeholder="请填写本月学情、德育表现及下月改进建议" /></el-form-item>
+        <MonthlyReviewForm v-model="genForm.final_content" />
       </el-form>
       <template #footer><el-button @click="genVisible=false">取消</el-button><el-button type="primary" :loading="generating" @click="submitGenerate">保存待发布</el-button></template>
     </el-dialog>
@@ -66,16 +66,16 @@
         </div>
         <el-alert v-if="current.error_message" type="error" :title="current.error_message" :closable="false" style="margin: 12px 0" />
         <div class="report-sections" >
-          <div class="ai-label" style="margin-top: 14px">班主任定稿（可修改）</div>
-          <el-input v-model="editContent" type="textarea" :autosize="{minRows:8,maxRows:20}" placeholder="请填写本月学情、德育表现及下月改进建议"  maxlength="8000" show-word-limit />
-          <div class="ai-label" style="margin-top: 14px">学科评价（任课老师独立填写）</div>
+          <div class="ai-label" style="margin-top: 14px">德育月度评定（班主任填写）</div>
+          <MonthlyReviewForm v-model="editContent" :disabled="!current.can_manage" />
+          <div class="ai-label" style="margin-top: 14px">学科月度评定（对应老师填写）</div>
           <MonthlyReportEvaluations v-if="current" :report="current" @saved="updated => { current = updated; editContent = updated.final_content || editContent }" />
         </div>
       </template>
       <template #footer>
         <el-button @click="detailVisible=false">关闭</el-button>
-        <el-button :loading="saving" :disabled="!current" @click="saveEdit">保存修改</el-button>
-        <el-button v-if="current && current.status==='generated'" type="primary" :loading="saving" @click="publishCurrent">发布</el-button>
+        <el-button :loading="saving" :disabled="!current?.can_manage" @click="saveEdit">保存修改</el-button>
+        <el-button v-if="current?.can_manage && current.status==='generated'" type="primary" :loading="saving" @click="publishCurrent">发布</el-button>
       </template>
     </el-dialog>
   </section>
@@ -83,6 +83,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
+import { completeReview } from '../../utils/monthlyReview'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
@@ -135,7 +137,7 @@ function openGenerate() {
 async function submitGenerate() {
   if (!genForm.value.class_id || !genForm.value.student_id || !genForm.value.month_label) { ElMessage.warning('请选择班级、学生和月份'); return }
   if (generating.value) return
-  if (!genForm.value.final_content.trim()) { ElMessage.warning('请填写评定内容'); return }
+  if (!completeReview(genForm.value.final_content)) { ElMessage.warning('请完整填写总结、问题、计划'); return }
   generating.value = true
   try {
     await createMonthlyReport(genForm.value)
@@ -150,7 +152,7 @@ async function openDetail(row) {
   detailVisible.value = true
 }
 async function saveEdit() {
-  if (!editContent.value.trim()) { ElMessage.warning('内容不能为空'); return }
+  if (!completeReview(editContent.value)) { ElMessage.warning('请完整填写总结、问题、计划'); return }
   saving.value = true
   try {
     const updated = await updateMonthlyReport(current.value.id, { final_content: editContent.value })
@@ -162,7 +164,7 @@ async function saveEdit() {
 async function publishRow(row) { await publishMonthlyReport(row.id); ElMessage.success('已发布'); await load() }
 async function publishCurrent() {
   if (saving.value) return
-  if (!editContent.value.trim()) { ElMessage.warning('内容不能为空'); return }
+  if (!completeReview(editContent.value)) { ElMessage.warning('请完整填写总结、问题、计划'); return }
   saving.value = true
   try {
     // 发布前保存当前编辑框，避免发布仍停留在数据库里的旧正文。

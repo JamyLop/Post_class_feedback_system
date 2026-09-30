@@ -3,7 +3,7 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">填写月度评定</text>
-      <text class="p">由教师填写本月表现与改进建议，保存后可审阅发布</text>
+      <text class="p">班主任填写德育总结、问题、计划；学科由对应老师填写</text>
     </view>
 
     <view class="card">
@@ -31,9 +31,8 @@
     </view>
 
     <view class="card">
-      <text class="card-title">评定内容 <text class="required">*</text></text>
-      <textarea v-model="content" class="manual-content" :maxlength="8000" :cursor-spacing="24" placeholder="请填写本月学情、德育表现及下月改进建议" />
-      <text class="char-count">{{ content.length }}/8000</text>
+      <text class="card-title">{{ auth.role === 'subject_teacher' ? '学科月度评定' : '月度评定' }} <text class="required">*</text></text>
+      <MonthlyReviewForm v-model="content" :limit="600" :disabled="submitting" />
     </view>
 
     <view class="submit-bar">
@@ -45,12 +44,16 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '../../stores/auth'
+import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
+import { completeReview } from '../../utils/monthlyReview'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { listClassStudents } from '../api/classes'
-import { createMonthlyReport } from '../../api/monthlyReports'
+import { createMonthlyReport, listMonthlyReports, saveMonthlyEvaluation } from '../../api/monthlyReports'
 
+const auth = useAuthStore()
 const classId = ref(null)
 const studentList = ref([])
 const studentIndex = ref(0)
@@ -78,8 +81,8 @@ async function loadStudents() {
 
 async function handleCreate() {
   if (submitting.value) return
-  if (!content.value.trim()) {
-    uni.showToast({ title: '请填写评定内容', icon: 'none' })
+  if (!completeReview(content.value)) {
+    uni.showToast({ title: '请填写总结、问题、计划', icon: 'none' })
     return
   }
   if (!studentList.value.length) {
@@ -96,12 +99,16 @@ async function handleCreate() {
 
   submitting.value = true
   try {
-    const report = await createMonthlyReport({
+    const payload = {
       student_id: student.id,
       class_id: classId.value,
       month_label: monthLabel.value,
       final_content: content.value.trim(),
-    })
+    }
+    const existing = (await listMonthlyReports({ student_id: student.id, class_id: classId.value, month_label: monthLabel.value }))[0]
+    const report = existing && !existing.can_manage
+      ? await saveMonthlyEvaluation(existing.id, { content: payload.final_content })
+      : await createMonthlyReport(payload)
     uni.showToast({ title: '已保存待发布', icon: 'success' })
     uni.redirectTo({ url: `/subTeacher/monthlyReports/detail?id=${report.id}` })
   } catch (e) {

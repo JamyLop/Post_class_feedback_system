@@ -21,36 +21,35 @@
         <text v-if="report.error_message" class="error-msg">{{ report.error_message }}</text>
       </view>
 
-      <!-- 评定内容：仅班主任/校长可编辑定稿 -->
+      <!-- 德育由本班班主任填写 -->
       <view class="card">
         <view class="card-header-row">
-          <text class="card-title">评定内容</text>
+          <text class="card-title">德育月度评定（班主任填写）</text>
           <text v-if="isEditing" class="edit-hint">编辑模式</text>
         </view>
         <view v-if="isEditing" class="edit-area">
-          <textarea v-model="editContent" class="textarea" :maxlength="8000" />
-          <text class="char-count">{{ editContent.length }}/8000</text>
+      <MonthlyReviewForm v-model="editContent" :disabled="saving" />
         </view>
         <view v-else class="content-area">
           <text class="content-text">{{ report.final_content || '请点击编辑填写评定内容' }}</text>
         </view>
       </view>
 
-      <!-- 学科评价：班主任与所带学科老师各自独立一条 -->
+      <!-- 对应任课老师填写学科评定 -->
       <view class="card">
         <text class="card-title">学科评价</text>
         <MonthlyReportEvaluations :report="report" @saved="(updated) => { report = updated }" />
       </view>
 
       <!-- 操作按钮 -->
-      <view v-if="canManage" class="action-bar">
+      <view v-if="report.can_publish" class="action-bar">
         <template v-if="['generated', 'published', 'generating', 'failed'].includes(report.status)">
-          <button v-if="!isEditing" class="btn-outline" @click="startEdit">编辑</button>
-          <template v-else>
+          <button v-if="canManage && !isEditing" class="btn-outline" @click="startEdit">编辑</button>
+          <template v-if="isEditing && canManage">
             <button class="btn-outline" @click="cancelEdit">取消</button>
             <button class="btn-primary" @click="saveEdit" :loading="saving" :disabled="saving">保存</button>
           </template>
-          <button v-if="report.status === 'generated' && !isEditing" class="btn-primary" @click="handlePublish" :loading="publishing" :disabled="publishing">发布</button>
+          <button v-if="report.can_publish && report.status === 'generated' && !isEditing" class="btn-primary" @click="handlePublish" :loading="publishing" :disabled="publishing">发布</button>
         </template>
       </view>
     </template>
@@ -58,6 +57,8 @@
 </template>
 
 <script setup>
+import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
+import { completeReview } from '../../utils/monthlyReview'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import { ref, computed, onMounted } from 'vue'
@@ -72,8 +73,8 @@ const isEditing = ref(false)
 const editContent = ref('')
 const saving = ref(false)
 const publishing = ref(false)
-// 定稿编辑与发布仅班主任/校长；任课老师只写学科评价
-const canManage = computed(() => ['teacher', 'admin'].includes(auth.role))
+// 服务端根据本班班主任身份控制德育填写权限。
+const canManage = computed(() => report.value?.can_manage)
 
 function statusLabel(s) {
   return { generating: '待填写', generated: '待发布', published: '已发布', failed: '待补充' }[s] || s
@@ -116,8 +117,8 @@ function cancelEdit() {
 }
 
 async function saveEdit() {
-  if (!editContent.value.trim()) {
-    uni.showToast({ title: '内容不能为空', icon: 'none' })
+  if (!completeReview(editContent.value)) {
+    uni.showToast({ title: '请填写总结、问题、计划', icon: 'none' })
     return
   }
   saving.value = true

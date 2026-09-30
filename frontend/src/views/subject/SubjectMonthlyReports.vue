@@ -4,8 +4,9 @@
       <div>
         <div class="scope-line"><span>任课协同</span><span>月度评定 · 学科评价</span></div>
         <h1>月度评定与学科评价</h1>
-        <p>查看所带班级学生的月度评定，为你所带学科填写独立评价；班主任定稿由班主任维护发布。</p>
+        <p>为对应学生填写所带学科的总结、问题、计划；德育由班主任填写。</p>
       </div>
+      <el-button type="primary" @click="openCreate">填写本月评定</el-button>
       <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
     </header>
 
@@ -25,7 +26,7 @@
         <el-table-column label="学生 / 班级" min-width="150">
           <template #default="{ row }"><strong>{{ row.student_name || `学生#${row.student_id}` }}</strong><div class="secondary">{{ row.class_name }}</div></template>
         </el-table-column>
-        <el-table-column label="班主任定稿" min-width="220" show-overflow-tooltip>
+        <el-table-column label="德育评定（班主任）" min-width="220" show-overflow-tooltip>
           <template #default="{ row }"><span class="final-content">{{ row.final_content || '—' }}</span></template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -36,6 +37,15 @@
         </el-table-column>
       </el-table>
     </section>
+    <el-dialog v-model="creating" title="填写学科月度评定" width="min(560px, 92vw)">
+      <el-form label-position="top">
+        <el-form-item label="班级"><el-select v-model="form.class_id" @change="changeClass"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
+        <el-form-item label="学生"><el-select v-model="form.student_id" filterable><el-option v-for="s in students" :key="s.id" :label="s.name" :value="s.id" /></el-select></el-form-item>
+        <el-form-item label="月份"><el-date-picker v-model="form.month_label" type="month" value-format="YYYY-MM" /></el-form-item>
+        <MonthlyReviewForm v-model="form.final_content" :limit="600" :disabled="saving" />
+      </el-form>
+      <template #footer><el-button :disabled="saving" @click="creating = false">取消</el-button><el-button type="primary" :loading="saving" @click="submitCreate">保存学科评定</el-button></template>
+    </el-dialog>
   </section>
 </template>
 
@@ -43,9 +53,45 @@
 import { computed, onMounted, ref } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
-import { listClasses } from '../../api/classes'
-import { listMonthlyReports } from '../../api/monthlyReports'
+import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
+import { completeReview } from '../../utils/monthlyReview'
+import { ElMessage } from 'element-plus'
+import { listClasses, listStudents } from '../../api/classes'
+import { createMonthlyReport, listMonthlyReports, saveMonthlyEvaluation } from '../../api/monthlyReports'
 
+const creating = ref(false)
+const saving = ref(false)
+const students = ref([])
+const form = ref({ class_id: null, student_id: null, month_label: '', final_content: '' })
+async function changeClass() {
+  form.value.student_id = null
+  students.value = form.value.class_id ? await listStudents(form.value.class_id) : []
+}
+async function openCreate() {
+  const now = new Date()
+  form.value = { class_id: filters.value.class_id || classes.value[0]?.id, student_id: null, month_label: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, final_content: '' }
+  await changeClass()
+  creating.value = true
+}
+async function submitCreate() {
+  if (saving.value) return
+  if (!form.value.student_id || !form.value.month_label || !completeReview(form.value.final_content)) {
+    ElMessage.warning('请选择学生、月份并填写总结、问题、计划')
+    return
+  }
+  saving.value = true
+  try {
+    const existing = (await listMonthlyReports({ class_id: form.value.class_id, student_id: form.value.student_id, month_label: form.value.month_label }))[0]
+    if (existing) {
+      await saveMonthlyEvaluation(existing.id, { content: form.value.final_content })
+    } else {
+      await createMonthlyReport(form.value)
+    }
+    creating.value = false
+    ElMessage.success('学科评定已保存')
+    await load()
+  } finally { saving.value = false }
+}
 const classes = ref([])
 const rows = ref([])
 const loading = ref(false)

@@ -20,7 +20,7 @@ from app.models.monthly_report import (
     MonthlyReport,
     MonthlyReportEvaluation,
 )
-from app.models.student_case import StudentCase
+from app.models.student_case import StudentCase, SubjectPlan
 from app.models.user import (
     ROLE_ADMIN,
     ROLE_PARENT,
@@ -37,7 +37,7 @@ from app.schemas.monthly_report import (
 )
 
 router = APIRouter(prefix="/monthly-reports", tags=["monthly-reports"])
-_manager = require_roles([ROLE_ADMIN, ROLE_TEACHER])
+_manager = require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_SUBJECT_TEACHER])
 _evaluator = require_roles([ROLE_TEACHER, ROLE_SUBJECT_TEACHER])
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,11 @@ def _enrich(row: MonthlyReport, db: Session, user: User) -> dict:
     cls = db.get(Class, row.class_id)
     data["student_name"] = stu.name if stu else None
     data["class_name"] = cls.name if cls else None
-    data["can_evaluate"] = _evaluation_role(db, row, user) is not None
+    role_subject = _evaluation_role(db, row, user)
+    data["can_evaluate"] = role_subject is not None
+    data["evaluation_subject"] = role_subject[1] if role_subject else ""
+    data["can_manage"] = _is_head_teacher(db, row.class_id, user)
+    data["can_publish"] = data["can_manage"] or user.role == ROLE_ADMIN
     return data
 
 
@@ -65,20 +69,43 @@ def _evaluation_role(db: Session, row: MonthlyReport, user: User) -> tuple[str, 
         return None
     cls = db.get(Class, row.class_id)
     relations = db.query(ClassTeacher).filter_by(class_id=row.class_id, teacher_id=user.id).all()
-    if cls is not None and cls.teacher_id == user.id:
+    is_head = (cls is not None and cls.teacher_id == user.id) or any(r.role == "head_teacher" for r in relations)
+    # 学生档案中的任课安排优先于班级关系，避免同班其他老师代填。
+    case = db.get(StudentCase, row.student_case_id) if row.student_case_id else db.query(StudentCase).filter_by(
+        student_id=row.student_id, class_id=row.class_id,
+    ).filter(StudentCase.status != "archived").order_by(StudentCase.id.desc()).first()
+    plans = db.query(SubjectPlan).filter_by(student_case_id=case.id).all() if case else []
+    assigned = {p.subject for p in plans if p.teacher_id == user.id}
+    configured = {p.subject for p in plans}
+    assigned.update(r.subject for r in relations if r.role == "subject_teacher" and r.subject and r.subject not in configured)
+    if assigned:
+        return (MONTHLY_EVAL_ROLE_SUBJECT, "、".join(sorted(assigned)))
+    if is_head:
         return (MONTHLY_EVAL_ROLE_HEAD, "")
-    if any(r.role == "head_teacher" for r in relations):
-        return (MONTHLY_EVAL_ROLE_HEAD, "")
-    subject_rel = next((r for r in relations if r.role == "subject_teacher" and r.subject), None)
-    if subject_rel is not None:
-        return (MONTHLY_EVAL_ROLE_SUBJECT, subject_rel.subject)
-    # 任课账号无学科绑定时不允许评价，避免越界写入。
     return None
+
+
+def _is_head_teacher(db: Session, class_id: int, user: User) -> bool:
+    if user.role not in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
+        return False
+    cls = db.get(Class, class_id)
+    return bool((cls and cls.teacher_id == user.id) or db.query(ClassTeacher).filter_by(
+        class_id=class_id, teacher_id=user.id, role="head_teacher",
+    ).first())
+
+
+def _require_manager(db: Session, class_id: int, user: User):
+    # 管理员保留发布管理权限；德育正文只能由本班班主任填写。
+    if not _is_head_teacher(db, class_id, user):
+        raise HTTPException(status_code=403, detail="德育月度评定仅由本班班主任填写")
 
 
 def _subject_teacher_class_ids(db: Session, user: User) -> set[int]:
     rows = db.query(ClassTeacher).filter_by(teacher_id=user.id).all()
-    return {r.class_id for r in rows}
+    plan_classes = db.query(StudentCase.class_id).join(SubjectPlan, SubjectPlan.student_case_id == StudentCase.id).filter(
+        SubjectPlan.teacher_id == user.id, StudentCase.class_id.isnot(None), StudentCase.status != "archived",
+    ).all()
+    return {r.class_id for r in rows} | {r.class_id for r in plan_classes}
 
 def _authorize_student_class(db: Session, student_id: int, class_id: int, user: User):
     cls = db.get(Class, class_id)
@@ -110,6 +137,8 @@ def _report_access(db: Session, report_id: int, user: User) -> MonthlyReport:
         if linked is None or r.status != MONTHLY_STATUS_PUBLISHED:
             raise HTTPException(status_code=403, detail="无权查看该月度评定")
         return r
+    if _evaluation_role(db, r, user) is not None:
+        return r
     if user.role == ROLE_SUBJECT_TEACHER:
         # 任课老师可查看所带班级的全部状态评定，以便在发布前提交学科评价。
         if not db.query(ClassTeacher).filter_by(class_id=r.class_id, teacher_id=user.id).first():
@@ -133,7 +162,12 @@ def create_monthly(
     stu = db.get(User, body.student_id)
     if stu is None or stu.role != ROLE_STUDENT:
         raise HTTPException(status_code=404, detail="学生不存在")
-    _authorize_student_class(db, body.student_id, body.class_id, user)
+    if not db.query(ClassStudent).filter_by(student_id=body.student_id, class_id=body.class_id).first():
+        raise HTTPException(status_code=403, detail="学生不属于该班级")
+    scope = MonthlyReport(student_id=body.student_id, class_id=body.class_id, student_case_id=body.student_case_id)
+    role_subject = (MONTHLY_EVAL_ROLE_HEAD, "") if _is_head_teacher(db, body.class_id, user) else _evaluation_role(db, scope, user)
+    if role_subject is None:
+        raise HTTPException(status_code=403, detail="仅对应任课老师或本班班主任可填写")
     period_start, period_end = _month_bounds(body.month_label)
     if body.student_case_id is not None:
         sc = db.get(StudentCase, body.student_case_id)
@@ -145,16 +179,31 @@ def create_monthly(
         student_id=body.student_id, class_id=body.class_id, month_label=body.month_label,
     ).first()
     if existing:
-        raise HTTPException(status_code=409, detail="该学生本月已有评定，请打开原评定编辑")
+        # 任课老师先填写后，班主任可补上德育，不覆盖已提交的学科内容。
+        if role_subject[0] == MONTHLY_EVAL_ROLE_HEAD and not existing.final_content.strip():
+            existing.final_content = body.final_content
+            existing.reviewed_by = user.id
+            db.commit()
+            db.refresh(existing)
+            return _enrich(existing, db, user)
+        raise HTTPException(status_code=409, detail="该学生本月已有评定，请打开原评定填写")
     report = MonthlyReport(
         student_id=body.student_id, class_id=body.class_id,
         student_case_id=body.student_case_id, month_label=body.month_label,
         period_start=period_start, period_end=period_end,
         # 沿用 generated 存储值表示待发布，兼容历史记录且无需迁移。
-        status=MONTHLY_STATUS_GENERATED, final_content=body.final_content,
+        status=MONTHLY_STATUS_GENERATED, final_content=body.final_content if role_subject[0] == MONTHLY_EVAL_ROLE_HEAD else "",
         reviewed_by=user.id, prompt_version="manual_v1", input_snapshot={},
     )
     db.add(report)
+    if role_subject[0] == MONTHLY_EVAL_ROLE_SUBJECT:
+        # 学科老师可直接开始本月评定，无需等待班主任先建记录。
+        if len(body.final_content) > 2000:
+            raise HTTPException(status_code=422, detail="学科评定最多2000字")
+        report.evaluations.append(MonthlyReportEvaluation(
+            teacher_id=user.id, teacher_name=user.name, teacher_role=role_subject[0],
+            subject=role_subject[1], content=body.final_content,
+        ))
     db.commit()
     db.refresh(report)
     return _enrich(report, db, user)
@@ -182,7 +231,7 @@ def list_reports(
         # 教师仅看自己班级
         legacy_ids = [r.id for r in db.query(Class).filter(Class.teacher_id == user.id).all()]
         rel_ids = [r.class_id for r in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id).all()]
-        allowed = set(legacy_ids + rel_ids)
+        allowed = set(legacy_ids + rel_ids) | _subject_teacher_class_ids(db, user)
         if not allowed:
             return []
         q = q.filter(MonthlyReport.class_id.in_(allowed))
@@ -215,12 +264,16 @@ def get_report(report_id: int, db: Session = Depends(get_db), user: User = Depen
 @router.put("/{report_id}", response_model=MonthlyReportOut)
 def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
+    _require_manager(db, r.class_id, user)
     # 旧的失败/排队记录可由教师接手，保存后进入待发布状态。
     if r.status in (MONTHLY_STATUS_GENERATING, MONTHLY_STATUS_FAILED):
         r.status = MONTHLY_STATUS_GENERATED
         r.error_message = ""
     r.final_content = body.final_content.strip()
     r.reviewed_by = user.id
+    for evaluation in r.evaluations:
+        if evaluation.teacher_role == MONTHLY_EVAL_ROLE_HEAD and evaluation.teacher_id == user.id:
+            evaluation.content = r.final_content
     if r.status == MONTHLY_STATUS_PUBLISHED:
         from datetime import datetime, timezone
         r.published_at = datetime.now(timezone.utc)
@@ -232,6 +285,8 @@ def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Dep
 @router.post("/{report_id}/publish", response_model=MonthlyReportOut)
 def publish_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
+    if user.role != ROLE_ADMIN:
+        _require_manager(db, r.class_id, user)
     if r.status != MONTHLY_STATUS_GENERATED:
         raise HTTPException(status_code=409, detail="只有待发布的月度评定可以发布")
     if not r.final_content.strip():
@@ -271,6 +326,10 @@ def save_evaluation(
     evaluation.teacher_role = role
     evaluation.subject = subject
     evaluation.content = body.content
+    if role == MONTHLY_EVAL_ROLE_HEAD:
+        # 班主任的德育评价与主报告正文保持同一来源。
+        row.final_content = body.content
+        row.reviewed_by = user.id
     db.commit()
     db.refresh(row)
     logger.info("monthly_evaluated report_id=%s teacher_id=%s role=%s", row.id, user.id, role)
@@ -279,6 +338,8 @@ def save_evaluation(
 @router.delete("/{report_id}")
 def delete_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
+    if user.role != ROLE_ADMIN:
+        _require_manager(db, r.class_id, user)
     db.delete(r)
     db.commit()
     return {"ok": True}

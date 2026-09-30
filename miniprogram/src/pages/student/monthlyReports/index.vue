@@ -3,7 +3,7 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">我的月度评定</text>
-      <text class="p">查看老师发布的月度综合评定</text>
+      <text class="p">查看德育与各学科的总结、问题和计划</text>
       <button class="refresh-btn" @click="reload" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
@@ -21,13 +21,14 @@
             </view>
           </view>
           <text class="report-time">发布于 {{ formatTime(item.published_at) }}</text>
+          <text class="evaluations-title">德育月度评定 · 班主任</text>
           <view class="report-content">
             <text class="content-text">{{ item.final_content || '暂无内容' }}</text>
           </view>
           <view v-if="item.evaluations?.length" class="evaluations-block">
             <text class="evaluations-title">学科老师评价</text>
             <view v-for="ev in item.evaluations" :key="ev.id" class="evaluation">
-              <text class="evaluation-meta">{{ ev.teacher_name }} · {{ ev.teacher_role === 'head_teacher' ? '班主任' : (ev.subject ? `${ev.subject}老师` : '学科老师') }}</text>
+              <text class="evaluation-meta">{{ ev.teacher_name }} · {{ ev.teacher_role === 'head_teacher' ? '德育 · 班主任' : (ev.subject ? `${ev.subject}老师` : '学科老师') }}</text>
               <text class="evaluation-content">{{ ev.content }}</text>
             </view>
           </view>
