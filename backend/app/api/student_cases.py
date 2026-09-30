@@ -1,9 +1,8 @@
 """高三一生一案 API：总案、学科方案、目标任务、打卡、督查与版本。"""
 
+from copy import deepcopy
 from datetime import date, datetime, timezone
 from urllib.parse import quote
-
-import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response, StreamingResponse
@@ -15,7 +14,6 @@ from app.auth.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.pagination import MAX_LIMIT
-from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.student_case import (
     CASE_STATUSES,
@@ -70,6 +68,7 @@ from app.schemas.student_case import (
 )
 from app.services.student_case_service import (
     PARENT_VISIBLE_STATUSES,
+    family_student_ids,
     STUDENT_VISIBLE_STATUSES,
     audit,
     can_consultant_manage,
@@ -173,9 +172,7 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
     if profile is not None:
         # SQLAlchemy 对象转 dict 以便做权限过滤，避免直接修改 ORM 导致意外提交
         profile_dict = {c.name: getattr(profile, c.name) for c in CaseStudentProfile.__table__.columns}
-        # 关键修复：建档时家长联系方式仅写入 StudentGuardian，新建总案未回填到
-        # case_student_profiles，导致详情页“三栏”显示暂未填写。存量数据在此做
-        # 展示层兜底 + 惰性回写，下次查询即持久一致。
+        # 学生基本资料可从学籍补齐；读取时不推断或补写家长联系方式。
         student_backfill_fields: list[str] = []
         if student is not None:
             for fld in ("gender", "ethnicity", "source_school", "dorm_number", "grade"):
@@ -188,24 +185,8 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
             if not (profile_dict.get("student_name") or "").strip() and student.name:
                 profile_dict["student_name"] = student.name
                 student_backfill_fields.append("student_name")
-        needs_backfill = False
-        if not (profile_dict.get("parent_name") or "").strip() or not (profile_dict.get("parent_phone") or "").strip():
-            if guardian_accounts:
-                first = guardian_accounts[0]
-                if not (profile_dict.get("parent_name") or "").strip():
-                    profile_dict["parent_name"] = first["name"] or ""
-                    needs_backfill = True
-                if not (profile_dict.get("parent_phone") or "").strip():
-                    profile_dict["parent_phone"] = first["username"] or ""
-                    needs_backfill = True
-                if not (profile_dict.get("parent_relationship") or "").strip():
-                    profile_dict["parent_relationship"] = first["relationship"] or ""
-                    needs_backfill = True
-        if needs_backfill or student_backfill_fields:
+        if student_backfill_fields:
             try:
-                for fld in ("parent_name", "parent_phone", "parent_relationship"):
-                    if profile_dict.get(fld) and not (getattr(profile, fld, "") or "").strip():
-                        setattr(profile, fld, profile_dict[fld])
                 for fld in student_backfill_fields:
                     if profile_dict.get(fld) and not (getattr(profile, fld, "") or "").strip():
                         setattr(profile, fld, profile_dict[fld])
@@ -222,31 +203,14 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
                     default_profile[fld] = getattr(student, fld)
             if student.name:
                 default_profile["student_name"] = student.name
-        if guardian_accounts:
-            first = guardian_accounts[0]
-            default_profile["parent_name"] = first["name"] or ""
-            default_profile["parent_phone"] = first["username"] or ""
-            default_profile["parent_relationship"] = first["relationship"] or ""
         profile_out = default_profile
     review_query = db.query(CaseReview).filter_by(student_case_id=case.id)
-    if user.role == ROLE_PARENT:
-        # 家长端不展示督查复盘
+    if user.role in (ROLE_PARENT, ROLE_STUDENT):
+        # 学号和旧家长账号使用相同的只读、脱敏规则
         review_query = None
         # 家长响应不得包含其他监护人账号/手机号，按矩阵脱敏
         guardian_accounts = []
         # 家长侧不暴露 parent_phone、健康明细等敏感信息
-        if isinstance(profile_out, dict):
-            profile_out = {
-                **profile_out,
-                "parent_phone": "",
-                "allergy_history": "",
-                "underlying_conditions": "",
-                "other_health_notes": "",
-            }
-    if user.role == ROLE_STUDENT:
-        # 学生自查：不暴露其他监护人账号，不暴露健康明细（按矩阵）
-        review_query = review_query.filter(CaseReview.visibility == "shared")
-        guardian_accounts = []
         if isinstance(profile_out, dict):
             profile_out = {
                 **profile_out,
@@ -360,12 +324,9 @@ def my_case(
 def family_cases(
     cycle_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles([ROLE_PARENT])),
+    user: User = Depends(require_roles([ROLE_PARENT, ROLE_STUDENT])),
 ):
-    student_ids = [
-        row.student_id
-        for row in db.query(StudentGuardian).filter_by(parent_id=user.id).all()
-    ]
+    student_ids = family_student_ids(db, user)
     query = db.query(StudentCase).filter(
         StudentCase.student_id.in_(student_ids),
         StudentCase.status.in_(PARENT_VISIBLE_STATUSES),
@@ -531,9 +492,6 @@ def create_student_case(
         db.rollback()
         raise HTTPException(status_code=409, detail="该学生在此周期已有总案") from exc
     student = db.get(User, body.student_id)
-    # 新建总案时同步入学时已录的家长联系方式，避免档案页显示空白
-    guardian_link = db.query(StudentGuardian).filter_by(student_id=body.student_id).first()
-    guardian_parent = db.get(User, guardian_link.parent_id) if guardian_link else None
     profile = CaseStudentProfile(
         student_case_id=case.id,
         student_name=student.name if student else "",
@@ -544,9 +502,6 @@ def create_student_case(
         grade=getattr(student, "grade", "") or (cls.grade if cls else "") or "",
         parent_evaluation=body.parent_evaluation.strip(),
         primary_needs=body.primary_needs.strip(),
-        parent_name=guardian_parent.name if guardian_parent else "",
-        parent_phone=guardian_parent.username if guardian_parent else "",
-        parent_relationship=guardian_link.relationship if guardian_link else "",
     )
     db.add(profile)
     db.flush()
@@ -575,19 +530,10 @@ def list_student_cases(
     user: User = Depends(get_current_user),
 ):
     query = db.query(StudentCase)
-    if user.role == ROLE_PARENT:
-        student_ids = [
-            row.student_id
-            for row in db.query(StudentGuardian).filter_by(parent_id=user.id).all()
-        ]
+    if user.role in (ROLE_PARENT, ROLE_STUDENT):
         query = query.filter(
-            StudentCase.student_id.in_(student_ids),
+            StudentCase.student_id.in_(family_student_ids(db, user)),
             StudentCase.status.in_(PARENT_VISIBLE_STATUSES),
-        )
-    elif user.role == ROLE_STUDENT:
-        query = query.filter(
-            StudentCase.student_id == user.id,
-            StudentCase.status.in_(STUDENT_VISIBLE_STATUSES),
         )
     elif user.role == ROLE_CONSULTANT:
         # 咨询老师只能查看关联学生的档案
@@ -714,16 +660,11 @@ def upsert_student_profile(
         db.add(profile)
     # 基本资料允许在执行期补录，但每次变更都进入总案审计日志。
     changes = body.model_dump()
-    # 基本信息页已移除家长联系方式；未提交这些字段时保留旧资料，也不触发账号注册。
+    # 家长使用孩子学号登录；忽略旧客户端提交的联系方式，保留历史资料。
     for field in ("parent_name", "parent_phone", "parent_relationship"):
-        if field not in body.model_fields_set:
-            changes.pop(field, None)
+        changes.pop(field, None)
     for field, value in changes.items():
         setattr(profile, field, value.strip() if isinstance(value, str) else value)
-    # 家长手机号格式校验
-    parent_phone = (changes.get("parent_phone") or "").strip()
-    if parent_phone and not re.fullmatch(r"1[3-9]\d{9}", parent_phone):
-        raise HTTPException(status_code=400, detail="家长联系方式需为11位手机号")
     db.flush()
     audit(
         db,
@@ -734,38 +675,6 @@ def upsert_student_profile(
         case.id,
         {"fields": list(changes)},
     )
-    # 自动注册家长账号：以手机号为用户名，默认密码 88888888
-    if parent_phone:
-        parent_name = (changes.get("parent_name") or "").strip() or "家长"
-        relationship = (changes.get("parent_relationship") or "").strip() or "guardian"
-        existing_parent = db.query(User).filter(User.username == parent_phone).first()
-        if existing_parent is None:
-            parent_user = User(
-                username=parent_phone,
-                password_hash=hash_password("88888888"),
-                name=parent_name,
-                role=ROLE_PARENT,
-            )
-            db.add(parent_user)
-            db.flush()
-            audit(db, user.id, "parent.auto_create", "user", parent_user.id, case.id, {"username": parent_phone})
-        else:
-            parent_user = existing_parent
-            if parent_user.role != ROLE_PARENT:
-                raise HTTPException(status_code=409, detail=f"手机号 {parent_phone} 已被其他角色账号占用")
-            # 同步更新家长姓名（若有提供）
-            if parent_name != "家长" and parent_user.name != parent_name:
-                parent_user.name = parent_name
-                db.flush()
-        link = db.query(StudentGuardian).filter_by(parent_id=parent_user.id, student_id=case.student_id).first()
-        if link is None:
-            link = StudentGuardian(parent_id=parent_user.id, student_id=case.student_id, relationship=relationship)
-            db.add(link)
-            db.flush()
-            audit(db, user.id, "guardian.auto_link", "student_guardian", link.id, case.id, {"parent_id": parent_user.id})
-        elif relationship and link.relationship != relationship:
-            link.relationship = relationship
-            db.flush()
     db.commit()
     db.refresh(profile)
     return profile
@@ -824,7 +733,25 @@ def list_case_versions(
     user: User = Depends(get_current_user),
 ):
     require_case_access(db, case_id, user)
-    return db.query(CaseVersion).filter_by(student_case_id=case_id).order_by(CaseVersion.version.desc()).all()
+    versions = db.query(CaseVersion).filter_by(student_case_id=case_id).order_by(CaseVersion.version.desc()).all()
+    if user.role not in (ROLE_PARENT, ROLE_STUDENT):
+        return versions
+    result = []
+    for version in versions:
+        # 历史快照同样遵守家长端可见性，复制后脱敏，不能修改已保存的版本。
+        snapshot = deepcopy(version.snapshot)
+        if not isinstance(snapshot, dict) or snapshot.get("case", {}).get("status") not in PARENT_VISIBLE_STATUSES:
+            continue
+        snapshot["reviews"] = []
+        snapshot["guardian_accounts"] = []
+        if isinstance(snapshot.get("student_profile"), dict):
+            for field in ("parent_phone", "allergy_history", "underlying_conditions", "other_health_notes"):
+                snapshot["student_profile"][field] = ""
+        result.append({
+            **{column.name: getattr(version, column.name) for column in CaseVersion.__table__.columns},
+            "snapshot": snapshot,
+        })
+    return result
 
 
 @router.get("/{case_id}/weekly-points")

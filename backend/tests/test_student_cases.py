@@ -679,3 +679,64 @@ def test_stage_review_requires_deyu_approval_before_publish(client, auth, db, se
     parent_detail = client.get(f"/api/student-cases/{case_id}", headers=auth("parent1"))
     assert parent_detail.status_code == 200, parent_detail.text
     assert parent_detail.json()["version"] == 2
+
+
+def test_school_number_opens_family_view_without_phone(client, auth, db, seed_users):
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    headers = auth("student1")
+    children = client.get("/api/auth/me/children", headers=headers)
+    assert children.status_code == 200, children.text
+    assert [row["student_id"] for row in children.json()] == [seed_users["student1"]]
+    assert client.get("/api/student-cases/children", headers=headers).json() == []
+    assert client.get(f"/api/student-cases/{case_id}", headers=headers).status_code == 403
+    _submit_and_approve(client, auth, case_id)
+    visible = client.get("/api/student-cases/children", headers=headers)
+    assert visible.status_code == 200, visible.text
+    assert [row["id"] for row in visible.json()] == [case_id]
+    detail = client.get(f"/api/student-cases/{case_id}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["reviews"] == []
+    assert detail.json()["guardian_accounts"] == []
+    assert detail.json()["can_manage"] is False
+    assert client.get(f"/api/student-cases/{case_id}", headers=auth("student2")).status_code == 403
+    assert client.get("/api/student-cases/children", headers=auth("student2")).json() == []
+    assert client.put(f"/api/student-cases/{case_id}/student-profile", headers=headers,
+                      json={"student_name": "越权改名"}).status_code == 403
+    assert client.patch(f"/api/student-cases/{case_id}", headers=headers,
+                        json={"current_summary": "越权修改"}).status_code == 403
+
+
+def test_profile_ignores_legacy_phone_and_never_creates_parent(client, auth, db, seed_users):
+    from app.models.class_ import StudentGuardian
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    user_count = db.query(User).count()
+    links = db.query(StudentGuardian).count()
+    response = client.put(f"/api/student-cases/{case_id}/student-profile", headers=auth("teacher1"),
+                          json={"student_name": "张三", "parent_name": "测试家长",
+                                "parent_phone": "13800000000", "parent_relationship": "母亲"})
+    assert response.status_code == 200, response.text
+    assert response.json()["parent_phone"] == ""
+    assert db.query(User).count() == user_count
+    assert db.query(StudentGuardian).count() == links
+
+
+def test_family_history_masks_sensitive_fields_without_modifying_snapshot(client, auth, db, seed_users):
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    _submit_and_approve(client, auth, case_id)
+    snapshot = {"case": {"status": "pending_review"},
+                "student_profile": {"parent_phone": "historical-phone", "allergy_history": "private-health"},
+                "reviews": [{"problem": "internal-review"}]}
+    version = CaseVersion(student_case_id=case_id, version=1, snapshot=snapshot,
+                          change_reason="阶段复盘", created_by=seed_users["teacher1"])
+    db.add(version)
+    db.commit()
+    response = client.get(f"/api/student-cases/{case_id}/versions", headers=auth("student1"))
+    assert response.status_code == 200, response.text
+    assert response.json()[0]["snapshot"]["reviews"] == []
+    assert response.json()[0]["snapshot"]["student_profile"]["parent_phone"] == ""
+    assert response.json()[0]["snapshot"]["student_profile"]["allergy_history"] == ""
+    db.refresh(version)
+    assert version.snapshot == snapshot

@@ -13,12 +13,12 @@
     <div class="table-card">
       <div class="filter-toolbar">
         <el-radio-group v-model="role" @change="load">
-          <el-radio-button value="student">学生 (在校)</el-radio-button>
+          <el-radio-button value="student">学生档案 / 家长学号</el-radio-button>
           <el-radio-button value="teacher">班主任</el-radio-button>
           <el-radio-button value="subject_teacher">任课老师</el-radio-button>
           <el-radio-button value="deyu_director">德育主任</el-radio-button>
           <el-radio-button value="consultant">咨询老师</el-radio-button>
-          <el-radio-button value="parent">家长账户</el-radio-button>
+          <el-radio-button value="parent">历史家长账号</el-radio-button>
           <el-radio-button value="admin">校级管理/校长</el-radio-button>
         </el-radio-group>
 
@@ -84,12 +84,12 @@
       <el-form :model="form" label-width="70px">
         <el-form-item label="角色">
           <el-radio-group v-model="form.role" :disabled="editing">
-            <el-radio value="student">学生</el-radio>
+            <el-radio value="student">家长（学号登录）</el-radio>
             <el-radio value="teacher">班主任</el-radio>
             <el-radio value="subject_teacher">任课老师</el-radio>
             <el-radio value="deyu_director">德育主任</el-radio>
             <el-radio value="consultant">咨询老师</el-radio>
-            <el-radio value="parent">家长</el-radio>
+            <el-radio v-if="editing && form.role === 'parent'" value="parent">历史家长账号</el-radio>
             <el-radio value="admin">校长</el-radio>
           </el-radio-group>
         </el-form-item>
@@ -132,7 +132,7 @@ const editing = ref(false)
 const form = reactive({ role: 'student', username: '', name: '', password: '', channel: '' })
 
 function roleLabel(r) {
-  return { admin: '校长', teacher: '班主任', subject_teacher: '任课老师', deyu_director: '德育主任', consultant: '咨询老师', student: '学生', parent: '家长' }[r] || r
+  return { admin: '校长', teacher: '班主任', subject_teacher: '任课老师', deyu_director: '德育主任', consultant: '咨询老师', student: '家长（学号登录）', parent: '家长' }[r] || r
 }
 
 async function load() {
@@ -146,7 +146,7 @@ async function load() {
 
 function openCreate() {
   editing.value = false
-  Object.assign(form, { role: role.value === 'admin' ? 'student' : role.value, username: '', name: '', password: '', channel: '' })
+  Object.assign(form, { role: ['admin', 'parent'].includes(role.value) ? 'student' : role.value, username: '', name: '', password: '', channel: '' })
   dialogVisible.value = true
 }
 

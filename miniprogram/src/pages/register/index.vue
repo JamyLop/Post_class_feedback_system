@@ -141,8 +141,6 @@ function refreshCaptcha() {
 onMounted(fetchCaptcha)
 
 const roleOptions = [
-  { label: '学生', value: 'student' },
-  { label: '家长', value: 'parent' },
   { label: '班主任', value: 'teacher' },
   { label: '任课老师', value: 'subject_teacher' },
   { label: '德育主任', value: 'deyu_director' },
@@ -154,7 +152,7 @@ const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生�
 
 const form = reactive({
   invite_code: '',
-  role: 'student',
+  role: 'teacher',
   username: '',
   name: '',
   password: '',

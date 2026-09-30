@@ -50,13 +50,17 @@ PARENT_VISIBLE_STATUSES = {
     CASE_STATUS_ARCHIVED,
 }
 
-# 学生自查可见状态与家长一致（仅已发布），独立常量以便后续差异化
-STUDENT_VISIBLE_STATUSES = {
-    CASE_STATUS_EXECUTING,
-    CASE_STATUS_PENDING_REVIEW,
-    CASE_STATUS_ADJUSTED,
-    CASE_STATUS_ARCHIVED,
-}
+# 学号是家长查阅凭证，student 仍用于学生档案关联，不提供独立学生端。
+STUDENT_VISIBLE_STATUSES = PARENT_VISIBLE_STATUSES
+
+
+def family_student_ids(db: Session, user: User) -> list[int]:
+    if user.role == ROLE_STUDENT:
+        # 学号登录只能查看该学号对应学生，不能借用监护关系扩大范围。
+        return [user.id]
+    if user.role == ROLE_PARENT:
+        return [row.student_id for row in db.query(StudentGuardian).filter_by(parent_id=user.id).all()]
+    raise HTTPException(status_code=403, detail="仅家长可查看孩子档案")
 
 
 def class_teacher_scope(db: Session, class_id: int, teacher_id: int) -> list[ClassTeacher]:
@@ -104,15 +108,8 @@ def require_case_access(
         if write:
             raise HTTPException(status_code=403, detail="德育主任只能审查，不能直接修改班主任维护的总案")
         return case
-    if user.role == ROLE_PARENT:
-        linked = db.query(StudentGuardian).filter_by(
-            parent_id=user.id, student_id=case.student_id
-        ).first()
-        if write or linked is None or case.status not in PARENT_VISIBLE_STATUSES:
-            raise HTTPException(status_code=403, detail="无权访问该学生总案")
-        return case
-    if user.role == ROLE_STUDENT:
-        if write or case.student_id != user.id or case.status not in STUDENT_VISIBLE_STATUSES:
+    if user.role in (ROLE_PARENT, ROLE_STUDENT):
+        if write or case.student_id not in family_student_ids(db, user) or case.status not in PARENT_VISIBLE_STATUSES:
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
         return case
     if user.role == ROLE_CONSULTANT:

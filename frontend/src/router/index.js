@@ -38,7 +38,7 @@ const routes = [
   {
     path: '/parent',
     component: () => import('../layouts/ParentLayout.vue'),
-    meta: { roles: ['parent'] },
+    meta: { roles: ['parent', 'student'] },
     children: [
       { path: '', redirect: '/parent/children' },
       { path: 'children', component: () => import('../views/parent/ChildrenCases.vue') },
@@ -85,16 +85,8 @@ const routes = [
       { path: 'consultant/cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
     ],
   },
-  {
-    path: '/',
-    component: () => import('../layouts/StudentLayout.vue'),
-    meta: { roles: ['student'] },
-    children: [
-      { path: '', redirect: '/student/my-weekly-scores' },
-      { path: 'student/my-weekly-scores', component: () => import('../views/student/MyWeeklyScores.vue') },
-      { path: 'student/my-monthly-reports', component: () => import('../views/student/MyMonthlyReports.vue') },
-    ],
-  },
+  // 兼容旧收藏地址，学号登录统一进入家长端。
+  { path: '/student/:pathMatch(.*)*', redirect: '/parent/children' },
 ]
 
 const router = createRouter({

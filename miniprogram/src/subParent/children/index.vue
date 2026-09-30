@@ -25,7 +25,7 @@
       </view>
     </view>
 
-    <EmptyState v-if="!loading && !error && !children.length" title="暂无绑定子女" desc="请联系班主任录入家长手机号" />
+    <EmptyState v-if="!loading && !error && !children.length" title="暂无绑定子女" desc="请联系班主任核对孩子学号" />
 
     <view v-if="!loading && !error && familyCases.length" class="card">
       <text class="card-title">已发布档案（{{ familyCases.length }}）</text>
@@ -61,7 +61,7 @@ function avatarColor() { return '#253D61' }
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.showToast({ title: '请先登录', icon: 'none' }); uni.reLaunch({ url: '/pages/login/index' }); return false }
-  if (auth.role !== 'parent') { uni.showToast({ title: '当前角色无法访问', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false }
+  if (!['parent', 'student'].includes(auth.role)) { uni.showToast({ title: '当前角色无法访问', icon: 'none' }); uni.reLaunch({ url: '/pages/index/index' }); return false }
   return true
 }
 onShow(() => { if (guardRole()) load() })

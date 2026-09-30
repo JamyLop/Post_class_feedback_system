@@ -33,7 +33,7 @@
     {
       "path": "pages/student/myCase/index",
       "style": {
-        "navigationBarTitleText": "我的档案"
+        "navigationBarTitleText": "家长查阅端"
       }
     },
     {
@@ -45,13 +45,13 @@
     {
       "path": "pages/student/profile/index",
       "style": {
-        "navigationBarTitleText": "个人信息"
+        "navigationBarTitleText": "家长查阅端"
       }
     },
     {
       "path": "pages/student/analytics/index",
       "style": {
-        "navigationBarTitleText": "学情分析"
+        "navigationBarTitleText": "家长查阅端"
       }
     }
   ],

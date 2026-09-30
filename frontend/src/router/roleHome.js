@@ -4,7 +4,7 @@ export const ROLE_HOMES = {
   teacher: '/teacher/student-cases',
   subject_teacher: '/subject/cases',
   consultant: '/consultant/cases',
-  student: '/student/my-weekly-scores',
+  student: '/parent/children',
   parent: '/parent/children',
 }
 

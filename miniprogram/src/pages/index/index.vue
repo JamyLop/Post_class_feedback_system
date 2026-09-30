@@ -36,7 +36,7 @@ const auth = useAuthStore()
 const roleLabel = computed(() => ROLE_LABELS[auth.role] || '访客')
 const primaryEntry = computed(() => entriesForRole(auth.role)[0])
 const groups = computed(() => groupsForRole(auth.role).map(group => ({ ...group, entries: group.entries.filter(entry => entry.route !== primaryEntry.value?.route) })).filter(group => group.entries.length))
-const roleHint = computed(() => ({ teacher: '学生的目标、方案与进展，都在这里。', student: '了解当前目标，查看每一阶段的学习记录。', parent: '关注孩子的成长，与老师保持同一步调。', deyu_director: '跟进方案审查与整改落实。', admin: '掌握全校档案进展与教学管理情况。', subject_teacher: '查阅学科方案，记录有依据的教学建议。', consultant: '持续了解所负责学生的学业进展。' }[auth.role] || '连接学校、教师与家庭的学业发展记录。'))
+const roleHint = computed(() => ({ teacher: '学生的目标、方案与进展，都在这里。', student: '关注孩子的成长，与老师保持同一步调。', parent: '关注孩子的成长，与老师保持同一步调。', deyu_director: '跟进方案审查与整改落实。', admin: '掌握全校档案进展与教学管理情况。', subject_teacher: '查阅学科方案，记录有依据的教学建议。', consultant: '持续了解所负责学生的学业进展。' }[auth.role] || '连接学校、教师与家庭的学业发展记录。'))
 const primaryLabel = computed(() => ['teacher', 'admin', 'deyu_director'].includes(auth.role) ? '工作概览' : '成长档案')
 const primaryHint = computed(() => ['parent', 'student'].includes(auth.role) ? '以老师发布的版本为准' : '关注当前状态，跟进下一步工作')
 function openEntry(entry) { if (!auth.isLoggedIn) return goLogin(); uni.navigateTo({ url: entry.route }) }

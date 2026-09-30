@@ -13,7 +13,6 @@ from app.auth.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import ALGORITHM, create_access_token, hash_password, verify_password
-from app.models.class_ import StudentGuardian
 from app.models.invite import (
     INVITE_STATUS_ACTIVE,
     INVITE_STATUS_USED,
@@ -26,6 +25,7 @@ from app.schemas.admin import RegisterRequest
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
 from app.schemas.wx_auth import ChildBrief, WxBindRequest, WxLoginRequest
 from app.services import captcha_service
+from app.services.student_case_service import family_student_ids
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -330,13 +330,10 @@ def wx_unbind(user: User = Depends(get_current_user), db: Session = Depends(get_
 @router.get("/me/children", response_model=list[ChildBrief])
 def me_children(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """家长真实子女列表：含暂无可见总案的子女，最新可见档案摘要用于空态区分。"""
-    if user.role != ROLE_PARENT:
-        raise HTTPException(status_code=403, detail="仅家长可查看子女列表")
-    links = db.query(StudentGuardian).filter_by(parent_id=user.id).all()
-    if not links:
+    student_ids = family_student_ids(db, user)
+    if not student_ids:
         return []
-    # 批量拉取学生与班级信息
-    student_ids = [link.student_id for link in links]
+    # 学号登录直接对应一个孩子，无需手机号或监护关系。
     students = {u.id: u for u in db.query(User).filter(User.id.in_(student_ids)).all()}
     # 关联的总案（按更新时间取最新一条，家长仅见 PARENT_VISIBLE_STATUSES 的在 _detail 中过滤，但此处摘要需展示状态以便区分空态）
     from app.services.student_case_service import PARENT_VISIBLE_STATUSES
@@ -348,9 +345,9 @@ def me_children(user: User = Depends(get_current_user), db: Session = Depends(ge
             latest_by_student[case.student_id] = case
 
     result: list[ChildBrief] = []
-    for link in links:
-        stu = students.get(link.student_id)
-        case = latest_by_student.get(link.student_id)
+    for student_id in student_ids:
+        stu = students.get(student_id)
+        case = latest_by_student.get(student_id)
         # 取班级与周期名称（若有）
         class_name = None
         cycle_name = None
@@ -371,8 +368,8 @@ def me_children(user: User = Depends(get_current_user), db: Session = Depends(ge
         visible = case is not None and case.status in PARENT_VISIBLE_STATUSES
         result.append(
             ChildBrief(
-                student_id=link.student_id,
-                student_name=stu.name if stu else f"学生#{link.student_id}",
+                student_id=student_id,
+                student_name=stu.name if stu else f"学生#{student_id}",
                 class_id=case.class_id if case else None,
                 class_name=class_name,
                 cycle_name=cycle_name,

@@ -12,8 +12,8 @@
       </div>
 
       <el-form :model="form" label-position="top" @keyup.enter="onSubmit">
-        <el-form-item label="用户名 / 手机号">
-          <el-input v-model="form.username" placeholder="学生请输入学号，其他角色请输入11位手机号（历史用户名仍可登录）" clearable />
+        <el-form-item label="学号 / 教职工手机号">
+          <el-input v-model="form.username" placeholder="家长请输入孩子学号，教职工请输入手机号" clearable />
         </el-form-item>
         <el-form-item label="密码">
           <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" />
@@ -38,8 +38,8 @@
         <el-button type="primary" :loading="loading" :disabled="captchaLoading" class="login-btn" @click="onSubmit">登录</el-button>
 
         <div class="card-foot">
-          <span>还没有账号？</span>
-          <el-link type="primary" :underline="false" @click="$router.push('/register')">去注册</el-link>
+          <span>教职工注册</span>
+          <el-link type="primary" :underline="false" @click="$router.push('/register')">邀请码注册</el-link>
         </div>
       </el-form>
     </div>

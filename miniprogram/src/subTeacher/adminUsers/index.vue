@@ -175,8 +175,8 @@ const roleOptions = [
   { value: 'deyu_director', label: '德育主任' },
   { value: 'consultant', label: '咨询老师' },
   { value: 'subject_teacher', label: '任课老师' },
-  { value: 'student', label: '学生' },
-  { value: 'parent', label: '家长' },
+  { value: 'student', label: '家长（学号登录）' },
+  { value: 'parent', label: '历史家长账号' },
 ]
 const currentRoleLabel = computed(() => roleOptions.find(r => r.value === selectedRole.value)?.label || '')
 function roleLabel(v) { return roleOptions.find(r => r.value === v)?.label || v }
@@ -185,7 +185,7 @@ function onRoleChange(e) { selectedRole.value = roleOptions[e.detail.value].valu
 const showCreateUser = ref(false)
 const creatingUser = ref(false)
 const newUser = reactive({ username: '', password: '', name: '', role: 'student' })
-const createRoleOptions = roleOptions.filter(r => r.value !== 'admin')
+const createRoleOptions = roleOptions.filter(r => !['admin', 'parent'].includes(r.value))
 const createRoleLabel = computed(() => createRoleOptions.find(r => r.value === newUser.role)?.label || '')
 
 const editingUser = ref(null)
@@ -240,7 +240,7 @@ const creatingInvite = ref(false)
 const newInviteRole = ref('teacher')
 const newInviteMaxUses = ref(1)
 const newInviteExpireDate = ref('')
-const inviteRoleOptions = roleOptions
+const inviteRoleOptions = roleOptions.filter(r => !['student', 'parent'].includes(r.value))
 const inviteRoleLabel = computed(() => inviteRoleOptions.find(r => r.value === newInviteRole.value)?.label || '')
 function incMaxUses() { if (newInviteMaxUses.value < 10000) newInviteMaxUses.value += 1 }
 function decMaxUses() { if (newInviteMaxUses.value > 1) newInviteMaxUses.value -= 1 }

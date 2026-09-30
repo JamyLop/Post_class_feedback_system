@@ -4,7 +4,7 @@
 
     <template v-else-if="detail">
       <button class="back-link" type="button" @click="$router.back()">
-        <el-icon><ArrowLeft /></el-icon><span>{{ auth.role === 'parent' ? '返回孩子档案' : '返回学生档案' }}</span>
+        <el-icon><ArrowLeft /></el-icon><span>{{ isFamily ? '返回孩子档案' : '返回学生档案' }}</span>
       </button>
 
       <header class="case-header">
@@ -79,7 +79,7 @@
               <div>
                 <span class="profile-kicker">学生档案</span>
                 <h2>基本信息</h2>
-                <p>{{ auth.role === 'parent' ? '记录学生身份与家长反馈。' : '记录学生身份、家长反馈及需要关注的健康事项。' }}</p>
+                <p>{{ isFamily ? '记录学生身份与家长反馈。' : '记录学生身份、家长反馈及需要关注的健康事项。' }}</p>
               </div>
               <div v-if="detail.can_manage && detail.status !== 'archived'" class="profile-actions">
                 <template v-if="!editingProfile">
@@ -126,7 +126,7 @@
                   <div><dt>主要需求</dt><dd>{{ profileValue('primary_needs') }}</dd></div>
                 </dl>
               </div>
-              <div v-if="auth.role !== 'parent'" class="profile-section health-section">
+              <div v-if="!isFamily" class="profile-section health-section">
                 <div class="profile-section-title">
                   <span class="section-marker"></span>
                   <div><h3>健康与体检信息</h3><p>仅记录教育服务和在校安全确有必要的信息</p></div>
@@ -295,9 +295,9 @@
                 <div><span>入学评定</span><strong>{{ detail.subject_plans.length }}</strong></div>
                 <div><span>阶段目标</span><strong>{{ detail.goals.length }}</strong></div>
                 <div><span>执行任务</span><strong>{{ detail.tasks.length }}</strong></div>
-                <div v-if="auth.role !== 'parent'"><span>督查记录</span><strong>{{ detail.reviews.length }}</strong></div>
+                <div v-if="!isFamily"><span>督查记录</span><strong>{{ detail.reviews.length }}</strong></div>
               </section>
-              <section v-if="auth.role !== 'parent'" class="rail-section source-note"><span class="rail-label">数据来源</span><p>历史 DOCX 试导入</p><small>解析内容尚未成为正式方案，需由班主任核对后提交确认。</small></section>
+              <section v-if="!isFamily" class="rail-section source-note"><span class="rail-label">数据来源</span><p>历史 DOCX 试导入</p><small>解析内容尚未成为正式方案，需由班主任核对后提交确认。</small></section>
               <section v-if="detail.status === 'draft'" class="rail-section next-steps">
                 <span class="rail-label">确认前检查</span>
                 <ol><li><span>1</span>核对诊断与成绩信息</li><li><span>2</span>确认入学评定负责人</li><li><span>3</span>补充可执行目标与任务</li></ol>
@@ -489,7 +489,7 @@
             </template>
           </div>
         </el-tab-pane>
-        <el-tab-pane v-if="auth.role !== 'parent'" label="督查复盘" name="reviews">
+        <el-tab-pane v-if="!isFamily" label="督查复盘" name="reviews">
           <div v-if="canCreateReview" class="review-form-card">
             <div class="review-form-header"><strong>新增督查复盘</strong><span>{{ reviewRoleTip }}</span></div>
             <el-form label-position="top" class="review-form">
@@ -661,6 +661,7 @@ import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
 const auth = useAuthStore()
+const isFamily = computed(() => ['parent', 'student'].includes(auth.role))
 const loading = ref(false)
 const submitting = ref(false)
 const editingPlan = ref(false)

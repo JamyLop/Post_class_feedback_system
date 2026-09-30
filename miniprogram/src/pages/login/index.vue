@@ -16,13 +16,13 @@
 
         <view class="card-text">
           <text class="card-title">账号密码登录</text>
-          <text class="card-desc">使用学号 / 手机号和密码登录系统</text>
+          <text class="card-desc">家长使用孩子的学号和密码登录</text>
         </view>
       </view>
       <view class="form">
         <view class="field">
-          <text class="field-label">用户名 / 手机号</text>
-          <input v-model="form.username" placeholder="学号或11位手机号（历史用户名仍可登录）" class="input" />
+          <text class="field-label">学号 / 教职工手机号</text>
+          <input v-model="form.username" placeholder="家长输入孩子学号，教职工输入手机号" class="input" />
         </view>
         <view class="field">
           <text class="field-label">密码</text>
@@ -108,7 +108,7 @@ function refreshCaptcha() {
 
 onMounted(fetchCaptcha)
 
-function routeByRole() { return '/pages/index/index' }
+function routeByRole(role) { return ['student', 'parent'].includes(role) ? '/subParent/children/index' : '/pages/index/index' }
 
 async function handlePasswordLogin() {
   if (pwdLoading.value || captchaLoading.value) return

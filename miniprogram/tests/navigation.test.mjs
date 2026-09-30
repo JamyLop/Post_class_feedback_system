@@ -22,7 +22,8 @@ test('任课老师有档案入口，学生档案入口可达，各角色菜单�
   assert.ok(entriesForRole('subject_teacher').some(e => e.route === '/subTeacher/timetable/index'))
   assert.ok(entriesForRole('deyu_director').some(e => e.route === '/subTeacher/timetable/index'))
   assert.ok(entriesForRole('admin').some(e => e.route === '/subTeacher/timetable/index'))
-  assert.ok(entriesForRole('student').some(e => e.route === '/pages/student/myCase/index'))
+  assert.deepEqual(entriesForRole('student'), entriesForRole('parent'))
+  assert.ok(entriesForRole('student').every(e => !e.route.startsWith('/pages/student/')))
   for (const role of ['student', 'parent', 'teacher', 'admin', 'deyu_director', 'consultant', 'subject_teacher']) {
     const entries = groupsForRole(role).flatMap(g => g.entries)
     assert.equal(new Set(entries.map(e => e.route)).size, entries.length)

@@ -54,7 +54,7 @@
     </view>
 
     <view class="hint-card">
-      <text class="hint-text">* 学生账号将自动生成（ZX临时学号），初始密码为 123456</text>
+      <text class="hint-text">* 学号将自动生成（ZX临时学号），供家长登录家长端，初始密码为 123456</text>
     </view>
 
     <view class="submit-bar">
