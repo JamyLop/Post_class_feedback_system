@@ -2,7 +2,10 @@
   <el-container class="family-shell">
     <el-header class="family-header">
       <router-link class="brand" to="/parent/children" aria-label="返回家长端首页">
-        <img class="school-logo" :src="schoolLogo" alt="易飞特菁英" />
+        <!-- 按原图透明边界展示完整 Logo，避免大块留白压缩校名。 -->
+        <svg class="school-logo" viewBox="119 972 2233 361" role="img" aria-label="易飞特菁英全日制学校">
+          <image :href="schoolLogo" width="2480" height="3508" />
+        </svg>
         <span class="brand-divider" aria-hidden="true"></span>
         <span class="brand-copy">
           <strong>一生一案</strong>
@@ -22,7 +25,7 @@
     <el-main class="family-main"><router-view /></el-main>
 
     <footer class="family-footer">
-      <span>易飞特菁英全日制</span>
+      <span>易飞特菁英全日制学校</span>
       <span class="footer-rule" aria-hidden="true"></span>
       <span>让优秀成为习惯，为未来持续赋能</span>
     </footer>
@@ -32,7 +35,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import schoolLogo from '../assets/yifeite-logo.png'
+import schoolLogo from '../assets/yifeite-school-full-logo.png'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -79,9 +82,10 @@ function onLogout() {
 
 .school-logo {
   display: block;
-  width: 126px;
-  height: 43px;
-  object-fit: contain;
+  width: 300px;
+  height: auto;
+  aspect-ratio: 2233 / 361;
+  flex-shrink: 0;
 }
 
 .brand-divider {
@@ -177,10 +181,15 @@ function onLogout() {
 }
 
 @media (max-width: 640px) {
-  .family-header { height: 64px; padding: 0 18px; }
-  .school-logo { width: 108px; height: 38px; }
-  .brand-divider, .brand-copy, .identity-role { display: none; }
-  .account { gap: 14px; }
+  .family-header { height: auto; min-height: 64px; flex-wrap: wrap; gap: 10px 16px; padding: 10px 16px; }
+  .school-logo { width: clamp(180px, calc(100vw - 154px), 300px); }
+  .brand { gap: 10px; }
+  .brand-copy strong { font-size: 14px; }
+  .identity-role { display: none; }
+  .account { gap: 14px; margin-left: auto; }
+  .identity { min-width: 0; }
+  .identity-name { max-width: 8em; overflow-wrap: anywhere; }
+  .logout-button { flex-shrink: 0; }
   .family-footer { flex-direction: column; gap: 7px; text-align: center; }
   .footer-rule { display: none; }
 }

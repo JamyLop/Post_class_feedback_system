@@ -3,7 +3,7 @@
     <header class="page-intro">
       <div class="intro-content">
         <div class="intro-copy">
-          <p class="section-label">易飞特菁英全日制</p>
+          <p class="section-label">易飞特菁英全日制学校</p>
           <h1>孩子的一生一案</h1>
           <p class="intro-description">
             查阅由班主任与学科教师共同维护的学业发展方案、阶段记录与复盘结果。
@@ -25,7 +25,7 @@
           <img :src="campusImage" alt="易飞特菁英全日制学校综合楼" />
         </div>
         <figcaption>
-          <span>易飞特菁英全日制</span>
+          <span>易飞特菁英全日制学校</span>
           <strong>让优秀成为习惯</strong>
         </figcaption>
       </figure>
