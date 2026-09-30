@@ -5,6 +5,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.auth.deps import require_roles
 from app.core.database import get_db
@@ -22,7 +23,7 @@ from app.models.user import (
     USER_STATUS_DISABLED,
     User,
 )
-from app.schemas.user import QuickStudentCreate, UserCreate, UserOut, UserUpdate
+from app.schemas.user import ConsultantStudentLinkCreate, ConsultantStudentOption, QuickStudentCreate, UserCreate, UserOut, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -182,6 +183,49 @@ def list_users(
             User.username.ilike(like) | User.name.ilike(like)
         )
     return q.order_by(User.id.desc()).offset(offset).limit(limit).all()
+
+
+# 候选名单仅提供识别学生所需字段；普通 /users 继续只返回自己的关联学生。
+@router.get("/consultant-students", response_model=list[ConsultantStudentOption])
+def consultant_student_options(
+    keyword: str = Query(default="", max_length=64),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_CONSULTANT])),
+):
+    from app.models.class_ import StudentConsultant
+
+    q = db.query(User).filter(User.role == ROLE_STUDENT, User.status == USER_STATUS_ACTIVE)
+    if keyword.strip():
+        like = f"%{keyword.strip()}%"
+        q = q.filter(User.name.ilike(like) | User.username.ilike(like))
+    linked_ids = {row.student_id for row in db.query(StudentConsultant).filter_by(consultant_id=user.id)}
+    return [ConsultantStudentOption(id=stu.id, name=stu.name, username=stu.username, linked=stu.id in linked_ids)
+            for stu in q.order_by(User.id.desc()).offset(offset).limit(limit).all()]
+
+
+@router.post("/consultant-students", response_model=ConsultantStudentOption)
+def link_consultant_student(
+    body: ConsultantStudentLinkCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_CONSULTANT])),
+):
+    from app.models.class_ import StudentConsultant
+
+    student = db.get(User, body.student_id)
+    if student is None or student.role != ROLE_STUDENT or student.status != USER_STATUS_ACTIVE:
+        raise HTTPException(status_code=404, detail="学生不存在或已停用")
+    # 关联对象只能是当前咨询老师；已有其他咨询关系保留，重复提交不重复创建。
+    if db.query(StudentConsultant).filter_by(consultant_id=user.id, student_id=student.id).first() is None:
+        db.add(StudentConsultant(consultant_id=user.id, student_id=student.id))
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            if db.query(StudentConsultant).filter_by(consultant_id=user.id, student_id=body.student_id).first() is None:
+                raise
+    return ConsultantStudentOption(id=student.id, name=student.name, username=student.username, linked=True)
 
 
 @router.get("/{user_id}", response_model=UserOut)

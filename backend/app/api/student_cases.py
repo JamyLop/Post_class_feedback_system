@@ -89,7 +89,7 @@ _staff = require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_CONSU
 _suggestion_author = require_roles([ROLE_TEACHER, ROLE_SUBJECT_TEACHER])
 # 新建学生总案：班主任（须为该班班主任）+ 咨询老师（须关联该学生，见函数内校验）
 _case_creator = require_roles([ROLE_TEACHER, ROLE_CONSULTANT])
-# 总案内容维护：班主任（须为该班班主任）+ 咨询老师（仅自己关联的无班级档案，入班前暂代维护）
+# 总案内容维护：班主任（须为该班班主任）+ 咨询老师（自己关联学生的档案）
 _case_maintainer = require_roles([ROLE_TEACHER, ROLE_CONSULTANT])
 _deyu_director = require_roles([ROLE_DEYU_DIRECTOR])
 
@@ -501,7 +501,7 @@ def create_student_case(
         if not is_head_teacher(db, class_id, user.id):
             raise HTTPException(status_code=403, detail="仅班主任可建立学生总案")
     elif user.role == ROLE_CONSULTANT:
-        # 咨询老师新建档案：班级可后补；自动建立咨询关联以便后续查看，
+        # 咨询老师仅为已关联学生建档，班级可后补；
         # 有班级时归属班主任默认取班级班主任，无班级时暂归自己、入班后转交班主任。
         from app.models.class_ import StudentConsultant
 
@@ -514,11 +514,8 @@ def create_student_case(
             consultant_id=user.id, student_id=body.student_id
         ).first()
         if link is None:
-            db.add(StudentConsultant(consultant_id=user.id, student_id=body.student_id))
-            db.flush()
-        owner = db.get(User, body.owner_teacher_id)
-        if owner is None or owner.role != ROLE_TEACHER:
-            body.owner_teacher_id = cls.teacher_id if cls else user.id
+            raise HTTPException(status_code=403, detail="请先关联该学生再建立一生一案")
+        body.owner_teacher_id = cls.teacher_id if cls else user.id
     else:
         raise HTTPException(status_code=403, detail="仅班主任可建立学生总案")
     body.class_id = class_id

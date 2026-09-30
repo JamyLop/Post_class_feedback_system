@@ -86,7 +86,7 @@ class StudentGuardian(TimestampMixin, Base):
 
 
 class StudentConsultant(TimestampMixin, Base):
-    """学生与咨询老师关系：由管理员维护，咨询老师据此获得学生范围。"""
+    """学生与咨询老师关系：管理员分配或咨询老师自行关联，据此限定档案读写范围。"""
 
     __tablename__ = "student_consultants"
     __table_args__ = (

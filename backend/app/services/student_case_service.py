@@ -116,14 +116,14 @@ def require_case_access(
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
         return case
     if user.role == ROLE_CONSULTANT:
-        # 咨询老师默认只读关联档案；自己关联的无班级档案在入班前可暂代维护
+        # 咨询老师可撰写自己关联学生的档案；关联关系是读写权限边界。
         linked = db.query(StudentConsultant).filter_by(
             consultant_id=user.id, student_id=case.student_id
         ).first()
         if linked is None:
             raise HTTPException(status_code=403, detail="无权访问该学生总案")
         if write and not can_consultant_manage(db, case, user):
-            raise HTTPException(status_code=403, detail="咨询老师只能查看学生档案，不能修改")
+            raise HTTPException(status_code=403, detail="仅可修改自己关联学生的档案")
         return case
     if user.role == ROLE_SUBJECT_TEACHER:
         # 任课老师只能查看所带学科班级的档案，不能直接修改；修改意见走学科建议链路
@@ -160,11 +160,8 @@ def require_case_manager(db: Session, case: StudentCase, user: User) -> None:
 
 
 def can_consultant_manage(db: Session, case: StudentCase, user: User) -> bool:
-    """咨询老师能否维护该档案：仅限自己关联的无班级档案（入班前暂代维护）。
-
-    学生加入班级后档案自动挂靠并转交班主任，咨询即恢复只读。
-    """
-    if user.role != ROLE_CONSULTANT or case.class_id is not None:
+    """关联咨询老师可参与一生一案撰写，学生入班不撤销撰写权限。"""
+    if user.role != ROLE_CONSULTANT:
         return False
     return (
         db.query(StudentConsultant)

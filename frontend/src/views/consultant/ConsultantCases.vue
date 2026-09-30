@@ -4,9 +4,10 @@
       <div class="head-info">
         <span class="overline">咨询辅导</span>
         <h1>关联学生档案</h1>
-        <p>查看你负责咨询辅导的学生档案；可新建学生并为其新建档案，辅导建议请在档案详情页的督查复盘中提交。</p>
+        <p>关联已有学生或新建学生，撰写学生的一生一案；所属班级自动带出。</p>
       </div>
       <div class="head-actions">
+        <el-button @click="openLinkStudent">关联已有学生</el-button>
         <el-button @click="openCreateStudent">新建学生</el-button>
         <el-button type="primary" @click="openCreateCase">新建档案</el-button>
       </div>
@@ -56,7 +57,7 @@
       <el-table
         v-loading="loading"
         :data="filteredRows"
-        empty-text="暂无关联学生档案，可新建学生并建档，或联系管理员分配咨询关系"
+        empty-text="暂无档案，可关联已有学生或新建学生后建档"
         class="cases-table"
         @row-click="openCase"
       >
@@ -96,6 +97,23 @@
         </el-table-column>
       </el-table>
     </div>
+
+    <el-dialog v-model="linkVisible" title="关联已有学生" width="600px">
+      <p>按姓名或学号选择学生，关联后可撰写其一生一案。</p>
+      <el-input v-model="linkKeyword" placeholder="学生姓名或学号" clearable @keyup.enter="searchLinkStudents" />
+      <el-button :loading="linkLoading" @click="searchLinkStudents">搜索</el-button>
+      <el-table :data="linkOptions" v-loading="linkLoading" empty-text="未找到学生">
+        <el-table-column prop="name" label="姓名" />
+        <el-table-column prop="username" label="学号" />
+        <el-table-column label="操作">
+          <template #default="{ row }">
+            <el-button link type="primary" :disabled="row.linked || linking" @click="submitLinkStudent(row)">{{ row.linked ? '已关联' : '关联并撰写' }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-button :disabled="!linkOffset || linkLoading" @click="loadLinkStudents(linkOffset - 50)">上一页</el-button>
+      <el-button :disabled="linkOptions.length < 50 || linkLoading" @click="loadLinkStudents(linkOffset + 50)">下一页</el-button>
+    </el-dialog>
 
     <!-- 新建学生：只录档案信息、不选班级，账号自动生成并关联自己；班主任后续从已有学生中挑入班级 -->
     <el-dialog v-model="studentVisible" title="新建学生" width="560px" destroy-on-close>
@@ -144,7 +162,7 @@
         type="info"
         :closable="false"
         show-icon
-        title="只需选择你关联的学生，所属班级自动带出；尚未加入班级的学生也可以直接建档，入班后档案自动挂到班级名下"
+        title="只需选择你关联的学生，所属班级自动带出；尚未加入班级的学生也可以直接建档，入班后档案自动挂到班级名下，关联咨询老师可继续撰写"
         style="margin-bottom: 14px"
       />
       <el-form label-position="top">
@@ -206,8 +224,46 @@ import { Refresh, Search } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { getCaseProgress, listStudentCases, listCaseCycles, createCaseCycle, createStudentCase } from '../../api/studentCases'
 import { listClasses, listStudents } from '../../api/classes'
-import { createQuickStudent, listUsers } from '../../api/users'
+import { createQuickStudent, listUsers, listConsultantStudents, linkConsultantStudent } from '../../api/users'
 import { useAuthStore } from '../../stores/auth'
+
+const linkVisible = ref(false)
+const linkKeyword = ref('')
+const linkOptions = ref([])
+const linkOffset = ref(0)
+const linkLoading = ref(false)
+const linking = ref(false)
+async function loadLinkStudents(offset = 0) {
+  linkLoading.value = true
+  try {
+    linkOptions.value = await listConsultantStudents({ keyword: linkKeyword.value.trim(), offset, limit: 50 })
+    linkOffset.value = offset
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '学生加载失败')
+  } finally { linkLoading.value = false }
+}
+function searchLinkStudents() { return loadLinkStudents(0) }
+function openLinkStudent() {
+  linkVisible.value = true
+  linkKeyword.value = ''
+  linkOptions.value = []
+  loadLinkStudents()
+}
+async function submitLinkStudent(student) {
+  if (linking.value) return
+  linking.value = true
+  try {
+    await linkConsultantStudent(student.id)
+    ElMessage.success('关联成功，可撰写一生一案')
+    linkVisible.value = false
+    await load()
+    const existing = rows.value.find(c => c.student_id === student.id)
+    if (existing) openCase(existing)
+    else await openCreateCase(student.id)
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || '关联失败')
+  } finally { linking.value = false }
+}
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -269,7 +325,7 @@ const caseForm = reactive({
   cycle_id: null, class_id: null, student_id: null,
   parent_evaluation: '', primary_needs: '', current_summary: '咨询老师建档，待完善入学评定',
 })
-// 自己关联且已入班的学生（合并所有关联班级名册，附带班级信息）
+// 自己关联的学生（合并班级名册及未分班学生，附带班级信息）
 const allCaseStudents = ref([])
 const availableCaseStudents = computed(() => {
   const existing = new Set(rows.value.filter((item) => item.cycle_id === caseForm.cycle_id).map((item) => item.student_id))
@@ -334,16 +390,12 @@ async function submitStudent() {
   }
 }
 
-async function openCreateCase() {
+async function openCreateCase(preselectedStudentId = null) {
   caseCreating.value = true
   try {
     // 每次打开都刷新班级与学年，避免班主任刚加入的学生因缓存不显示
     classes.value = await listClasses()
     cycles.value = await listCaseCycles()
-    if (!classes.value.length) {
-      ElMessage.warning('暂无关联班级，请先新建学生并联系班主任将其加入班级，或联系管理员分配咨询关系')
-      return
-    }
     const activeCycle = cycles.value.find((item) => item.is_active) || cycles.value[0]
     const defaultYear = activeCycle?.school_year || '2026-2027'
     const defaultCycle = cycles.value.find((c) => c.school_year === defaultYear)
@@ -379,8 +431,12 @@ async function openCreateCase() {
     }
     allCaseStudents.value = merged
     if (!merged.length) {
-      ElMessage.warning('没有可建档的学生：刚新建的学生须先由班主任加入班级后才会出现在这里')
+      ElMessage.warning('请先关联已有学生或新建学生')
       return
+    }
+    if (typeof preselectedStudentId === 'number') {
+      caseForm.student_id = preselectedStudentId
+      onCaseStudentChange(preselectedStudentId)
     }
     caseVisible.value = true
   } finally {

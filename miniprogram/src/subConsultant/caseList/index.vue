@@ -3,12 +3,29 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">关联学生档案</text>
-      <text class="p">查看您负责的学生的一生一案；可新建学生并为其建档</text>
+      <text class="p">查看您负责的学生的一生一案；可关联已有学生或新建学生后撰写</text>
     </view>
 
     <view class="action-bar">
+      <button class="btn-outline" @click="openLinkStudent">关联已有学生</button>
       <button class="btn-primary" @click="goQuickStudent">新建学生</button>
       <button class="btn-outline" @click="goCreateCase">新建档案</button>
+    </view>
+    <view v-if="linkVisible" class="empty-card link-panel">
+      <text class="empty-title">关联已有学生</text>
+      <input v-model="linkKeyword" placeholder="学生姓名或学号" class="input" @confirm="searchLinkStudents" />
+      <button class="btn-outline" :disabled="linkLoading" @click="searchLinkStudents">搜索</button>
+      <text v-if="linkLoading">加载中...</text>
+      <text v-else-if="!linkOptions.length">未找到学生</text>
+      <view v-for="student in linkOptions" :key="student.id" class="link-row">
+        <text>{{ student.name }} · {{ student.username }}</text>
+        <button class="btn-outline" :disabled="student.linked || linking" @click="submitLinkStudent(student)">{{ student.linked ? '已关联' : '关联并撰写' }}</button>
+      </view>
+      <view class="action-bar">
+        <button class="btn-outline" :disabled="!linkOffset || linkLoading" @click="loadLinkStudents(linkOffset - 50)">上一页</button>
+        <button class="btn-outline" :disabled="linkOptions.length < 50 || linkLoading" @click="loadLinkStudents(linkOffset + 50)">下一页</button>
+        <button class="btn-outline" @click="linkVisible = false">关闭</button>
+      </view>
     </view>
     <view class="search-bar">
       <input v-model="keyword" placeholder="搜索学生姓名" class="input" @input="onSearch" />
@@ -21,7 +38,7 @@
       <view v-if="!cases.length" class="empty-card">
 
         <text class="empty-title">暂无关联学生</text>
-        <text class="empty-desc">请联系管理员将您与学生建立关联关系</text>
+        <text class="empty-desc">可选择已有学生关联后建档撰写</text>
       </view>
 
       <view v-else class="case-list">
@@ -45,8 +62,42 @@ import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { listStudentCases } from '../../api/studentCases'
+import { listStudentCases, listConsultantStudents, linkConsultantStudent } from '../../api/studentCases'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
+
+const linkVisible = ref(false)
+const linkKeyword = ref('')
+const linkOptions = ref([])
+const linkOffset = ref(0)
+const linkLoading = ref(false)
+const linking = ref(false)
+async function loadLinkStudents(offset = 0) {
+  linkLoading.value = true
+  try {
+    linkOptions.value = await listConsultantStudents({ keyword: linkKeyword.value.trim(), offset, limit: 50 })
+    linkOffset.value = offset
+  } catch (_) {} finally { linkLoading.value = false }
+}
+function searchLinkStudents() { return loadLinkStudents(0) }
+function openLinkStudent() {
+  linkVisible.value = true
+  linkKeyword.value = ''
+  linkOptions.value = []
+  loadLinkStudents()
+}
+async function submitLinkStudent(student) {
+  if (linking.value) return
+  linking.value = true
+  try {
+    await linkConsultantStudent(student.id)
+    uni.showToast({ title: '关联成功', icon: 'success' })
+    linkVisible.value = false
+    await refresh()
+    const existing = cases.value.find(c => c.student_id === student.id)
+    if (existing) openCase(existing.id)
+    else uni.navigateTo({ url: `/subConsultant/createCase/index?studentId=${student.id}` })
+  } catch (_) {} finally { linking.value = false }
+}
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -117,7 +168,10 @@ onShow(() => { if (guardRole()) refresh() })
 .case-name { font-size: 28rpx; font-weight: 600; color: var(--mp-ink); display: block; }
 .case-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 4rpx; }
 .case-time { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 10rpx; }
-.action-bar { display: flex; gap: 16rpx; }
+.action-bar { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.link-panel { padding: 24rpx; align-items: stretch; }
+.link-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; font-size: 26rpx; }
+.link-row .btn-outline { flex: none; padding: 12rpx; margin: 0; }
 .btn-primary {
   flex: 1; background: var(--mp-primary); color: #fff; border-radius: 8rpx;
   padding: 18rpx 0; font-size: 28rpx; font-weight: 600; border: none;

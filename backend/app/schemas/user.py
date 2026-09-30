@@ -44,3 +44,14 @@ class QuickStudentCreate(BaseModel):
     channel: str = Field(default="", max_length=64, description="生源渠道")
     dorm_number: str = Field(default="", max_length=32, description="宿舍号")
     consultant_id: int | None = Field(default=None, description="咨询老师ID（选填）")
+
+
+class ConsultantStudentLinkCreate(BaseModel):
+    student_id: int = Field(gt=0)
+
+
+class ConsultantStudentOption(BaseModel):
+    id: int
+    name: str
+    username: str
+    linked: bool

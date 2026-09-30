@@ -53,6 +53,9 @@
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+let preselectedStudentId = null
+onLoad(options => { preselectedStudentId = Number(options.studentId) || null })
 import { useAuthStore } from '../../stores/auth'
 import { currentSchoolYear } from '../../utils/schoolYear'
 import {
@@ -152,6 +155,7 @@ async function loadMeta() {
       if (!inRoster.has(stu.id)) merged.push({ ...stu, class_id: null, class_name: '' })
     }
     allStudents.value = merged
+    if (availableStudents.value.some(s => s.id === preselectedStudentId)) form.value.student_id = preselectedStudentId
     if (!merged.length) {
       uni.showToast({ title: '没有可建档的学生', icon: 'none' })
     }
