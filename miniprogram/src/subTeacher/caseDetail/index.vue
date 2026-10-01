@@ -164,7 +164,7 @@ const stateTitle = computed(() => statusCopy[detail.value?.status]?.[0] || detai
 const stateDesc = computed(() => statusCopy[detail.value?.status]?.[1] || '')
 const showSubmit = computed(() => ['draft', 'revision_required', 'adjusted'].includes(detail.value?.status))
 
-const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理']
+const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理','德育']
 const availableSubjects = computed(() => {
   const used = new Set((detail.value?.subject_plans || []).map(p => p.subject))
   return allSubjects.filter(s => !used.has(s))

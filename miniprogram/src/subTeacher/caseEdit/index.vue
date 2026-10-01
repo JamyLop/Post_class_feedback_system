@@ -102,7 +102,7 @@ const basicForm = reactive({ overall_problem: '', admission_target: '', current_
 const planForm = reactive({ problem_location: '', cause_analysis: '', struggle_goal: '', gaokao_requirement: '', reinforcement: '' })
 
 const plans = computed(() => detail.value?.subject_plans || [])
-const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理']
+const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理','德育']
 const availableSubjects = computed(() => {
   const used = new Set(plans.value.map(p => p.subject))
   return allSubjects.filter(s => !used.has(s))
