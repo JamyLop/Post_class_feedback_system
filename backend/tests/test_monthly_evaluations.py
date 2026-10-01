@@ -1,5 +1,7 @@
 """任课老师月度评定：查看所带班级评定、独立提交学科评价，互不覆盖。"""
 
+import pytest
+
 from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.monthly_report import MonthlyReportEvaluation
@@ -165,6 +167,38 @@ def test_student_assignment_overrides_class_subject_teacher(client, auth, db, se
     assert assigned.json()["can_manage"] is False
     assert any(row["id"] == report["id"] for row in client.get("/api/monthly-reports", headers=auth("teacher2")).json())
     assert client.put(url + "/evaluation", headers=auth("teacher2"), json={"content": "本人评价"}).status_code == 200
+
+
+@pytest.mark.parametrize("legacy_name", ["", "误填姓名"])
+def test_head_placeholder_does_not_block_class_subject_teacher(client, auth, db, seed_users, legacy_name):
+    from datetime import date
+    from app.models.student_case import CaseCycle, StudentCase, SubjectPlan
+
+    _, cls, _ = _setup(db, seed_users)
+    cycle = CaseCycle(name="旧档案周期", grade="高三", school_year="2026",
+                      starts_on=date(2026, 9, 1), ends_on=date(2027, 7, 1))
+    db.add(cycle)
+    db.flush()
+    case = StudentCase(cycle_id=cycle.id, student_id=seed_users["student1"],
+                       class_id=cls.id, owner_teacher_id=seed_users["teacher1"])
+    db.add(case)
+    db.flush()
+    db.add(SubjectPlan(student_case_id=case.id, subject="数学",
+                       teacher_id=seed_users["teacher1"], teacher_name=legacy_name))
+    db.commit()
+    payload = {"student_id": seed_users["student1"], "class_id": cls.id,
+               "student_case_id": case.id, "month_label": "2026-10", "final_content": "数学评价"}
+    result = client.post("/api/monthly-reports", headers=auth("subject1"), json=payload)
+    assert result.status_code == 200, result.text
+    report = result.json()
+    assert report["evaluation_subject"] == "数学"
+    assert report["can_manage"] is False
+    url = f"/api/monthly-reports/{report['id']}"
+    assert client.put(url + "/evaluation", headers=auth("subject1"), json={"content": "修改数学评价"}).status_code == 200
+    head = client.get(url, headers=auth("teacher1")).json()
+    assert head["evaluation_subject"] == "" and head["can_manage"] is True
+    assert client.put(url, headers=auth("subject1"), json={"final_content": "代写德育"}).status_code == 403
+    assert client.put(url + "/evaluation", headers=auth("teacher2"), json={"content": "无关老师"}).status_code == 403
 
 
 def test_subject_can_start_report_before_head_teacher(client, auth, db, seed_users):

@@ -75,6 +75,13 @@ def _evaluation_role(db: Session, row: MonthlyReport, user: User) -> tuple[str, 
         student_id=row.student_id, class_id=row.class_id,
     ).filter(StudentCase.status != "archived").order_by(StudentCase.id.desc()).first()
     plans = db.query(SubjectPlan).filter_by(student_case_id=case.id).all() if case else []
+    if case and cls and case.owner_teacher_id == cls.teacher_id:
+        head_subjects = {r.subject for r in db.query(ClassTeacher).filter_by(
+            class_id=row.class_id, teacher_id=cls.teacher_id, role="subject_teacher",
+        ).all()}
+        # 旧档案以班主任占位任课 ID；没有明确兼教学科时，不能覆盖班级任课安排。
+        # 其他老师的学生专属安排仍优先，班主任明确兼教的学科也保留。
+        plans = [p for p in plans if p.teacher_id != cls.teacher_id or p.subject in head_subjects]
     assigned = {p.subject for p in plans if p.teacher_id == user.id}
     configured = {p.subject for p in plans}
     assigned.update(r.subject for r in relations if r.role == "subject_teacher" and r.subject and r.subject not in configured)
