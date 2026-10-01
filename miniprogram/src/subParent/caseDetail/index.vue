@@ -78,11 +78,6 @@
           </view>
         </view>
 
-        <view v-if="active==='reviews'" class="tab-panel">
-          <EmptyState v-if="!detail.reviews.length" title="暂无督查复盘" />
-          <Timeline v-else :items="reviewItems" />
-        </view>
-
         <view v-if="active==='monthly'" class="tab-panel">
           <LoadState :loading="monthlyLoading" :error="monthlyError" @retry="loadMonthly" />
           <template v-if="!monthlyLoading && !monthlyError">
@@ -149,7 +144,6 @@ const tabs = [
   { key: 'overview', label: '总览' },
   { key: 'subjects', label: '学科方案' },
   { key: 'tasks', label: '任务执行' },
-  { key: 'reviews', label: '督查复盘' },
   { key: 'monthly', label: '月度评定' },
   { key: 'exams', label: '月考成绩' },
 ]
@@ -203,13 +197,6 @@ const checkinItems = computed(() => (detail.value?.task_checkins || []).slice(0,
   desc: c.self_check || '—',
   time: c.checked_in_at?.slice(0, 16).replace('T', ' '),
 })))
-const reviewItems = computed(() => (detail.value?.reviews || []).map((r) => ({
-  title: `${levelLabel(r.review_level)}${r.subject ? ' · '+r.subject : ''}`,
-  desc: `${r.problem || ''}${r.corrective_action ? '｜整改：'+r.corrective_action : ''}${r.recheck_result ? '｜复查：'+r.recheck_result : ''}`,
-  time: r.reviewed_at?.slice(0,16).replace('T',' '),
-})))
-
-function levelLabel(v) { return { school:'校级督查', principal:'校长督察', deyu:'德育督查', head_teacher:'班主任督查', subject:'学科督查'}[v] || v }
 function taskTitle(id) { return detail.value?.tasks.find((t)=>t.id===id)?.title || '任务' }
 function formatCheckinTime(value) { return value?.slice(0, 16).replace('T', ' ') || '' }
 const checkinsWithPhotos = computed(() => (detail.value?.task_checkins || []).filter(c => c.attachments?.length).slice(0, 20))
