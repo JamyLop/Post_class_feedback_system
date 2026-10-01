@@ -45,7 +45,7 @@
           <view v-for="plan in detail.subject_plans" :key="plan.id" class="plan-card">
             <view class="plan-head">
               <text class="subject-chip">{{ plan.subject }}</text>
-              <text class="teacher-tip">教师 #{{ plan.teacher_id }}</text>
+              <text class="teacher-tip">{{ plan.teacher_name || '暂未填写教师姓名' }}</text>
             </view>
             <view class="field"><text class="dt">问题定位</text><text class="dd">{{ plan.problem_location || '—' }}</text></view>
             <view class="field"><text class="dt">原因剖析</text><text class="dd">{{ plan.cause_analysis || '—' }}</text></view>
@@ -82,6 +82,41 @@
           <EmptyState v-if="!detail.reviews.length" title="暂无督查复盘" />
           <Timeline v-else :items="reviewItems" />
         </view>
+
+        <view v-if="active==='monthly'" class="tab-panel">
+          <LoadState :loading="monthlyLoading" :error="monthlyError" @retry="loadMonthly" />
+          <template v-if="!monthlyLoading && !monthlyError">
+            <EmptyState v-if="!monthlyReports.length" title="暂无已发布月度评定" desc="班主任发布后即可在此查阅" />
+            <view v-for="report in monthlyReports" :key="report.id" class="plan-card">
+              <text class="section-h">{{ report.month_label }} 月度评定</text>
+              <view class="field"><text class="dt">德育月度评定</text><text class="dd">{{ report.final_content || '暂无德育评定' }}</text></view>
+              <view v-for="item in report.evaluations || []" :key="item.id" class="field">
+                <text class="dt">{{ item.teacher_name || '老师' }} · {{ item.subject || '班主任' }}</text>
+                <text class="dd">{{ item.content }}</text>
+              </view>
+            </view>
+            <text v-if="monthlyReports.length" class="refresh-link" @click="loadMonthly">刷新月度评定</text>
+          </template>
+        </view>
+
+        <view v-if="active==='exams'" class="tab-panel">
+          <LoadState :loading="examsLoading" :error="examsError" @retry="loadExams" />
+          <template v-if="!examsLoading && !examsError">
+            <EmptyState v-if="!examScores.length" title="暂无月考成绩" desc="老师录入后即可在此查阅" />
+            <view v-for="score in examScores" :key="score.id" class="plan-card">
+              <view class="plan-head"><text class="subject-chip">{{ score.subject }}</text><text class="teacher-tip">{{ score.exam_month }}</text></view>
+              <text class="section-h">{{ score.exam_name || '月考' }}</text>
+              <text class="section-body">{{ score.score }} / {{ score.max_score }} 分 · 班级排名 {{ score.rank_in_class || '暂无' }}</text>
+              <text class="teacher-tip">考试日期：{{ score.exam_date }}</text>
+              <view v-if="score.remark" class="field"><text class="dt">备注</text><text class="dd">{{ score.remark }}</text></view>
+              <view v-for="item in score.evaluations || []" :key="item.id" class="field">
+                <text class="dt">{{ item.teacher_name || '老师' }} · {{ item.teacher_role === 'head_teacher' ? '班主任评价' : '学科评价' }}</text>
+                <text class="dd">{{ item.content }}</text>
+              </view>
+            </view>
+            <text v-if="examScores.length" class="refresh-link" @click="loadExams">刷新月考成绩</text>
+          </template>
+        </view>
       </view>
     </template>
     <EmptyState v-else title="档案不存在" desc="可能已被移除或无权查看" />
@@ -90,8 +125,12 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase } from '../../api/studentCases'
+import { listMonthlyReports } from '../../api/monthlyReports'
+import { listWeeklyScores } from '../../api/weeklyScores'
+import LoadState from '../../components/LoadState.vue'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 import CheckinAttachments from '../../components/CheckinAttachments.vue'
 import Timeline from '../../components/Timeline.vue'
@@ -100,12 +139,52 @@ import EmptyState from '../../components/EmptyState.vue'
 const loading = ref(false)
 const detail = ref(null)
 const active = ref('overview')
+const monthlyReports = ref([])
+const examScores = ref([])
+const monthlyLoading = ref(false)
+const examsLoading = ref(false)
+const monthlyError = ref('')
+const examsError = ref('')
 const tabs = [
   { key: 'overview', label: '总览' },
   { key: 'subjects', label: '学科方案' },
   { key: 'tasks', label: '任务执行' },
   { key: 'reviews', label: '督查复盘' },
+  { key: 'monthly', label: '月度评定' },
+  { key: 'exams', label: '月考成绩' },
 ]
+
+// 两个栏目独立加载，接口失败不能显示为“暂无数据”或阻断档案查阅。
+async function loadMonthly() {
+  if (!detail.value || monthlyLoading.value) return
+  monthlyLoading.value = true
+  monthlyError.value = ''
+  try {
+    monthlyReports.value = await loadAll(listMonthlyReports, { student_id: detail.value.student_id, status: 'published' })
+  } catch (_) { monthlyError.value = '月度评定加载失败，请重试' }
+  finally { monthlyLoading.value = false }
+}
+async function loadExams() {
+  if (!detail.value || examsLoading.value) return
+  examsLoading.value = true
+  examsError.value = ''
+  try {
+    examScores.value = await loadAll(listWeeklyScores, { student_id: detail.value.student_id })
+  } catch (_) { examsError.value = '月考成绩加载失败，请重试' }
+  finally { examsLoading.value = false }
+}
+async function loadAll(fetchRows, params) {
+  const rows = []
+  for (let offset = 0; ; offset += 200) {
+    const batch = await fetchRows({ ...params, limit: 200, offset })
+    rows.push(...batch)
+    if (batch.length < 200) return rows
+  }
+}
+watch(active, value => {
+  if (value === 'monthly') loadMonthly()
+  if (value === 'exams') loadExams()
+})
 
 const statusCopy = {
   draft: ['草稿', '等待教师完善'],
@@ -147,12 +226,14 @@ async function load() {
     const id = cur.options?.id || cur.$page?.options?.id
     if (!id) throw new Error('缺少 case id')
     detail.value = await getStudentCase(id)
+    if (active.value === 'monthly') await loadMonthly()
+    if (active.value === 'exams') await loadExams()
   } catch (e) {
     uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally { loading.value = false }
 }
 
-onMounted(load)
+onShow(load)
 </script>
 
 <style scoped>
@@ -178,9 +259,9 @@ onMounted(load)
   background: #fff; border-radius: 20rpx; overflow: hidden;
   box-shadow: none;
 }
-.tab-bar { display: flex; border-bottom: 2rpx solid var(--mp-soft); }
+.tab-bar { display: flex; flex-wrap: wrap; border-bottom: 2rpx solid var(--mp-soft); }
 .tab {
-  flex: 1; text-align: center; padding: 22rpx 0;
+  flex: 0 0 33.333%; box-sizing: border-box; text-align: center; padding: 22rpx 0;
   font-size: 26rpx; color: var(--mp-muted);
   border-bottom: 4rpx solid transparent;
 }
@@ -202,6 +283,7 @@ onMounted(load)
   background: var(--mp-soft); padding: 6rpx 16rpx; border-radius: 16rpx;
 }
 .teacher-tip { font-size: 24rpx; color: var(--mp-muted); }
+.refresh-link { font-size: 26rpx; color: var(--mp-primary); padding: 16rpx 0; text-align: center; }
 .field { display: flex; flex-direction: column; gap: 4rpx; margin-top: 4rpx; }
 .dt { font-size: 24rpx; color: var(--mp-muted); }
 .dd { font-size: 24rpx; color: var(--mp-body); line-height: 1.6; white-space: pre-wrap; }

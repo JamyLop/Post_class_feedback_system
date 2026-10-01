@@ -108,6 +108,31 @@ def _submit_and_approve(client, auth, case_id):
     return approved
 
 
+def test_family_subject_teacher_name_fallback_does_not_modify_plan(client, auth, db, seed_users):
+    from app.models.class_ import StudentGuardian
+    from app.models.student_case import SubjectPlan
+
+    class_id = _setup_high3(db, seed_users)
+    _, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
+    plan = SubjectPlan(student_case_id=case_id, subject="数学", teacher_id=seed_users["teacher2"], teacher_name="")
+    db.add_all([plan, StudentGuardian(parent_id=seed_users["parent1"], student_id=seed_users["student1"])])
+    db.commit()
+    _submit_and_approve(client, auth, case_id)
+    teacher_name = db.get(User, seed_users["teacher2"]).name
+    for role in ("student1", "parent1"):
+        response = client.get(f"/api/student-cases/{case_id}", headers=auth(role))
+        assert response.status_code == 200, response.text
+        assert response.json()["subject_plans"][0]["teacher_name"] == teacher_name
+        assert response.json()["can_manage"] is False
+    db.refresh(plan)
+    assert plan.teacher_name == ""
+    plan.teacher_name = "档案指定老师"
+    db.commit()
+    response = client.get(f"/api/student-cases/{case_id}", headers=auth("student1"))
+    assert response.json()["subject_plans"][0]["teacher_name"] == "档案指定老师"
+    assert client.get(f"/api/student-cases/{case_id}", headers=auth("student2")).status_code == 403
+
+
 def test_high3_only_and_unique_case(client, auth, db, seed_users):
     class_id = _setup_high3(db, seed_users)
     cycle_id, case_id = _create_cycle_and_case(client, auth, class_id, seed_users)
