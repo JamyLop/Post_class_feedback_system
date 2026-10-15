@@ -1,6 +1,7 @@
 import re
 from datetime import date, datetime
 from typing import Any
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -35,7 +36,7 @@ class MonthlyReportUpdateIn(BaseModel):
 
 
 class MonthlyReportCreateIn(MonthlyReportScopeIn, MonthlyReportUpdateIn):
-    pass
+    evaluation_role: Literal["head_teacher", "subject_teacher"] | None = None
 
 
 class MonthlyEvaluationSave(BaseModel):
@@ -95,3 +96,23 @@ class MonthlyReportOut(BaseModel):
     can_manage: bool = False
     can_publish: bool = False
     evaluation_subject: str = ""
+
+
+class MonthlyWritingStatusItem(BaseModel):
+    student_id: int
+    student_name: str
+    class_id: int
+    class_name: str
+    month_label: str
+    teacher_role: str
+    subject: str
+    report_id: int | None
+    writing_status: Literal["written", "unwritten"]
+
+
+class MonthlyWritingStatusOut(BaseModel):
+    total: int
+    written: int
+    unwritten: int
+    filtered_total: int
+    items: list[MonthlyWritingStatusItem]

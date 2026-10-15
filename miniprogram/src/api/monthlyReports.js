@@ -2,6 +2,7 @@ import { http } from '../utils/request'
 
 // 查询月度评定列表
 export const listMonthlyReports = (params) => http.get('/monthly-reports', params)
+export const listMonthlyWritingStatus = (params) => http.get('/monthly-reports/writing-status', params)
 
 // 获取单个月度评定
 export const getMonthlyReport = (id) => http.get(`/monthly-reports/${id}`)

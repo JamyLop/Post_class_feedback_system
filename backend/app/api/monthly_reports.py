@@ -2,7 +2,9 @@
 
 import calendar
 import logging
+from collections import defaultdict
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -34,6 +36,7 @@ from app.schemas.monthly_report import (
     MonthlyReportCreateIn,
     MonthlyReportOut,
     MonthlyReportUpdateIn,
+    MonthlyWritingStatusOut,
 )
 
 router = APIRouter(prefix="/monthly-reports", tags=["monthly-reports"])
@@ -69,16 +72,21 @@ def _evaluation_role(db: Session, row: MonthlyReport, user: User) -> tuple[str, 
         return None
     cls = db.get(Class, row.class_id)
     relations = db.query(ClassTeacher).filter_by(class_id=row.class_id, teacher_id=user.id).all()
-    is_head = (cls is not None and cls.teacher_id == user.id) or any(r.role == "head_teacher" for r in relations)
     # 学生档案中的任课安排优先于班级关系，避免同班其他老师代填。
     case = db.get(StudentCase, row.student_case_id) if row.student_case_id else db.query(StudentCase).filter_by(
         student_id=row.student_id, class_id=row.class_id,
     ).filter(StudentCase.status != "archived").order_by(StudentCase.id.desc()).first()
     plans = db.query(SubjectPlan).filter_by(student_case_id=case.id).all() if case else []
+    head_subjects = {r.subject for r in db.query(ClassTeacher).filter_by(
+        class_id=row.class_id, teacher_id=cls.teacher_id, role="subject_teacher",
+    ).all()} if case and cls and case.owner_teacher_id == cls.teacher_id else set()
+    return _resolve_evaluation_role(cls, relations, case, plans, head_subjects, user)
+
+
+def _resolve_evaluation_role(cls, relations, case, plans, head_subjects, user):
+    """查询和保存共用同一任课判定，批量查询时复用已加载的关系。"""
+    is_head = (cls is not None and cls.teacher_id == user.id) or any(r.role == "head_teacher" for r in relations)
     if case and cls and case.owner_teacher_id == cls.teacher_id:
-        head_subjects = {r.subject for r in db.query(ClassTeacher).filter_by(
-            class_id=row.class_id, teacher_id=cls.teacher_id, role="subject_teacher",
-        ).all()}
         # 旧档案以班主任占位任课 ID；没有明确兼教学科时，不能覆盖班级任课安排。
         # 其他老师的学生专属安排仍优先，班主任明确兼教的学科也保留。
         plans = [p for p in plans if p.teacher_id != cls.teacher_id or p.subject in head_subjects]
@@ -173,6 +181,12 @@ def create_monthly(
         raise HTTPException(status_code=403, detail="学生不属于该班级")
     scope = MonthlyReport(student_id=body.student_id, class_id=body.class_id, student_case_id=body.student_case_id)
     role_subject = (MONTHLY_EVAL_ROLE_HEAD, "") if _is_head_teacher(db, body.class_id, user) else _evaluation_role(db, scope, user)
+    if body.evaluation_role == MONTHLY_EVAL_ROLE_SUBJECT:
+        role_subject = _evaluation_role(db, scope, user)
+        if role_subject and role_subject[0] != MONTHLY_EVAL_ROLE_SUBJECT:
+            role_subject = None
+    elif body.evaluation_role == MONTHLY_EVAL_ROLE_HEAD and not _is_head_teacher(db, body.class_id, user):
+        role_subject = None
     if role_subject is None:
         raise HTTPException(status_code=403, detail="仅对应任课老师或本班班主任可填写")
     period_start, period_end = _month_bounds(body.month_label)
@@ -262,6 +276,78 @@ def list_reports(
         q = q.filter(MonthlyReport.status == status)
     rows = q.order_by(MonthlyReport.month_label.desc(), MonthlyReport.created_at.desc()).offset(offset).limit(limit).all()
     return [_enrich(r, db, user) for r in rows]
+
+@router.get("/writing-status", response_model=MonthlyWritingStatusOut)
+def writing_status(
+    month_label: str = Query(pattern=r"^\d{4}-\d{2}$"),
+    class_id: int | None = Query(default=None),
+    student_id: int | None = Query(default=None),
+    writing_status: Literal["written", "unwritten"] | None = Query(default=None),
+    keyword: str = Query(default="", max_length=100),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(_evaluator),
+):
+    _month_bounds(month_label)
+    allowed = _subject_teacher_class_ids(db, user) | {
+        c.id for c in db.query(Class).filter_by(teacher_id=user.id).all()
+    }
+    if class_id is not None:
+        allowed &= {class_id}
+    classes = {c.id: c for c in db.query(Class).filter(Class.id.in_(allowed)).all()}
+    relations = defaultdict(list)
+    for relation in db.query(ClassTeacher).filter(ClassTeacher.class_id.in_(allowed)).all():
+        relations[relation.class_id].append(relation)
+    roster = db.query(ClassStudent, User).join(User, User.id == ClassStudent.student_id).filter(
+        ClassStudent.class_id.in_(allowed), User.role == ROLE_STUDENT,
+    )
+    if student_id is not None:
+        roster = roster.filter(User.id == student_id)
+    members = roster.order_by(ClassStudent.class_id, User.name, User.id).all()
+    student_ids = {student.id for _, student in members}
+    cases = db.query(StudentCase).filter(StudentCase.student_id.in_(student_ids)).order_by(StudentCase.id.desc()).all()
+    cases_by_id = {case.id: case for case in cases}
+    latest_cases = {}
+    for case in cases:
+        if case.status != "archived":
+            latest_cases.setdefault((case.class_id, case.student_id), case)
+    plans = defaultdict(list)
+    for plan in db.query(SubjectPlan).filter(SubjectPlan.student_case_id.in_(cases_by_id)).all():
+        plans[plan.student_case_id].append(plan)
+    reports = {(r.class_id, r.student_id): r for r in db.query(MonthlyReport).filter(
+        MonthlyReport.class_id.in_(allowed), MonthlyReport.student_id.in_(student_ids),
+        MonthlyReport.month_label == month_label,
+    ).all()}
+    rows = []
+    for member, student in members:
+        cls = classes[member.class_id]
+        if keyword.strip().casefold() not in f"{student.name} {cls.name}".casefold():
+            continue
+        own_relations = [r for r in relations[cls.id] if r.teacher_id == user.id]
+        is_head = cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
+        report = reports.get((cls.id, student.id))
+        case = cases_by_id.get(report.student_case_id) if report and report.student_case_id else latest_cases.get((cls.id, student.id))
+        head_subjects = {r.subject for r in relations[cls.id] if r.teacher_id == cls.teacher_id and r.role == "subject_teacher"}
+        assignment = _resolve_evaluation_role(cls, own_relations, case, plans[case.id] if case else [], head_subjects, user)
+        # 兼任班主任和学科老师时分别统计两项，不能用德育正文代替本人学科评价。
+        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育")] if is_head else []
+        if assignment and assignment[0] == MONTHLY_EVAL_ROLE_SUBJECT:
+            duties.append(assignment)
+        for role, subject in duties:
+            content = report.final_content if report and role == MONTHLY_EVAL_ROLE_HEAD else ""
+            if report and role == MONTHLY_EVAL_ROLE_SUBJECT:
+                content = next((e.content for e in report.evaluations if e.teacher_id == user.id and e.teacher_role == role), "")
+            rows.append(dict(student_id=student.id, student_name=student.name, class_id=cls.id,
+                             class_name=cls.name, month_label=month_label, teacher_role=role,
+                             subject=subject, report_id=report.id if report else None,
+                             writing_status="written" if content and content.strip() else "unwritten"))
+    written = sum(r["writing_status"] == "written" for r in rows)
+    total = len(rows)
+    selected = [r for r in rows if writing_status is None or r["writing_status"] == writing_status]
+    return dict(total=total, written=written, unwritten=total-written, filtered_total=len(selected),
+                items=selected[offset:offset+limit])
+
 
 @router.get("/{report_id}", response_model=MonthlyReportOut)
 def get_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

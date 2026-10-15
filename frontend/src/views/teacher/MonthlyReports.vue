@@ -9,6 +9,12 @@
       <el-button type="primary" @click="openGenerate"><el-icon><Plus /></el-icon>新建月度评定</el-button>
     </header>
 
+    <el-tabs v-model="activeTab">
+      <el-tab-pane v-if="canQueryWriting" label="填写状态查询" name="writing" />
+      <el-tab-pane label="评定列表" name="reports" />
+    </el-tabs>
+    <MonthlyWritingStatus v-if="activeTab === 'writing'" :classes="classes" @saved="load" />
+    <template v-if="activeTab === 'reports'">
     <section class="filter-surface">
       <div class="filters">
         <el-select v-model="filters.class_id" placeholder="选择班级" clearable style="width: 180px" @change="onFilterClassChange">
@@ -45,6 +51,7 @@
       </el-table>
     </section>
 
+    </template>
     <!-- 手动填写 -->
     <el-dialog v-model="genVisible" title="填写月度评定" width="560px" destroy-on-close>
       <div class="gen-tip">选择学生与月份，填写评定内容后保存为待发布。</div>
@@ -82,6 +89,8 @@
 </template>
 
 <script setup>
+import MonthlyWritingStatus from '../../components/MonthlyWritingStatus.vue'
+import { useAuthStore } from '../../stores/auth'
 import { ref, onMounted } from 'vue'
 import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
 import { completeReview } from '../../utils/monthlyReview'
@@ -91,6 +100,10 @@ import { Plus, Refresh } from '@element-plus/icons-vue'
 import { listClasses, listStudents } from '../../api/classes'
 import { listUsers } from '../../api/classes'
 import { deleteMonthlyReport, createMonthlyReport, listMonthlyReports, publishMonthlyReport, updateMonthlyReport } from '../../api/monthlyReports'
+
+const auth = useAuthStore()
+const canQueryWriting = ['teacher', 'subject_teacher'].includes(auth.role)
+const activeTab = ref(canQueryWriting ? 'writing' : 'reports')
 
 const classes = ref([])
 const allStudents = ref([])

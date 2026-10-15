@@ -229,3 +229,95 @@ def test_head_teacher_teaching_subject_keeps_deyu_separate(client, auth, db, see
     assert result.status_code == 200
     assert result.json()["final_content"] == report["final_content"]
     assert result.json()["evaluations"][0]["teacher_role"] == "subject_teacher"
+
+
+def test_writing_status_includes_uncreated_reports_and_filters_before_pagination(client, auth, db, seed_users):
+    _, cls, _ = _setup(db, seed_users)
+    db.add(ClassStudent(class_id=cls.id, student_id=seed_users["student3"]))
+    db.commit()
+    headers = auth("subject1")
+    params = {"month_label": "2026-09", "limit": 1}
+    response = client.get("/api/monthly-reports/writing-status", headers=headers, params=params)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert (data["total"], data["written"], data["unwritten"], data["filtered_total"]) == (2, 0, 2, 2)
+    assert len(data["items"]) == 1
+    assert data["items"][0]["report_id"] is None
+    second = client.get("/api/monthly-reports/writing-status", headers=headers, params={**params, "offset": 1}).json()
+    assert second["items"][0]["student_id"] != data["items"][0]["student_id"]
+    assert seed_users["student2"] not in {data["items"][0]["student_id"], second["items"][0]["student_id"]}
+    empty = client.get("/api/monthly-reports/writing-status", headers=headers, params={**params, "writing_status": "written"}).json()
+    assert empty["items"] == [] and empty["total"] == 2 and empty["filtered_total"] == 0
+
+
+def test_writing_status_counts_own_content_independently_of_publication(client, auth, db, seed_users):
+    _, cls, _ = _setup(db, seed_users)
+    report = _create_report(client, auth, cls, seed_users["student1"])
+    url = "/api/monthly-reports/writing-status"
+    params = {"month_label": "2026-09"}
+    subject_headers = auth("subject1")
+    head_headers = auth("teacher1")
+    assert client.get(url, headers=subject_headers, params=params).json()["unwritten"] == 1
+    assert client.get(url, headers=head_headers, params=params).json()["written"] == 1
+    assert client.post(f"/api/monthly-reports/{report['id']}/publish", headers=head_headers).status_code == 200
+    assert client.get(url, headers=subject_headers, params=params).json()["unwritten"] == 1
+    assert client.put(f"/api/monthly-reports/{report['id']}/evaluation", headers=subject_headers, json={"content": "数学评定"}).status_code == 200
+    data = client.get(url, headers=subject_headers, params={**params, "writing_status": "written"}).json()
+    assert data["written"] == 1 and data["items"][0]["report_id"] == report["id"]
+    assert client.get(url, headers=subject_headers, params={"month_label": "2026-10"}).json()["unwritten"] == 1
+    assert client.get(url, headers=subject_headers, params={**params, "keyword": "不存在"}).json()["total"] == 0
+
+
+def test_writing_status_dual_role_and_explicit_subject_creation(client, auth, db, seed_users):
+    _, cls, _ = _setup(db, seed_users)
+    db.add(ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="英语"))
+    db.commit()
+    headers = auth("teacher1")
+    params = {"month_label": "2026-09"}
+    before = client.get("/api/monthly-reports/writing-status", headers=headers, params=params).json()
+    assert before["total"] == 2 and before["unwritten"] == 2
+    response = client.post("/api/monthly-reports", headers=headers, json={
+        "student_id": seed_users["student1"], "class_id": cls.id, "month_label": "2026-09",
+        "final_content": "英语评价", "evaluation_role": "subject_teacher",
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["final_content"] == ""
+    assert response.json()["evaluations"][0]["subject"] == "英语"
+    after = client.get("/api/monthly-reports/writing-status", headers=headers, params=params).json()
+    states = {r["teacher_role"]: r["writing_status"] for r in after["items"]}
+    assert states == {"head_teacher": "unwritten", "subject_teacher": "written"}
+    assert after["written"] == 1 and after["unwritten"] == 1
+
+
+def test_writing_status_respects_student_assignment_and_plan_only_teacher(client, auth, db, seed_users):
+    from datetime import date
+    from app.models.student_case import CaseCycle, StudentCase, SubjectPlan
+    _, cls, _ = _setup(db, seed_users)
+    cycle = CaseCycle(name="月评查询周期", grade="高三", school_year="2026", starts_on=date(2026, 9, 1), ends_on=date(2027, 6, 30))
+    db.add(cycle)
+    db.flush()
+    case = StudentCase(cycle_id=cycle.id, student_id=seed_users["student1"], class_id=cls.id, owner_teacher_id=seed_users["teacher1"])
+    db.add(case)
+    db.flush()
+    db.add(SubjectPlan(student_case_id=case.id, subject="数学", teacher_id=seed_users["teacher2"]))
+    db.commit()
+    params = {"month_label": "2026-09", "class_id": cls.id}
+    assert client.get("/api/monthly-reports/writing-status", headers=auth("subject1"), params=params).json()["total"] == 0
+    data = client.get("/api/monthly-reports/writing-status", headers=auth("teacher2"), params=params).json()
+    assert data["total"] == 1 and data["items"][0]["subject"] == "数学"
+
+
+def test_writing_status_authorization_and_invalid_filters(client, auth, db, seed_users):
+    _, cls, other = _setup(db, seed_users)
+    url = "/api/monthly-reports/writing-status"
+    params = {"month_label": "2026-09"}
+    for username in ("student1", "parent1", "admin", "deyu1"):
+        assert client.get(url, headers=auth(username), params=params).status_code == 403
+    headers = auth("subject1")
+    assert client.get(url, headers=headers, params={**params, "class_id": other.id}).json()["total"] == 0
+    assert client.get(url, headers=headers, params={"month_label": "2026-13"}).status_code == 400
+    assert client.get(url, headers=headers, params={**params, "writing_status": "published"}).status_code == 422
+    assert client.post("/api/monthly-reports", headers=headers, json={
+        "student_id": seed_users["student1"], "class_id": cls.id, "month_label": "2026-09",
+        "final_content": "代写德育", "evaluation_role": "head_teacher",
+    }).status_code == 403

@@ -6,6 +6,12 @@
       <text class="p">{{ isSubjectTeacher ? '对应老师填写学科总结、问题、计划' : '教师手动填写、审阅与发布月度评定' }}</text>
     </view>
 
+    <view v-if="canQueryWriting" class="query-tabs">
+      <button :class="{ active: activeTab === 'writing' }" @click="activeTab = 'writing'">填写状态查询</button>
+      <button :class="{ active: activeTab === 'reports' }" @click="activeTab = 'reports'">评定列表</button>
+    </view>
+    <MonthlyWritingStatus v-if="activeTab === 'writing'" ref="writingQuery" :classes="classList" />
+    <template v-if="activeTab === 'reports'">
     <!-- 筛选栏 -->
     <view class="filter-bar">
       <view class="filter-item">
@@ -57,11 +63,13 @@
         </view>
       </view>
     </view>
+    </template>
   </view>
 </template>
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
+import MonthlyWritingStatus from '../../components/MonthlyWritingStatus.vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
@@ -71,6 +79,9 @@ import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
 const auth = useAuthStore()
+const canQueryWriting = ['teacher', 'subject_teacher'].includes(auth.role)
+const activeTab = ref(canQueryWriting ? 'writing' : 'reports')
+const writingQuery = ref(null)
 const loading = ref(false)
 const classList = ref([])
 const classIndex = ref(0)
@@ -101,6 +112,7 @@ async function loadClasses() {
 }
 
 async function loadData() {
+  writingQuery.value?.load()
   loading.value = true
   try {
     const params = {}
@@ -139,6 +151,10 @@ onShow(() => {
 </script>
 
 <style scoped>
+.query-tabs { display: flex; border-bottom: 1rpx solid var(--mp-line); }
+.query-tabs button { flex: 1; margin: 0; border-radius: 0; background: transparent; color: var(--mp-body, #445269); font-size: 28rpx; }
+.query-tabs button::after { border: 0; }
+.query-tabs button.active { color: var(--mp-primary); border-bottom: 4rpx solid var(--mp-primary); }
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
 .h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
 .p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
