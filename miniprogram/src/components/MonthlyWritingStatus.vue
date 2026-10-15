@@ -14,8 +14,10 @@
       <text v-else-if="!result.items.length" class="message">当前条件下没有学生，请调整筛选条件</text>
       <view v-else class="results">
         <view v-for="row in result.items" :key="`${row.class_id}-${row.student_id}-${row.teacher_role}`" class="result-row">
-          <view class="row-title"><text class="name">{{ row.student_name }}</text><text class="tag" :class="{ written: row.writing_status === 'written' }">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</text></view>
-          <text class="meta">{{ row.class_name }} · {{ row.month_label }} · {{ row.subject }}</text>
+          <view class="student-info">
+            <view class="row-title"><text class="name">{{ row.student_name }}</text><text class="tag" :class="{ written: row.writing_status === 'written' }">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</text></view>
+            <text class="meta">{{ row.class_name }} · {{ row.month_label }} · {{ row.subject }}</text>
+          </view>
           <button size="mini" class="write-button" @click="openRow(row)">{{ row.writing_status === 'written' ? '查看 / 修改' : '去填写' }}</button>
         </view>
       </view>
@@ -78,12 +80,13 @@ onMounted(load)
 .note, .meta { display: block; color: var(--mp-body, #445269); font-size: 24rpx; line-height: 1.6; }
 .counts { color: var(--mp-ink); font-size: 26rpx; }
 .message { display: block; text-align: center; padding: 24rpx 0; font-size: 26rpx; color: var(--mp-body, #445269); }
-.result-row { padding: 22rpx 0; border-top: 1rpx solid var(--mp-line); }
-.row-title { display: flex; gap: 16rpx; align-items: center; margin-bottom: 8rpx; }
-.name { font-size: 28rpx; font-weight: 600; color: var(--mp-ink); }
-.tag { font-size: 24rpx; color: #865c1e; background: #fbf1df; border-radius: 6rpx; padding: 4rpx 12rpx; }
+.result-row { display: flex; align-items: center; gap: 16rpx; padding: 22rpx 0; border-top: 1rpx solid var(--mp-line); }
+.student-info { flex: 1; min-width: 0; }
+.row-title { display: flex; flex-wrap: wrap; gap: 10rpx; align-items: center; margin-bottom: 8rpx; }
+.name { font-size: 28rpx; font-weight: 600; color: var(--mp-ink); overflow-wrap: anywhere; }
+.tag { flex: none; white-space: nowrap; font-size: 24rpx; color: #865c1e; background: #fbf1df; border-radius: 6rpx; padding: 4rpx 12rpx; }
 .tag.written { color: #286349; background: #eaf3ee; }
-.write-button { margin: 12rpx 0 0; color: var(--mp-primary); background: #fff; }
+.write-button { flex: none; width: 156rpx; margin: 0; padding: 0 12rpx; white-space: nowrap; font-size: 24rpx; color: var(--mp-primary); background: #fff; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; font-size: 24rpx; }
 .pagination button { margin: 0; }
 </style>
