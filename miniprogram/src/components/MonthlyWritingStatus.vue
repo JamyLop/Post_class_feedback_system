@@ -27,12 +27,12 @@
         </view>
       </view>
       <view v-else class="results">
-        <view v-for="row in result.items" :key="`${row.class_id}-${row.student_id}-${row.teacher_role}-${row.teacher_id}`" class="result-row">
+        <view v-for="row in result.items" :key="`${row.class_id}-${row.student_id}-${row.teacher_role}-${row.teacher_id}-${row.subject}`" class="result-row">
           <view class="student-info">
             <view class="row-title"><text class="name">{{ row.subject }}</text><text class="tag" :class="{ written: row.writing_status === 'written' }">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</text></view>
-            <text class="meta">{{ row.teacher_name || (row.teacher_role === 'head_teacher' ? '班主任' : '任课老师') }}填写{{ row.can_edit === false ? ' · 仅查看' : '' }}</text>
+            <text class="meta">{{ row.assignment_required ? `${row.teacher_name} · 待关联账号` : `${row.teacher_name || (row.teacher_role === 'head_teacher' ? '班主任' : '任课老师')}填写${row.can_edit === false ? ' · 仅查看' : ''}` }}</text>
           </view>
-          <button size="mini" class="write-button" :disabled="row.can_edit === false && row.writing_status !== 'written'" @click="openRow(row)">{{ row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</button>
+          <button size="mini" class="write-button" :disabled="row.can_edit === false && row.writing_status !== 'written'" @click="openRow(row)">{{ row.assignment_required ? '待确认老师' : row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</button>
         </view>
       </view>
       <view v-if="pageTotal > 50" class="pagination"><button size="mini" :disabled="page === 1 || loading" @click="turnPage(-1)">上一页</button><text>{{ page }} / {{ Math.ceil(pageTotal / 50) }}</text><button size="mini" :disabled="page * 50 >= pageTotal || loading" @click="turnPage(1)">下一页</button></view>

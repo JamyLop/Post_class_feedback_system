@@ -386,3 +386,31 @@ def test_deyu_subject_relation_is_not_a_second_monthly_duty(client, auth, db, se
     assert {r["subject"] for r in data["items"]} == {"德育", "英语", "数学"}
     assert all("德育" not in r["subject"] for r in data["items"] if r["teacher_role"] == "subject_teacher")
     assert client.put(f"/api/monthly-reports/{report['id']}/evaluation", headers=auth("teacher2"), json={"content": "重复德育"}).status_code == 403
+
+
+@pytest.mark.parametrize("teacher_name", ["", "政治老师"])
+def test_initial_subject_without_linked_teacher_remains_visible(client, auth, db, seed_users, teacher_name):
+    from datetime import date
+    from app.models.student_case import CaseCycle, StudentCase, SubjectPlan
+    _, cls, _ = _setup(db, seed_users)
+    cycle = CaseCycle(name="初评缺任课关联", grade="高三", school_year="2026", starts_on=date(2026, 9, 1), ends_on=date(2027, 7, 1))
+    db.add(cycle)
+    db.flush()
+    case = StudentCase(cycle_id=cycle.id, student_id=seed_users["student1"], class_id=cls.id, owner_teacher_id=seed_users["teacher1"])
+    db.add(case)
+    db.flush()
+    db.add(SubjectPlan(student_case_id=case.id, subject="政治", teacher_id=seed_users["teacher1"], teacher_name=teacher_name, problem_location="初评政治信息"))
+    db.commit()
+    params = {"month_label": "2026-09", "student_id": seed_users["student1"]}
+    data = client.get("/api/monthly-reports/writing-status", headers=auth("teacher1"), params=params).json()
+    politics = next(r for r in data["items"] if r["subject"] == "政治")
+    assert politics["assignment_required"] is True and politics["teacher_id"] is None
+    assert politics["teacher_name"] == (teacher_name or "待确认任课老师")
+    assert politics["can_edit"] is False and politics["writing_status"] == "unwritten"
+    assert data["total"] == 3 and data["unwritten"] == 3
+    summary = client.get("/api/monthly-reports/writing-status", headers=auth("teacher1"), params={**params, "view": "students"}).json()
+    assert summary["students"][0]["unwritten"] == 3
+    # 展示初评科目不会给班主任或其他老师新增学科代填权限。
+    assert client.post("/api/monthly-reports", headers=auth("teacher1"), json={"class_id": cls.id, "student_id": seed_users["student1"], "month_label": "2026-09", "evaluation_role": "subject_teacher", "final_content": "误代填政治"}).status_code == 403
+    own = client.get("/api/monthly-reports/writing-status", headers=auth("subject1"), params=params).json()
+    assert {r["subject"] for r in own["items"]} == {"数学"}

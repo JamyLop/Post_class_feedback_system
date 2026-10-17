@@ -32,9 +32,9 @@
       </el-table>
       <el-table v-else v-loading="loading" :data="result.items" empty-text="该学生暂无可查看的评定项">
         <el-table-column prop="subject" label="科目" min-width="130" />
-        <el-table-column prop="teacher_name" label="负责老师" min-width="110" />
+        <el-table-column label="负责老师" min-width="130"><template #default="{ row }">{{ row.teacher_name }}{{ row.assignment_required ? '（待关联账号）' : '' }}</template></el-table-column>
         <el-table-column label="填写状态" width="110"><template #default="{ row }"><el-tag :type="row.writing_status === 'written' ? 'success' : 'warning'">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</el-tag></template></el-table-column>
-        <el-table-column label="操作" width="130"><template #default="{ row }"><el-button link type="primary" :disabled="loading || opening || (row.can_edit === false && row.writing_status !== 'written')" @click="openEditor(row)">{{ row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</el-button></template></el-table-column>
+        <el-table-column label="操作" width="130"><template #default="{ row }"><el-button link type="primary" :disabled="loading || opening || (row.can_edit === false && row.writing_status !== 'written')" @click="openEditor(row)">{{ row.assignment_required ? '待确认任课老师' : row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</el-button></template></el-table-column>
       </el-table>
       <el-pagination v-if="pageTotal > 50" v-model:current-page="page" :page-size="50" :total="pageTotal" layout="prev, pager, next, total" @current-change="load" />
     </template>

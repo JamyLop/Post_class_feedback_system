@@ -356,6 +356,18 @@ def writing_status(
                              subject=subject, report_id=report.id if report else None,
                              teacher_id=teacher.id, teacher_name=teacher.name, can_edit=teacher.id == user.id,
                              writing_status="written" if content and content.strip() else "unwritten"))
+        if is_head:
+            # 初评科目即使尚未关联任课账号也必须可见；不能把未关联误报为全部已填。
+            shown_subjects = {s.strip() for _, subject, _ in duties for s in subject.split("、")}
+            for plan in case_plans:
+                if not plan.subject.strip() or plan.subject.strip() in shown_subjects or plan.subject.strip() == "德育":
+                    continue
+                rows.append(dict(student_id=student.id, student_name=student.name, class_id=cls.id,
+                                 class_name=cls.name, month_label=month_label, teacher_role=MONTHLY_EVAL_ROLE_SUBJECT,
+                                 subject=plan.subject, report_id=report.id if report else None,
+                                 teacher_id=None, teacher_name=plan.teacher_name.strip() or "待确认任课老师",
+                                 can_edit=False, assignment_required=True, writing_status="unwritten"))
+                shown_subjects.add(plan.subject.strip())
     written = sum(r["writing_status"] == "written" for r in rows)
     total = len(rows)
     selected = [r for r in rows if writing_status is None or r["writing_status"] == writing_status]

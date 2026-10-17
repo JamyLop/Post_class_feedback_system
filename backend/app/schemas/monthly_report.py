@@ -111,6 +111,7 @@ class MonthlyWritingStatusItem(BaseModel):
     teacher_id: int | None = None
     teacher_name: str = ""
     can_edit: bool = False
+    assignment_required: bool = False
 
 
 class MonthlyWritingStudentItem(BaseModel):
