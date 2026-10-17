@@ -65,7 +65,10 @@ async function load() {
   loading.value = true
   error.value = false
   try {
-    const params = { month_label: month.value, view: selectedStudent.value ? 'items' : 'students', student_id: selectedStudent.value?.student_id, keyword: selectedStudent.value ? undefined : keyword.value.trim(), limit: 50, offset: (page.value - 1) * 50 }
+    const params = { month_label: month.value, view: selectedStudent.value ? 'items' : 'students', limit: 50, offset: (page.value - 1) * 50 }
+    // 微信 GET 会把 undefined 序列化为字符串，可选参数必须按需添加。
+    if (selectedStudent.value) params.student_id = selectedStudent.value.student_id
+    else params.keyword = keyword.value.trim()
     const cid = selectedStudent.value?.class_id || props.classes[classIndex.value - 1]?.id
     if (cid) params.class_id = cid
     if (!selectedStudent.value && statusValues[statusIndex.value]) params.writing_status = statusValues[statusIndex.value]
