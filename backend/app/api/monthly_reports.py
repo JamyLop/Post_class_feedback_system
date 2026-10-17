@@ -350,7 +350,8 @@ def writing_status(
                 initial_required=not initial_subjects, total=0, written=0, unwritten=0)
         # 班主任可查看全班任课进度；任课老师仍仅查看本人职责，查看不授予代填权限。
         candidates = teachers.values() if is_head else [user]
-        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", user)] if is_head and "德育" in initial_subjects else []
+        # 学科对应个人初评；德育是班主任固定职责，不依赖初评是否单独录入。
+        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", user)] if is_head else []
         for teacher in candidates:
             teacher_relations = [r for r in relations[cls.id] if r.teacher_id == teacher.id]
             assignment = _resolve_evaluation_role(cls, teacher_relations, case, case_plans, head_subjects, teacher)

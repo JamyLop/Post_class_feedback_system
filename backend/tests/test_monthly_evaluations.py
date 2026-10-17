@@ -431,9 +431,12 @@ def test_initial_subject_without_linked_teacher_remains_visible(client, auth, db
     assert politics["assignment_required"] is True and politics["teacher_id"] is None
     assert politics["teacher_name"] == (teacher_name or "待确认任课老师")
     assert politics["can_edit"] is False and politics["writing_status"] == "unwritten"
-    assert data["total"] == 1 and data["unwritten"] == 1
+    assert data["total"] == 2 and data["unwritten"] == 2
+    moral = [r for r in data["items"] if r["subject"] == "德育"]
+    assert len(moral) == 1 and moral[0]["teacher_role"] == "head_teacher"
+    assert moral[0]["teacher_id"] == seed_users["teacher1"] and moral[0]["can_edit"] is True
     summary = client.get("/api/monthly-reports/writing-status", headers=auth("teacher1"), params={**params, "view": "students"}).json()
-    assert summary["students"][0]["unwritten"] == 1
+    assert summary["students"][0]["unwritten"] == 2
     # 展示初评科目不会给班主任或其他老师新增学科代填权限。
     assert client.post("/api/monthly-reports", headers=auth("teacher1"), json={"class_id": cls.id, "student_id": seed_users["student1"], "month_label": "2026-09", "evaluation_role": "subject_teacher", "final_content": "误代填政治"}).status_code == 403
     own = client.get("/api/monthly-reports/writing-status", headers=auth("subject1"), params=params).json()
@@ -467,11 +470,13 @@ def test_monthly_subjects_equal_individual_initial_scope(client, auth, db, seed_
     db.query(SubjectPlan).filter_by(student_case_id=first.id).delete()
     db.commit()
     detail=client.get(url,headers=auth("teacher1"),params={**params,"student_id":seed_users["student1"]}).json()
-    assert detail["items"]==[] and detail["total"]==0
+    assert [r["subject"] for r in detail["items"]]==["德育"] and detail["total"]==1
     summary=client.get(url,headers=auth("teacher1"),params={**params,"view":"students"}).json()
     student=next(s for s in summary["students"] if s["student_id"]==seed_users["student1"])
-    assert student["initial_required"] is True and student["total"]==0
+    assert student["initial_required"] is True and student["total"]==1
 
     db.delete(first)
     db.commit()
+    detail=client.get(url,headers=auth("teacher1"),params={**params,"student_id":seed_users["student1"]}).json()
+    assert [r["subject"] for r in detail["items"]]==["德育"]
     assert client.post("/api/monthly-reports", headers=auth("subject1"), json={"class_id":cls.id,"student_id":seed_users["student1"],"month_label":"2026-09","final_content":"没有初评不能代建数学"}).status_code==403
