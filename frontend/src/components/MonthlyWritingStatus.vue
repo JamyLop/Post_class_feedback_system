@@ -18,7 +18,7 @@
       <el-input v-model="keyword" aria-label="搜索学生" placeholder="搜索学生，回车查询" clearable @keyup.enter="query" @clear="query" />
       <el-button :loading="loading" @click="query">查询</el-button>
     </div>
-    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</p>
+    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : isAdmin ? '科目与该生入学评定一致。选择班级查看班级汇总，点击学生查看各科填写情况。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <el-button v-if="error" @click="load">重新加载</el-button>
     <template v-else>
@@ -34,10 +34,16 @@
         <el-table-column prop="subject" label="科目" min-width="130" />
         <el-table-column label="负责老师" min-width="130"><template #default="{ row }">{{ row.teacher_name }}{{ row.assignment_required ? '（待关联账号）' : '' }}</template></el-table-column>
         <el-table-column label="填写状态" width="110"><template #default="{ row }"><el-tag :type="row.writing_status === 'written' ? 'success' : 'warning'">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</el-tag></template></el-table-column>
-        <el-table-column label="操作" width="130"><template #default="{ row }"><el-button link type="primary" :disabled="loading || opening || (row.can_edit === false && row.writing_status !== 'written')" @click="openEditor(row)">{{ row.assignment_required ? '待确认任课老师' : row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</el-button></template></el-table-column>
+        <el-table-column label="操作" :width="isAdmin ? 220 : 130"><template #default="{ row }"><el-button v-if="isAdmin && row.writing_status === 'written'" link type="primary" :disabled="loading || savingMonth" @click="openMonthEditor(row)">修改月份</el-button><el-button link type="primary" :disabled="loading || opening || (row.can_edit === false && row.writing_status !== 'written')" @click="openEditor(row)">{{ row.assignment_required ? '待确认任课老师' : row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</el-button></template></el-table-column>
       </el-table>
       <el-pagination v-if="pageTotal > 50" v-model:current-page="page" :page-size="50" :total="pageTotal" layout="prev, pager, next, total" @current-change="load" />
     </template>
+    <el-dialog v-model="monthEditing" title="修改科目评定月份" width="min(460px, 92vw)" append-to-body :close-on-click-modal="!savingMonth" :close-on-press-escape="!savingMonth" :show-close="!savingMonth">
+      <p>{{ monthItem?.student_name }} · {{ monthItem?.class_name }} · {{ monthItem?.subject }}</p>
+      <p>仅将 {{ month }} 的{{ monthItem?.subject }}评定调整到目标月份，其他科目保持原月份。目标月份已有该科目或该教师评定时不能覆盖。</p>
+      <el-date-picker v-model="targetMonth" type="month" value-format="YYYY-MM" aria-label="目标月份" :clearable="false" :disabled="savingMonth" />
+      <template #footer><el-button :disabled="savingMonth" @click="monthEditing = false">取消</el-button><el-button type="primary" :loading="savingMonth" :disabled="!targetMonth || targetMonth === month" @click="saveMonth">保存月份</el-button></template>
+    </el-dialog>
     <el-dialog v-model="editing" :title="readOnly ? '查看月度评定' : '填写月度评定'" width="min(560px, 92vw)" :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving" append-to-body>
       <template v-if="current">
         <p>{{ current.student_name }} · {{ current.class_name }} · {{ current.month_label }} · {{ current.subject }}</p>
@@ -54,7 +60,7 @@ import { ElMessage } from 'element-plus'
 import MonthlyReviewForm from './MonthlyReviewForm.vue'
 import { completeReview } from '../utils/monthlyReview'
 import { useAuthStore } from '../stores/auth'
-import { createMonthlyReport, getMonthlyReport, listMonthlyReports, listMonthlyWritingStatus, saveMonthlyEvaluation, updateMonthlyReport } from '../api/monthlyReports'
+import { changeMonthlyReportMonth, createMonthlyReport, getMonthlyReport, listMonthlyReports, listMonthlyWritingStatus, saveMonthlyEvaluation, updateMonthlyReport } from '../api/monthlyReports'
 
 defineProps({ classes: { type: Array, default: () => [] } })
 const emit = defineEmits(['saved'])
@@ -106,6 +112,26 @@ async function openEditor(row) {
   } catch { ElMessage.error('评定加载失败，请重试') } finally { opening.value = false }
 }
 const auth = useAuthStore()
+const isAdmin = computed(() => auth.user?.role === 'admin')
+const monthEditing = ref(false)
+const targetMonth = ref('')
+const monthItem = ref(null)
+const savingMonth = ref(false)
+function openMonthEditor(row) { monthItem.value = row; targetMonth.value = month.value; monthEditing.value = true }
+async function saveMonth() {
+  if (savingMonth.value || !targetMonth.value || targetMonth.value === month.value) return
+  const row = monthItem.value
+  const reportId = row?.report_id
+  if (!reportId) return
+  savingMonth.value = true
+  try {
+    await changeMonthlyReportMonth(reportId, { month_label: targetMonth.value, teacher_role: row.teacher_role, subject: row.subject, teacher_id: row.teacher_id })
+    monthEditing.value = false
+    ElMessage.success(`${row.subject}评定已调整至 ${targetMonth.value}`)
+    await load()
+  } catch (err) { ElMessage.error(err.response?.data?.detail || '月份修改失败，请重试') }
+  finally { savingMonth.value = false }
+}
 async function save() {
   if (saving.value || readOnly.value || !completeReview(content.value)) return
   saving.value = true

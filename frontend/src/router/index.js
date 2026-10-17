@@ -14,6 +14,7 @@ const routes = [
       { path: 'case-supervision', component: () => import('../views/admin/CaseSupervision.vue') },
       { path: 'cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'timetable', component: () => import('../views/timetable/Timetable.vue') },
+      { path: 'monthly-reports', component: () => import('../views/admin/MonthlyReports.vue') },
       { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
       { path: 'users', component: () => import('../views/admin/Users.vue') },
       { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },

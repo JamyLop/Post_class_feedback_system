@@ -24,6 +24,10 @@
             <el-icon><TrendCharts /></el-icon>
             <span>积分周月报</span>
           </el-menu-item>
+          <el-menu-item index="/admin/monthly-reports">
+            <el-icon><Calendar /></el-icon>
+            <span>月度评定</span>
+          </el-menu-item>
           <el-menu-item index="/admin/timetable">
             <el-icon><Calendar /></el-icon>
             <span>课表编排</span>

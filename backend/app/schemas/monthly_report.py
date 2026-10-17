@@ -134,3 +134,11 @@ class MonthlyWritingStatusOut(BaseModel):
     items: list[MonthlyWritingStatusItem]
     students: list[MonthlyWritingStudentItem] = []
     student_total: int = 0
+
+
+class MonthlyReportMonthIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    month_label: str = Field(pattern=r"^\d{4}-\d{2}$")
+    teacher_role: Literal["head_teacher", "subject_teacher"]
+    subject: str = Field(min_length=1, max_length=32)
+    teacher_id: int | None = None

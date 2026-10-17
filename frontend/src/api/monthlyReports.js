@@ -8,3 +8,5 @@ export const updateMonthlyReport = (id, data) => http.put(`/monthly-reports/${id
 export const publishMonthlyReport = (id) => http.post(`/monthly-reports/${id}/publish`)
 export const deleteMonthlyReport = (id) => http.delete(`/monthly-reports/${id}`)
 export const saveMonthlyEvaluation = (id, data) => http.put(`/monthly-reports/${id}/evaluation`, data)
+
+export const changeMonthlyReportMonth = (id, data) => http.put(`/monthly-reports/${id}/month`, data)

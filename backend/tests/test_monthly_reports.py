@@ -81,3 +81,59 @@ def test_old_ai_disabled_and_legacy_editable(client, auth, db, monthly_setup, le
     db.expire_all()
     assert db.get(MonthlyReport, r["id"]).final_content == "接手手动填写"
     assert db.get(MonthlyReport, r["id"]).status == "published"
+
+
+@pytest.mark.parametrize("role,subject", [("head_teacher", "德育"), ("subject_teacher", "数学")])
+def test_admin_moves_only_selected_subject(client, auth, db, monthly_setup, seed_users, role, subject):
+    from app.models.monthly_report import MonthlyReportEvaluation
+    from app.models.student_case import CaseAuditLog
+    teacher = auth("teacher1")
+    source = client.post("/api/monthly-reports", headers=teacher, json=monthly_setup).json()
+    target_data = {**monthly_setup, "month_label": "2026-08", "final_content": "目标月德育"}
+    target = client.post("/api/monthly-reports", headers=teacher, json=target_data).json()
+    db.add_all([
+        MonthlyReportEvaluation(report_id=source["id"], teacher_id=seed_users["teacher2"],
+            teacher_name="任课老师", teacher_role="subject_teacher", subject="数学、物理", content="学科内容"),
+        MonthlyReportEvaluation(report_id=source["id"], teacher_id=seed_users["teacher1"],
+            teacher_name="班主任", teacher_role="head_teacher", subject="", content=source["final_content"]),
+    ])
+    db.commit()
+    url = f"/api/monthly-reports/{source['id']}/month"
+    payload = {"month_label": "2026-08", "teacher_role": role, "subject": subject,
+               "teacher_id": seed_users["teacher1" if role == "head_teacher" else "teacher2"]}
+    for username in ("teacher1", "student1", "parent1"):
+        assert client.put(url, headers=auth(username), json=payload).status_code == 403
+    admin = auth("admin")
+    assert client.put(url, headers=admin, json={"month_label": "2026-08"}).status_code == 422
+    if role == "head_teacher":
+        assert client.put(url, headers=admin, json=payload).status_code == 409
+        payload["month_label"] = "2026-02"
+    response = client.put(url, headers=admin, json=payload)
+    assert response.status_code == 200, response.text
+    moved = response.json()
+    db.expire_all()
+    original = db.get(MonthlyReport, source["id"])
+    assert original.month_label == "2026-09"
+    assert original.status == source["status"]
+    if role == "head_teacher":
+        assert original.final_content == "" and moved["final_content"] == source["final_content"]
+        assert moved["period_end"] == "2026-02-28"
+        assert original.evaluations[0].subject == "数学、物理"
+        assert all(e.teacher_role != "head_teacher" for e in original.evaluations)
+        assert moved["evaluations"][0]["teacher_role"] == "head_teacher"
+    else:
+        assert original.final_content == source["final_content"]
+        remaining = next(e for e in original.evaluations if e.teacher_role == "subject_teacher")
+        assert remaining.subject == "物理" and remaining.content == "学科内容"
+        assert moved["final_content"] == "目标月德育" and moved["status"] == target["status"]
+        assert moved["evaluations"][0]["subject"] == "数学"
+        assert moved["evaluations"][0]["content"] == "学科内容"
+        # 目标月同一教师已有内容时不能再把物理合并过去。
+        assert client.put(url, headers=admin, json={**payload, "subject": "物理"}).status_code == 409
+        # 只有一个科目时直接移动原评价，保留记录 ID。
+        single = client.put(url, headers=admin, json={**payload, "subject": "物理", "month_label": "2026-07"})
+        assert single.status_code == 200, single.text
+        assert single.json()["evaluations"][0]["id"] == remaining.id
+    log = db.query(CaseAuditLog).filter_by(action="monthly_report.month_changed").first()
+    assert log.detail["subject"] == subject and log.detail["from_month"] == "2026-09"
+    assert client.put(url, headers=admin, json=payload).status_code == 409

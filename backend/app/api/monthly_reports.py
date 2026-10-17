@@ -36,6 +36,7 @@ from app.schemas.monthly_report import (
     MonthlyReportCreateIn,
     MonthlyReportOut,
     MonthlyReportUpdateIn,
+    MonthlyReportMonthIn,
     MonthlyWritingStatusOut,
 )
 
@@ -293,10 +294,11 @@ def writing_status(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    user: User = Depends(_evaluator),
+    user: User = Depends(_manager),
 ):
     _month_bounds(month_label)
-    allowed = _subject_teacher_class_ids(db, user) | {
+    is_admin = user.role == ROLE_ADMIN
+    allowed = {c.id for c in db.query(Class).all()} if is_admin else _subject_teacher_class_ids(db, user) | {
         c.id for c in db.query(Class).filter_by(teacher_id=user.id).all()
     }
     if class_id is not None:
@@ -323,6 +325,7 @@ def writing_status(
         plans[plan.student_case_id].append(plan)
     teacher_ids = {r.teacher_id for group in relations.values() for r in group}
     teacher_ids.update(p.teacher_id for group in plans.values() for p in group)
+    teacher_ids.update(c.teacher_id for c in classes.values())
     teacher_ids.add(user.id)
     teachers = {t.id: t for t in db.query(User).filter(
         User.id.in_(teacher_ids), User.role.in_([ROLE_TEACHER, ROLE_SUBJECT_TEACHER]),
@@ -338,7 +341,7 @@ def writing_status(
         if keyword.strip().casefold() not in f"{student.name} {cls.name}".casefold():
             continue
         own_relations = [r for r in relations[cls.id] if r.teacher_id == user.id]
-        is_head = cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
+        is_head = is_admin or cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
         report = reports.get((cls.id, student.id))
         case = cases_by_id.get(report.student_case_id) if report and report.student_case_id else latest_cases.get((cls.id, student.id))
         head_subjects = {r.subject for r in relations[cls.id] if r.teacher_id == cls.teacher_id and r.role == "subject_teacher"}
@@ -351,7 +354,8 @@ def writing_status(
         # 班主任可查看全班任课进度；任课老师仍仅查看本人职责，查看不授予代填权限。
         candidates = teachers.values() if is_head else [user]
         # 学科对应个人初评；德育是班主任固定职责，不依赖初评是否单独录入。
-        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", user)] if is_head else []
+        head = teachers.get(cls.teacher_id) if is_admin else user
+        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", head)] if is_head and head else []
         for teacher in candidates:
             teacher_relations = [r for r in relations[cls.id] if r.teacher_id == teacher.id]
             assignment = _resolve_evaluation_role(cls, teacher_relations, case, case_plans, head_subjects, teacher)
@@ -369,11 +373,12 @@ def writing_status(
         for role, subject, teacher in duties:
             content = report.final_content if report and role == MONTHLY_EVAL_ROLE_HEAD else ""
             if report and role == MONTHLY_EVAL_ROLE_SUBJECT:
-                content = next((e.content for e in report.evaluations if e.teacher_id == teacher.id and e.teacher_role == role), "")
+                content = next((e.content for e in report.evaluations if e.teacher_id == teacher.id and e.teacher_role == role
+                                and subject in e.subject.split("、")), "")
             rows.append(dict(student_id=student.id, student_name=student.name, class_id=cls.id,
                              class_name=cls.name, month_label=month_label, teacher_role=role,
                              subject=subject, report_id=report.id if report else None,
-                             teacher_id=teacher.id, teacher_name=teacher.name, can_edit=teacher.id == user.id,
+                             teacher_id=teacher.id, teacher_name=teacher.name, can_edit=not is_admin and teacher.id == user.id,
                              writing_status="written" if content and content.strip() else "unwritten"))
         if is_head:
             # 初评科目即使尚未关联任课账号也必须可见；不能把未关联误报为全部已填。
@@ -410,6 +415,77 @@ def writing_status(
 def get_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     r = _report_access(db, report_id, user)
     return _enrich(r, db, user)
+
+@router.put("/{report_id}/month", response_model=MonthlyReportOut)
+def change_report_month(
+    report_id: int, body: MonthlyReportMonthIn,
+    db: Session = Depends(get_db), user: User = Depends(require_roles([ROLE_ADMIN])),
+):
+    period_start, period_end = _month_bounds(body.month_label)
+    report = db.get(MonthlyReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="月度评定不存在")
+    # 与创建共用学生锁，再锁两个月的报告，避免与教师保存、重复移动互相覆盖。
+    db.query(User).filter_by(id=report.student_id).with_for_update().first()
+    report = db.query(MonthlyReport).filter_by(id=report_id).populate_existing().with_for_update().one()
+    is_head = body.teacher_role == MONTHLY_EVAL_ROLE_HEAD
+    evaluation = None
+    if is_head:
+        if body.subject != "德育" or not report.final_content.strip():
+            raise HTTPException(status_code=409, detail="该科目尚未填写或已被调整，请刷新后重试")
+        moving = [e for e in report.evaluations if e.teacher_role == MONTHLY_EVAL_ROLE_HEAD]
+    else:
+        evaluation = next((e for e in report.evaluations if e.teacher_role == MONTHLY_EVAL_ROLE_SUBJECT
+                           and e.teacher_id == body.teacher_id and body.subject in e.subject.split("、")
+                           and e.content.strip()), None)
+        if evaluation is None:
+            raise HTTPException(status_code=409, detail="该科目尚未填写或已被调整，请刷新后重试")
+        moving = [evaluation]
+    if report.month_label == body.month_label:
+        return _enrich(report, db, user)
+    target = db.query(MonthlyReport).filter_by(
+        student_id=report.student_id, class_id=report.class_id, month_label=body.month_label,
+    ).populate_existing().with_for_update().first()
+    if target:
+        # 同科或同教师已有内容均不自动合并，保护目标月份原有手写内容。
+        conflict = bool(target.final_content.strip()) if is_head else any(
+            e.teacher_role == MONTHLY_EVAL_ROLE_SUBJECT and body.subject in e.subject.split("、")
+            for e in target.evaluations)
+        conflict = conflict or any(e.teacher_id == m.teacher_id for e in target.evaluations for m in moving)
+        if conflict:
+            raise HTTPException(status_code=409, detail="目标月份已有该科目或该教师的评定，不能覆盖")
+    else:
+        target = MonthlyReport(student_id=report.student_id, class_id=report.class_id,
+            student_case_id=report.student_case_id, month_label=body.month_label,
+            period_start=period_start, period_end=period_end, status=report.status,
+            published_at=report.published_at, prompt_version="manual_v1", final_content="")
+        db.add(target)
+        db.flush()
+    old_month = report.month_label
+    if is_head:
+        target.final_content, report.final_content = report.final_content, ""
+        target.reviewed_by = report.reviewed_by
+        for item in moving:
+            item.report_id = target.id
+    else:
+        remaining = [subject for subject in evaluation.subject.split("、") if subject != body.subject]
+        if remaining:
+            # 兼教老师历史上共用一条内容，拆出选中科目，原月其他科目继续保留。
+            evaluation.subject = "、".join(remaining)
+            target.evaluations.append(MonthlyReportEvaluation(teacher_id=evaluation.teacher_id,
+                teacher_name=evaluation.teacher_name, teacher_role=evaluation.teacher_role,
+                subject=body.subject, content=evaluation.content, created_at=evaluation.created_at))
+        else:
+            evaluation.report_id = target.id
+    from app.services.student_case_service import audit
+    audit(db, user.id, "monthly_report.month_changed", "monthly_report", report.id,
+          report.student_case_id, {"from_month": old_month, "to_month": body.month_label,
+          "subject": body.subject, "teacher_role": body.teacher_role,
+          "teacher_id": body.teacher_id, "target_report_id": target.id})
+    db.commit()
+    db.refresh(target)
+    return _enrich(target, db, user)
+
 
 @router.put("/{report_id}", response_model=MonthlyReportOut)
 def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Depends(get_db), user: User = Depends(_manager)):

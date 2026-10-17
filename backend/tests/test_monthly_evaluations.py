@@ -328,7 +328,7 @@ def test_writing_status_authorization_and_invalid_filters(client, auth, db, seed
     _, cls, other = _setup(db, seed_users)
     url = "/api/monthly-reports/writing-status"
     params = {"month_label": "2026-09"}
-    for username in ("student1", "parent1", "admin", "deyu1"):
+    for username in ("student1", "parent1", "deyu1"):
         assert client.get(url, headers=auth(username), params=params).status_code == 403
     headers = auth("subject1")
     assert client.get(url, headers=headers, params={**params, "class_id": other.id}).json()["total"] == 0
@@ -480,3 +480,46 @@ def test_monthly_subjects_equal_individual_initial_scope(client, auth, db, seed_
     detail=client.get(url,headers=auth("teacher1"),params={**params,"student_id":seed_users["student1"]}).json()
     assert [r["subject"] for r in detail["items"]]==["德育"]
     assert client.post("/api/monthly-reports", headers=auth("subject1"), json={"class_id":cls.id,"student_id":seed_users["student1"],"month_label":"2026-09","final_content":"没有初评不能代建数学"}).status_code==403
+
+
+def test_admin_writing_status_reuses_head_scope_for_all_classes(client, auth, db, seed_users):
+    subject, cls, other = _setup(db, seed_users)
+    report = _create_report(client, auth, cls, seed_users["student1"])
+    client.put(f"/api/monthly-reports/{report['id']}/evaluation",
+               headers=auth("subject1"), json={"content": "数学进步"})
+    url = "/api/monthly-reports/writing-status"
+    params = {"month_label": "2026-09"}
+    data = client.get(url, headers=auth("admin"), params=params).json()
+    assert {r["class_id"] for r in data["items"]} == {cls.id, other.id}
+    assert data["total"] == 4 and data["written"] == 2 and data["unwritten"] == 2
+    assert all(r["can_edit"] is False for r in data["items"])
+    head = next(r for r in data["items"] if r["class_id"] == cls.id and r["subject"] == "德育")
+    assert head["teacher_id"] == seed_users["teacher1"]
+    summary = client.get(url, headers=auth("admin"), params={**params, "class_id": other.id, "view": "students"}).json()
+    assert summary["student_total"] == 1 and summary["unwritten"] == 2
+    assert summary["students"][0]["student_id"] == seed_users["student2"]
+
+
+def test_subject_month_move_updates_only_selected_subject_writing_status(client, auth, db, seed_users):
+    from app.models.student_case import StudentCase, SubjectPlan
+    subject, cls, _ = _setup(db, seed_users)
+    case = db.query(StudentCase).filter_by(student_id=seed_users["student1"]).one()
+    db.add(SubjectPlan(student_case_id=case.id, subject="物理", teacher_id=subject.id))
+    db.commit()
+    report = _create_report(client, auth, cls, seed_users["student1"])
+    response = client.put(f"/api/monthly-reports/{report['id']}/evaluation", headers=auth("subject1"),
+                          json={"content": "兼教学科内容"})
+    assert response.status_code == 200, response.text
+    response = client.put(f"/api/monthly-reports/{report['id']}/month", headers=auth("admin"),
+        json={"month_label": "2026-08", "teacher_role": "subject_teacher", "subject": "数学", "teacher_id": subject.id})
+    assert response.status_code == 200, response.text
+    params = {"month_label": "2026-09", "student_id": seed_users["student1"], "class_id": cls.id}
+    for username in ("admin", "teacher1", "subject1"):
+        response = client.get('/api/monthly-reports/writing-status', headers=auth(username), params=params)
+        assert response.status_code == 200, response.text
+        states = {r["subject"]: r["writing_status"] for r in response.json()["items"]}
+        assert states["数学"] == "unwritten" and states["物理"] == "written"
+    response = client.get('/api/monthly-reports/writing-status', headers=auth("admin"),
+                          params={**params, "month_label": "2026-08"})
+    states = {r["subject"]: r["writing_status"] for r in response.json()["items"]}
+    assert states["数学"] == "written" and states["物理"] == "unwritten"
