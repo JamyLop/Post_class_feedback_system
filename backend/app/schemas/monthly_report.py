@@ -110,9 +110,22 @@ class MonthlyWritingStatusItem(BaseModel):
     writing_status: Literal["written", "unwritten"]
 
 
+class MonthlyWritingStudentItem(BaseModel):
+    student_id: int
+    student_name: str
+    class_id: int
+    class_name: str
+    month_label: str
+    total: int
+    written: int
+    unwritten: int
+
+
 class MonthlyWritingStatusOut(BaseModel):
     total: int
     written: int
     unwritten: int
     filtered_total: int
     items: list[MonthlyWritingStatusItem]
+    students: list[MonthlyWritingStudentItem] = []
+    student_total: int = 0

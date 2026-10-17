@@ -321,3 +321,31 @@ def test_writing_status_authorization_and_invalid_filters(client, auth, db, seed
         "student_id": seed_users["student1"], "class_id": cls.id, "month_label": "2026-09",
         "final_content": "代写德育", "evaluation_role": "head_teacher",
     }).status_code == 403
+
+
+def test_writing_student_summary_counts_complete_duties_before_pagination(client, auth, db, seed_users):
+    _, cls, _ = _setup(db, seed_users)
+    db.add(ClassStudent(class_id=cls.id, student_id=seed_users["student3"]))
+    db.add(ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="英语"))
+    db.commit()
+    _create_report(client, auth, cls, seed_users["student1"])
+    headers = auth("teacher1")
+    url = "/api/monthly-reports/writing-status"
+    params = {"month_label": "2026-09", "view": "students", "limit": 1}
+    data = client.get(url, headers=headers, params=params).json()
+    assert data["student_total"] == 2
+    assert data["items"] == []
+    second = client.get(url, headers=headers, params={**params, "offset": 1}).json()
+    students = data["students"] + second["students"]
+    assert len({s["student_id"] for s in students}) == 2
+    by_id = {s["student_id"]: s for s in students}
+    assert (by_id[seed_users["student1"]]["written"], by_id[seed_users["student1"]]["unwritten"]) == (1, 1)
+    assert by_id[seed_users["student3"]]["unwritten"] == 2
+    filtered = client.get(url, headers=headers, params={**params, "writing_status": "written"}).json()
+    assert filtered["student_total"] == 1
+    assert filtered["students"][0]["unwritten"] == 1
+    detail = client.get(url, headers=headers, params={
+        "month_label": "2026-09", "class_id": cls.id, "student_id": seed_users["student1"],
+    }).json()
+    assert {r["subject"] for r in detail["items"]} == {"德育", "英语"}
+    assert detail["written"] == 1 and detail["unwritten"] == 1

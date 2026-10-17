@@ -283,6 +283,7 @@ def writing_status(
     class_id: int | None = Query(default=None),
     student_id: int | None = Query(default=None),
     writing_status: Literal["written", "unwritten"] | None = Query(default=None),
+    view: Literal["items", "students"] = Query(default="items"),
     keyword: str = Query(default="", max_length=100),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -345,8 +346,20 @@ def writing_status(
     written = sum(r["writing_status"] == "written" for r in rows)
     total = len(rows)
     selected = [r for r in rows if writing_status is None or r["writing_status"] == writing_status]
+    # 先汇总完整职责，再筛选、按学生分页，避免兼任职责跨页导致漏算未填项。
+    grouped = {}
+    for row in rows:
+        key = (row["class_id"], row["student_id"])
+        if key not in grouped:
+            grouped[key] = {k: row[k] for k in ("student_id", "student_name", "class_id", "class_name", "month_label")}
+            grouped[key].update(total=0, written=0, unwritten=0)
+        grouped[key]["total"] += 1
+        grouped[key][row["writing_status"]] += 1
+    students = [s for s in grouped.values() if writing_status is None or s[writing_status] > 0]
     return dict(total=total, written=written, unwritten=total-written, filtered_total=len(selected),
-                items=selected[offset:offset+limit])
+                items=selected[offset:offset+limit] if view == "items" else [],
+                students=students[offset:offset+limit] if view == "students" else [],
+                student_total=len(students))
 
 
 @router.get("/{report_id}", response_model=MonthlyReportOut)
