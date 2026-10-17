@@ -23,6 +23,17 @@ def _setup(db, seed_users):
         ClassTeacher(class_id=cls.id, teacher_id=subject.id, role="subject_teacher", subject="数学"),
         StudentGuardian(parent_id=seed_users["parent1"], student_id=seed_users["student1"]),
     ])
+    from datetime import date
+    from app.models.student_case import CaseCycle, StudentCase, SubjectPlan
+    cycle = CaseCycle(name="月评初评范围", grade="高三", school_year="2026", starts_on=date(2026, 9, 1), ends_on=date(2027, 7, 1))
+    db.add(cycle)
+    db.flush()
+    for sid, classroom, owner in ((seed_users["student1"], cls, seed_users["teacher1"]), (seed_users["student3"], cls, seed_users["teacher1"]), (seed_users["student2"], other, seed_users["teacher2"])):
+        case = StudentCase(cycle_id=cycle.id, student_id=sid, class_id=classroom.id, owner_teacher_id=owner)
+        db.add(case)
+        db.flush()
+        for course in ("数学", "德育"):
+            db.add(SubjectPlan(student_case_id=case.id, subject=course, teacher_id=owner))
     db.commit()
     return subject, cls, other
 
@@ -221,6 +232,9 @@ def test_subject_can_start_report_before_head_teacher(client, auth, db, seed_use
 def test_head_teacher_teaching_subject_keeps_deyu_separate(client, auth, db, seed_users):
     _, cls, _ = _setup(db, seed_users)
     db.add(ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="英语"))
+    from app.models.student_case import StudentCase, SubjectPlan
+    for initial_case in db.query(StudentCase).filter_by(class_id=cls.id).all():
+        db.add(SubjectPlan(student_case_id=initial_case.id, subject="英语", teacher_id=seed_users["teacher1"]))
     db.commit()
     report = _create_report(client, auth, cls, seed_users["student1"])
     assert report["can_manage"] is True
@@ -271,6 +285,9 @@ def test_writing_status_counts_own_content_independently_of_publication(client, 
 def test_writing_status_dual_role_and_explicit_subject_creation(client, auth, db, seed_users):
     _, cls, _ = _setup(db, seed_users)
     db.add(ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="英语"))
+    from app.models.student_case import StudentCase, SubjectPlan
+    for initial_case in db.query(StudentCase).filter_by(class_id=cls.id).all():
+        db.add(SubjectPlan(student_case_id=initial_case.id, subject="英语", teacher_id=seed_users["teacher1"]))
     db.commit()
     headers = auth("teacher1")
     params = {"month_label": "2026-09"}
@@ -327,6 +344,9 @@ def test_writing_student_summary_counts_complete_duties_before_pagination(client
     _, cls, _ = _setup(db, seed_users)
     db.add(ClassStudent(class_id=cls.id, student_id=seed_users["student3"]))
     db.add(ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="英语"))
+    from app.models.student_case import StudentCase, SubjectPlan
+    for initial_case in db.query(StudentCase).filter_by(class_id=cls.id).all():
+        db.add(SubjectPlan(student_case_id=initial_case.id, subject="英语", teacher_id=seed_users["teacher1"]))
     db.commit()
     _create_report(client, auth, cls, seed_users["student1"])
     headers = auth("teacher1")
@@ -380,6 +400,10 @@ def test_deyu_subject_relation_is_not_a_second_monthly_duty(client, auth, db, se
         ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="英语"),
     ])
     db.commit()
+    from app.models.student_case import StudentCase, SubjectPlan
+    initial_case = db.query(StudentCase).filter_by(class_id=cls.id, student_id=seed_users["student1"]).one()
+    db.add(SubjectPlan(student_case_id=initial_case.id, subject="英语", teacher_id=seed_users["teacher1"]))
+    db.commit()
     report = _create_report(client, auth, cls, seed_users["student1"])
     data = client.get("/api/monthly-reports/writing-status", headers=auth("teacher1"), params={"month_label": "2026-09"}).json()
     assert [r["subject"] for r in data["items"]].count("德育") == 1
@@ -407,10 +431,47 @@ def test_initial_subject_without_linked_teacher_remains_visible(client, auth, db
     assert politics["assignment_required"] is True and politics["teacher_id"] is None
     assert politics["teacher_name"] == (teacher_name or "待确认任课老师")
     assert politics["can_edit"] is False and politics["writing_status"] == "unwritten"
-    assert data["total"] == 3 and data["unwritten"] == 3
+    assert data["total"] == 1 and data["unwritten"] == 1
     summary = client.get("/api/monthly-reports/writing-status", headers=auth("teacher1"), params={**params, "view": "students"}).json()
-    assert summary["students"][0]["unwritten"] == 3
+    assert summary["students"][0]["unwritten"] == 1
     # 展示初评科目不会给班主任或其他老师新增学科代填权限。
     assert client.post("/api/monthly-reports", headers=auth("teacher1"), json={"class_id": cls.id, "student_id": seed_users["student1"], "month_label": "2026-09", "evaluation_role": "subject_teacher", "final_content": "误代填政治"}).status_code == 403
     own = client.get("/api/monthly-reports/writing-status", headers=auth("subject1"), params=params).json()
-    assert {r["subject"] for r in own["items"]} == {"数学"}
+    assert own["items"] == []
+
+
+def test_monthly_subjects_equal_individual_initial_scope(client, auth, db, seed_users):
+    from app.models.student_case import StudentCase, SubjectPlan
+    _, cls, _ = _setup(db, seed_users)
+    db.add(ClassStudent(class_id=cls.id, student_id=seed_users["student3"]))
+    db.add(ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher2"], role="subject_teacher", subject="政治"))
+    first = db.query(StudentCase).filter_by(student_id=seed_users["student1"], class_id=cls.id).one()
+    second = db.query(StudentCase).filter_by(student_id=seed_users["student3"], class_id=cls.id).one()
+    db.add(SubjectPlan(student_case_id=second.id, subject="政治", teacher_id=seed_users["teacher2"]))
+    db.add(SubjectPlan(student_case_id=second.id, subject="英语", teacher_id=seed_users["teacher2"]))
+    db.commit()
+    url="/api/monthly-reports/writing-status"
+    params={"month_label":"2026-09", "class_id":cls.id}
+    for sid, expected in ((seed_users["student1"], {"德育","数学"}), (seed_users["student3"], {"德育","数学","政治","英语"})):
+        data=client.get(url, headers=auth("teacher1"), params={**params,"student_id":sid}).json()
+        assert {r["subject"] for r in data["items"]}==expected
+        assert data["total"]==len(expected)
+    assert client.get(url,headers=auth("teacher2"),params={**params,"student_id":seed_users["student1"]}).json()["total"]==0
+    own=client.get(url,headers=auth("teacher2"),params={**params,"student_id":seed_users["student3"]}).json()
+    assert {r["subject"] for r in own["items"]}=={"英语","政治"} and own["total"]==2
+    db.add(ClassTeacher(class_id=cls.id,teacher_id=seed_users["teacher2"],role="subject_teacher",subject="数学"))
+    db.commit()
+    ambiguous=client.get(url,headers=auth("teacher1"),params={**params,"student_id":seed_users["student1"]}).json()
+    assert ambiguous["total"]==2 and len([r for r in ambiguous["items"] if r["subject"]=="数学"])==1
+    assert next(r for r in ambiguous["items"] if r["subject"]=="数学")["assignment_required"] is True
+    db.query(SubjectPlan).filter_by(student_case_id=first.id).delete()
+    db.commit()
+    detail=client.get(url,headers=auth("teacher1"),params={**params,"student_id":seed_users["student1"]}).json()
+    assert detail["items"]==[] and detail["total"]==0
+    summary=client.get(url,headers=auth("teacher1"),params={**params,"view":"students"}).json()
+    student=next(s for s in summary["students"] if s["student_id"]==seed_users["student1"])
+    assert student["initial_required"] is True and student["total"]==0
+
+    db.delete(first)
+    db.commit()
+    assert client.post("/api/monthly-reports", headers=auth("subject1"), json={"class_id":cls.id,"student_id":seed_users["student1"],"month_label":"2026-09","final_content":"没有初评不能代建数学"}).status_code==403

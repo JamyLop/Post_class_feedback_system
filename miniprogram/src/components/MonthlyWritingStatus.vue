@@ -11,16 +11,16 @@
       <view class="field"><text>填写状态</text><picker :range="statusNames" :value="statusIndex" @change="changeStatus"><view class="picker">{{ statusNames[statusIndex] }} ▾</view></picker></view>
     </view>
     <view v-if="!selectedStudent" class="search"><input v-model="keyword" placeholder="搜索学生" confirm-type="search" @confirm="query" /><button size="mini" :disabled="loading" @click="query">查询</button></view>
-    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '班主任查看全部老师的进度；任课老师查看本人负责内容。德育仅由班主任填写。' }}</text>
+    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</text>
     <view v-if="error" class="message"><text>填写状态加载失败</text><button size="mini" @click="load">重试</button></view>
     <template v-else>
       <text class="counts">{{ selectedStudent ? '' : `共 ${result.student_total} 名学生 · ` }}共 {{ result.total }} 项 · 已填写 {{ result.written }} 项 · 未填写 {{ result.unwritten }} 项</text>
       <text v-if="loading" class="message">加载中…</text>
-      <text v-else-if="!(selectedStudent ? result.items : result.students)?.length" class="message">当前条件下没有学生，请调整筛选条件</text>
+      <text v-else-if="!(selectedStudent ? result.items : result.students)?.length" class="message">{{ selectedStudent ? '尚未建立入学评定科目，请先补充入学评定' : '当前条件下没有学生，请调整筛选条件' }}</text>
       <view v-else-if="!selectedStudent" class="results">
         <view v-for="student in result.students" :key="`${student.class_id}-${student.student_id}`" class="result-row" @click="selectStudent(student)">
           <view class="student-info">
-            <view class="row-title"><text class="name">{{ student.student_name }}</text><text class="tag" :class="{ written: !student.unwritten }">{{ student.unwritten ? `${student.unwritten} 项未填写` : '全部已填写' }}</text></view>
+            <view class="row-title"><text class="name">{{ student.student_name }}</text><text class="tag" :class="{ written: !student.unwritten && !student.initial_required }">{{ student.initial_required ? '待建立入学评定' : student.unwritten ? `${student.unwritten} 项未填写` : '全部已填写' }}</text></view>
             <text class="meta">{{ student.class_name }} · 已填 {{ student.written }} / {{ student.total }} 项</text>
           </view>
           <button size="mini" class="write-button" :disabled="loading" @click.stop="selectStudent(student)">查看科目</button>

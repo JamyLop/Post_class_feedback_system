@@ -123,6 +123,7 @@ class MonthlyWritingStudentItem(BaseModel):
     total: int
     written: int
     unwritten: int
+    initial_required: bool = False
 
 
 class MonthlyWritingStatusOut(BaseModel):

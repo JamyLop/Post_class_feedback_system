@@ -18,7 +18,7 @@
       <el-input v-model="keyword" aria-label="搜索学生" placeholder="搜索学生，回车查询" clearable @keyup.enter="query" @clear="query" />
       <el-button :loading="loading" @click="query">查询</el-button>
     </div>
-    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '班主任查看所带学生全部老师的进度；任课老师查看本人负责内容。德育仅由班主任填写。' }}</p>
+    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <el-button v-if="error" @click="load">重新加载</el-button>
     <template v-else>
@@ -26,11 +26,11 @@
       <el-table v-if="!selectedStudent" v-loading="loading" :data="result.students" empty-text="当前条件下没有学生，请调整筛选条件">
         <el-table-column label="学生" min-width="100"><template #default="{ row }"><el-button link type="primary" :disabled="loading" @click="selectStudent(row)">{{ row.student_name }}</el-button></template></el-table-column>
         <el-table-column prop="class_name" label="班级" min-width="120" />
-        <el-table-column label="未填写项数" min-width="130"><template #default="{ row }"><el-tag :type="row.unwritten ? 'warning' : 'success'">{{ row.unwritten ? `${row.unwritten} 项未填写` : '全部已填写' }}</el-tag></template></el-table-column>
+        <el-table-column label="未填写项数" min-width="130"><template #default="{ row }"><el-tag :type="row.initial_required || row.unwritten ? 'warning' : 'success'">{{ row.initial_required ? '待建立入学评定' : row.unwritten ? `${row.unwritten} 项未填写` : '全部已填写' }}</el-tag></template></el-table-column>
         <el-table-column label="已填 / 应填" width="120"><template #default="{ row }">{{ row.written }} / {{ row.total }}</template></el-table-column>
         <el-table-column label="操作" width="130"><template #default="{ row }"><el-button link type="primary" :disabled="loading" @click="selectStudent(row)">查看科目</el-button></template></el-table-column>
       </el-table>
-      <el-table v-else v-loading="loading" :data="result.items" empty-text="该学生暂无可查看的评定项">
+      <el-table v-else v-loading="loading" :data="result.items" empty-text="尚未建立入学评定科目，请先补充入学评定">
         <el-table-column prop="subject" label="科目" min-width="130" />
         <el-table-column label="负责老师" min-width="130"><template #default="{ row }">{{ row.teacher_name }}{{ row.assignment_required ? '（待关联账号）' : '' }}</template></el-table-column>
         <el-table-column label="填写状态" width="110"><template #default="{ row }"><el-tag :type="row.writing_status === 'written' ? 'success' : 'warning'">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</el-tag></template></el-table-column>

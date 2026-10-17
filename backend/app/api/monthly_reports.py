@@ -86,6 +86,7 @@ def _evaluation_role(db: Session, row: MonthlyReport, user: User) -> tuple[str, 
 def _resolve_evaluation_role(cls, relations, case, plans, head_subjects, user):
     """查询和保存共用同一任课判定，批量查询时复用已加载的关系。"""
     is_head = (cls is not None and cls.teacher_id == user.id) or any(r.role == "head_teacher" for r in relations)
+    initial_subjects = {p.subject.strip() for p in plans}
     if case and cls and case.owner_teacher_id == cls.teacher_id:
         # 旧档案以班主任占位任课 ID；没有明确兼教学科时，不能覆盖班级任课安排。
         # 其他老师的学生专属安排仍优先，班主任明确兼教的学科也保留。
@@ -95,6 +96,8 @@ def _resolve_evaluation_role(cls, relations, case, plans, head_subjects, user):
     assigned.update(r.subject for r in relations if r.role == "subject_teacher" and r.subject and r.subject not in configured)
     # 德育统一由班主任正文承载，历史任课关系中的德育不能再生成学科评定。
     assigned = {subject for subject in assigned if subject.strip() != "德育"}
+    # 班级关系只解析初评科目的负责人，不能给该生增加未建立初评的科目。
+    assigned &= initial_subjects
     if assigned:
         return (MONTHLY_EVAL_ROLE_SUBJECT, "、".join(sorted(assigned)))
     if is_head:
@@ -329,6 +332,7 @@ def writing_status(
         MonthlyReport.month_label == month_label,
     ).all()}
     rows = []
+    student_scopes = {}
     for member, student in members:
         cls = classes[member.class_id]
         if keyword.strip().casefold() not in f"{student.name} {cls.name}".casefold():
@@ -339,14 +343,28 @@ def writing_status(
         case = cases_by_id.get(report.student_case_id) if report and report.student_case_id else latest_cases.get((cls.id, student.id))
         head_subjects = {r.subject for r in relations[cls.id] if r.teacher_id == cls.teacher_id and r.role == "subject_teacher"}
         case_plans = plans[case.id] if case else []
+        initial_subjects = {p.subject.strip() for p in case_plans if p.subject.strip()}
+        if is_head:
+            student_scopes[(cls.id, student.id)] = dict(student_id=student.id, student_name=student.name,
+                class_id=cls.id, class_name=cls.name, month_label=month_label,
+                initial_required=not initial_subjects, total=0, written=0, unwritten=0)
         # 班主任可查看全班任课进度；任课老师仍仅查看本人职责，查看不授予代填权限。
         candidates = teachers.values() if is_head else [user]
-        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", user)] if is_head else []
+        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", user)] if is_head and "德育" in initial_subjects else []
         for teacher in candidates:
             teacher_relations = [r for r in relations[cls.id] if r.teacher_id == teacher.id]
             assignment = _resolve_evaluation_role(cls, teacher_relations, case, case_plans, head_subjects, teacher)
             if assignment and assignment[0] == MONTHLY_EVAL_ROLE_SUBJECT:
-                duties.append((*assignment, teacher))
+                # 每个初评科目单独一行；同一老师兼教也不合并成一个计数项。
+                for subject in assignment[1].split("、"):
+                    if subject in initial_subjects:
+                        duties.append((assignment[0], subject, teacher))
+        if is_head:
+            by_subject = defaultdict(list)
+            for duty in duties:
+                by_subject[duty[1]].append(duty)
+            # 一个初评科目只计一次；多人任课无法唯一确定时走下方待确认行。
+            duties = [group[0] for group in by_subject.values() if len(group) == 1]
         for role, subject, teacher in duties:
             content = report.final_content if report and role == MONTHLY_EVAL_ROLE_HEAD else ""
             if report and role == MONTHLY_EVAL_ROLE_SUBJECT:
@@ -372,7 +390,7 @@ def writing_status(
     total = len(rows)
     selected = [r for r in rows if writing_status is None or r["writing_status"] == writing_status]
     # 先汇总完整职责，再筛选、按学生分页，避免兼任职责跨页导致漏算未填项。
-    grouped = {}
+    grouped = student_scopes
     for row in rows:
         key = (row["class_id"], row["student_id"])
         if key not in grouped:
