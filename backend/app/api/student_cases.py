@@ -573,20 +573,9 @@ def get_student_case(
 ):
     case = require_case_access(db, case_id, user)
     detail = _detail(db, case, user)
-    plans = detail["subject_plans"]
-    teachers = {
-        teacher.id: teacher
-        for teacher in db.query(User).filter(User.id.in_({p.teacher_id for p in plans})).all()
-    } if plans else {}
-    # 历史方案可能只存账号 ID；读取时补齐姓名，不改写档案或版本快照。
-    detail["subject_plans"] = [
-        {
-            **SubjectPlanOut.model_validate(plan).model_dump(),
-            "teacher_name": (plan.teacher_name or "").strip()
-            or (teachers[plan.teacher_id].name if plan.teacher_id in teachers else ""),
-        }
-        for plan in plans
-    ]
+    from app.services.subject_plan_display import serialize_subject_plans
+
+    detail["subject_plans"] = serialize_subject_plans(db, case, detail["subject_plans"])
     return detail
 
 
