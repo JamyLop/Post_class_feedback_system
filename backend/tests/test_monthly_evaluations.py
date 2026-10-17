@@ -275,7 +275,7 @@ def test_writing_status_dual_role_and_explicit_subject_creation(client, auth, db
     headers = auth("teacher1")
     params = {"month_label": "2026-09"}
     before = client.get("/api/monthly-reports/writing-status", headers=headers, params=params).json()
-    assert before["total"] == 2 and before["unwritten"] == 2
+    assert before["total"] == 3 and before["unwritten"] == 3
     response = client.post("/api/monthly-reports", headers=headers, json={
         "student_id": seed_users["student1"], "class_id": cls.id, "month_label": "2026-09",
         "final_content": "英语评价", "evaluation_role": "subject_teacher",
@@ -284,9 +284,9 @@ def test_writing_status_dual_role_and_explicit_subject_creation(client, auth, db
     assert response.json()["final_content"] == ""
     assert response.json()["evaluations"][0]["subject"] == "英语"
     after = client.get("/api/monthly-reports/writing-status", headers=headers, params=params).json()
-    states = {r["teacher_role"]: r["writing_status"] for r in after["items"]}
-    assert states == {"head_teacher": "unwritten", "subject_teacher": "written"}
-    assert after["written"] == 1 and after["unwritten"] == 1
+    states = {r["subject"]: r["writing_status"] for r in after["items"]}
+    assert states == {"德育": "unwritten", "英语": "written", "数学": "unwritten"}
+    assert after["written"] == 1 and after["unwritten"] == 2
 
 
 def test_writing_status_respects_student_assignment_and_plan_only_teacher(client, auth, db, seed_users):
@@ -339,13 +339,50 @@ def test_writing_student_summary_counts_complete_duties_before_pagination(client
     students = data["students"] + second["students"]
     assert len({s["student_id"] for s in students}) == 2
     by_id = {s["student_id"]: s for s in students}
-    assert (by_id[seed_users["student1"]]["written"], by_id[seed_users["student1"]]["unwritten"]) == (1, 1)
-    assert by_id[seed_users["student3"]]["unwritten"] == 2
+    assert (by_id[seed_users["student1"]]["written"], by_id[seed_users["student1"]]["unwritten"]) == (1, 2)
+    assert by_id[seed_users["student3"]]["unwritten"] == 3
     filtered = client.get(url, headers=headers, params={**params, "writing_status": "written"}).json()
     assert filtered["student_total"] == 1
-    assert filtered["students"][0]["unwritten"] == 1
+    assert filtered["students"][0]["unwritten"] == 2
     detail = client.get(url, headers=headers, params={
         "month_label": "2026-09", "class_id": cls.id, "student_id": seed_users["student1"],
     }).json()
-    assert {r["subject"] for r in detail["items"]} == {"德育", "英语"}
-    assert detail["written"] == 1 and detail["unwritten"] == 1
+    assert {r["subject"] for r in detail["items"]} == {"德育", "英语", "数学"}
+    assert detail["written"] == 1 and detail["unwritten"] == 2
+
+
+def test_head_sees_other_teachers_progress_without_edit_permission(client, auth, db, seed_users):
+    subject, cls, other = _setup(db, seed_users)
+    params = {"month_label": "2026-09", "class_id": cls.id}
+    url = "/api/monthly-reports/writing-status"
+    before = client.get(url, headers=auth("teacher1"), params=params).json()
+    assert before["total"] == 2 and before["unwritten"] == 2
+    assert {r["subject"] for r in before["items"]} == {"德育", "数学"}
+    assert all(r["report_id"] is None for r in before["items"])
+    report = _create_report(client, auth, cls, seed_users["student1"])
+    assert client.put(f"/api/monthly-reports/{report['id']}/evaluation", headers=auth("subject1"), json={"content": "数学进步"}).status_code == 200
+    after = client.get(url, headers=auth("teacher1"), params=params).json()
+    math = next(r for r in after["items"] if r["subject"] == "数学")
+    assert math["teacher_id"] == subject.id and math["teacher_name"] == subject.name
+    assert math["writing_status"] == "written" and math["can_edit"] is False
+    assert next(r for r in after["items"] if r["subject"] == "德育")["can_edit"] is True
+    own = client.get(url, headers=auth("subject1"), params=params).json()
+    assert len(own["items"]) == 1 and own["items"][0]["can_edit"] is True
+    assert client.get(url, headers=auth("teacher2"), params=params).json()["total"] == 0
+    assert client.put(f"/api/monthly-reports/{report['id']}/evaluation", headers=auth("teacher1"), json={"content": "代填数学", "teacher_id": subject.id}).status_code == 422
+
+
+def test_deyu_subject_relation_is_not_a_second_monthly_duty(client, auth, db, seed_users):
+    _, cls, _ = _setup(db, seed_users)
+    db.add_all([
+        ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="德育"),
+        ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher2"], role="subject_teacher", subject="德育"),
+        ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher1"], role="subject_teacher", subject="英语"),
+    ])
+    db.commit()
+    report = _create_report(client, auth, cls, seed_users["student1"])
+    data = client.get("/api/monthly-reports/writing-status", headers=auth("teacher1"), params={"month_label": "2026-09"}).json()
+    assert [r["subject"] for r in data["items"]].count("德育") == 1
+    assert {r["subject"] for r in data["items"]} == {"德育", "英语", "数学"}
+    assert all("德育" not in r["subject"] for r in data["items"] if r["teacher_role"] == "subject_teacher")
+    assert client.put(f"/api/monthly-reports/{report['id']}/evaluation", headers=auth("teacher2"), json={"content": "重复德育"}).status_code == 403

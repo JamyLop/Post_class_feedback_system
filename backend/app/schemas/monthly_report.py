@@ -108,6 +108,9 @@ class MonthlyWritingStatusItem(BaseModel):
     subject: str
     report_id: int | None
     writing_status: Literal["written", "unwritten"]
+    teacher_id: int | None = None
+    teacher_name: str = ""
+    can_edit: bool = False
 
 
 class MonthlyWritingStudentItem(BaseModel):

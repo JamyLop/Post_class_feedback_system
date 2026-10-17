@@ -93,6 +93,8 @@ def _resolve_evaluation_role(cls, relations, case, plans, head_subjects, user):
     assigned = {p.subject for p in plans if p.teacher_id == user.id}
     configured = {p.subject for p in plans}
     assigned.update(r.subject for r in relations if r.role == "subject_teacher" and r.subject and r.subject not in configured)
+    # 德育统一由班主任正文承载，历史任课关系中的德育不能再生成学科评定。
+    assigned = {subject for subject in assigned if subject.strip() != "德育"}
     if assigned:
         return (MONTHLY_EVAL_ROLE_SUBJECT, "、".join(sorted(assigned)))
     if is_head:
@@ -316,6 +318,12 @@ def writing_status(
     plans = defaultdict(list)
     for plan in db.query(SubjectPlan).filter(SubjectPlan.student_case_id.in_(cases_by_id)).all():
         plans[plan.student_case_id].append(plan)
+    teacher_ids = {r.teacher_id for group in relations.values() for r in group}
+    teacher_ids.update(p.teacher_id for group in plans.values() for p in group)
+    teacher_ids.add(user.id)
+    teachers = {t.id: t for t in db.query(User).filter(
+        User.id.in_(teacher_ids), User.role.in_([ROLE_TEACHER, ROLE_SUBJECT_TEACHER]),
+    ).all()}
     reports = {(r.class_id, r.student_id): r for r in db.query(MonthlyReport).filter(
         MonthlyReport.class_id.in_(allowed), MonthlyReport.student_id.in_(student_ids),
         MonthlyReport.month_label == month_label,
@@ -330,18 +338,23 @@ def writing_status(
         report = reports.get((cls.id, student.id))
         case = cases_by_id.get(report.student_case_id) if report and report.student_case_id else latest_cases.get((cls.id, student.id))
         head_subjects = {r.subject for r in relations[cls.id] if r.teacher_id == cls.teacher_id and r.role == "subject_teacher"}
-        assignment = _resolve_evaluation_role(cls, own_relations, case, plans[case.id] if case else [], head_subjects, user)
-        # 兼任班主任和学科老师时分别统计两项，不能用德育正文代替本人学科评价。
-        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育")] if is_head else []
-        if assignment and assignment[0] == MONTHLY_EVAL_ROLE_SUBJECT:
-            duties.append(assignment)
-        for role, subject in duties:
+        case_plans = plans[case.id] if case else []
+        # 班主任可查看全班任课进度；任课老师仍仅查看本人职责，查看不授予代填权限。
+        candidates = teachers.values() if is_head else [user]
+        duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", user)] if is_head else []
+        for teacher in candidates:
+            teacher_relations = [r for r in relations[cls.id] if r.teacher_id == teacher.id]
+            assignment = _resolve_evaluation_role(cls, teacher_relations, case, case_plans, head_subjects, teacher)
+            if assignment and assignment[0] == MONTHLY_EVAL_ROLE_SUBJECT:
+                duties.append((*assignment, teacher))
+        for role, subject, teacher in duties:
             content = report.final_content if report and role == MONTHLY_EVAL_ROLE_HEAD else ""
             if report and role == MONTHLY_EVAL_ROLE_SUBJECT:
-                content = next((e.content for e in report.evaluations if e.teacher_id == user.id and e.teacher_role == role), "")
+                content = next((e.content for e in report.evaluations if e.teacher_id == teacher.id and e.teacher_role == role), "")
             rows.append(dict(student_id=student.id, student_name=student.name, class_id=cls.id,
                              class_name=cls.name, month_label=month_label, teacher_role=role,
                              subject=subject, report_id=report.id if report else None,
+                             teacher_id=teacher.id, teacher_name=teacher.name, can_edit=teacher.id == user.id,
                              writing_status="written" if content and content.strip() else "unwritten"))
     written = sum(r["writing_status"] == "written" for r in rows)
     total = len(rows)

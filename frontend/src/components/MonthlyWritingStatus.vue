@@ -18,7 +18,7 @@
       <el-input v-model="keyword" aria-label="搜索学生" placeholder="搜索学生，回车查询" clearable @keyup.enter="query" @clear="query" />
       <el-button :loading="loading" @click="query">查询</el-button>
     </div>
-    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '按本人负责的评定项统计，德育与学科分别计入；点击学生查看具体科目。' }}</p>
+    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '班主任查看所带学生全部老师的进度；任课老师查看本人负责内容。德育仅由班主任填写。' }}</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <el-button v-if="error" @click="load">重新加载</el-button>
     <template v-else>
@@ -30,19 +30,20 @@
         <el-table-column label="已填 / 应填" width="120"><template #default="{ row }">{{ row.written }} / {{ row.total }}</template></el-table-column>
         <el-table-column label="操作" width="130"><template #default="{ row }"><el-button link type="primary" :disabled="loading" @click="selectStudent(row)">查看科目</el-button></template></el-table-column>
       </el-table>
-      <el-table v-else v-loading="loading" :data="result.items" empty-text="该学生暂无本人负责的评定项">
+      <el-table v-else v-loading="loading" :data="result.items" empty-text="该学生暂无可查看的评定项">
         <el-table-column prop="subject" label="科目" min-width="130" />
+        <el-table-column prop="teacher_name" label="负责老师" min-width="110" />
         <el-table-column label="填写状态" width="110"><template #default="{ row }"><el-tag :type="row.writing_status === 'written' ? 'success' : 'warning'">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</el-tag></template></el-table-column>
-        <el-table-column label="操作" width="130"><template #default="{ row }"><el-button link type="primary" :disabled="loading || opening" @click="openEditor(row)">{{ row.writing_status === 'written' ? '查看 / 修改' : '去填写' }}</el-button></template></el-table-column>
+        <el-table-column label="操作" width="130"><template #default="{ row }"><el-button link type="primary" :disabled="loading || opening || (row.can_edit === false && row.writing_status !== 'written')" @click="openEditor(row)">{{ row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</el-button></template></el-table-column>
       </el-table>
       <el-pagination v-if="pageTotal > 50" v-model:current-page="page" :page-size="50" :total="pageTotal" layout="prev, pager, next, total" @current-change="load" />
     </template>
-    <el-dialog v-model="editing" title="填写月度评定" width="min(560px, 92vw)" :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving" append-to-body>
+    <el-dialog v-model="editing" :title="readOnly ? '查看月度评定' : '填写月度评定'" width="min(560px, 92vw)" :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving" append-to-body>
       <template v-if="current">
         <p>{{ current.student_name }} · {{ current.class_name }} · {{ current.month_label }} · {{ current.subject }}</p>
-        <el-form label-position="top"><MonthlyReviewForm v-model="content" :limit="current.teacher_role === 'subject_teacher' ? 600 : 2400" :disabled="saving" /></el-form>
+        <el-form label-position="top"><MonthlyReviewForm v-model="content" :limit="current.teacher_role === 'subject_teacher' ? 600 : 2400" :disabled="saving || readOnly" /></el-form>
       </template>
-      <template #footer><el-button :disabled="saving" @click="editing = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="!completeReview(content)" @click="save">保存评定</el-button></template>
+      <template #footer><el-button :disabled="saving" @click="editing = false">取消</el-button><el-button v-if="!readOnly" type="primary" :loading="saving" :disabled="!completeReview(content)" @click="save">保存评定</el-button></template>
     </el-dialog>
   </section>
 </template>
@@ -73,6 +74,7 @@ const opening = ref(false)
 const editing = ref(false)
 const saving = ref(false)
 const current = ref(null)
+const readOnly = computed(() => current.value?.can_edit === false)
 const content = ref('')
 let requestId = 0
 
@@ -99,13 +101,13 @@ async function openEditor(row) {
   try {
     const report = row.report_id ? await getMonthlyReport(row.report_id) : null
     current.value = row
-    content.value = row.teacher_role === 'head_teacher' ? report?.final_content || '' : report?.evaluations?.find(e => e.teacher_role === 'subject_teacher' && e.teacher_id === auth.user?.id)?.content || ''
+    content.value = row.teacher_role === 'head_teacher' ? report?.final_content || '' : report?.evaluations?.find(e => e.teacher_role === 'subject_teacher' && e.teacher_id === (row.teacher_id ?? auth.user?.id))?.content || ''
     editing.value = true
   } catch { ElMessage.error('评定加载失败，请重试') } finally { opening.value = false }
 }
 const auth = useAuthStore()
 async function save() {
-  if (saving.value || !completeReview(content.value)) return
+  if (saving.value || readOnly.value || !completeReview(content.value)) return
   saving.value = true
   try {
     const row = current.value

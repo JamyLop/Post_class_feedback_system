@@ -11,7 +11,7 @@
       <view class="field"><text>填写状态</text><picker :range="statusNames" :value="statusIndex" @change="changeStatus"><view class="picker">{{ statusNames[statusIndex] }} ▾</view></picker></view>
     </view>
     <view v-if="!selectedStudent" class="search"><input v-model="keyword" placeholder="搜索学生" confirm-type="search" @confirm="query" /><button size="mini" :disabled="loading" @click="query">查询</button></view>
-    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '按本人负责的评定项统计，德育与学科分别计入。' }}</text>
+    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '班主任查看全部老师的进度；任课老师查看本人负责内容。德育仅由班主任填写。' }}</text>
     <view v-if="error" class="message"><text>填写状态加载失败</text><button size="mini" @click="load">重试</button></view>
     <template v-else>
       <text class="counts">{{ selectedStudent ? '' : `共 ${result.student_total} 名学生 · ` }}共 {{ result.total }} 项 · 已填写 {{ result.written }} 项 · 未填写 {{ result.unwritten }} 项</text>
@@ -27,12 +27,12 @@
         </view>
       </view>
       <view v-else class="results">
-        <view v-for="row in result.items" :key="`${row.class_id}-${row.student_id}-${row.teacher_role}`" class="result-row">
+        <view v-for="row in result.items" :key="`${row.class_id}-${row.student_id}-${row.teacher_role}-${row.teacher_id}`" class="result-row">
           <view class="student-info">
             <view class="row-title"><text class="name">{{ row.subject }}</text><text class="tag" :class="{ written: row.writing_status === 'written' }">{{ row.writing_status === 'written' ? '已填写' : '未填写' }}</text></view>
-            <text class="meta">{{ row.teacher_role === 'head_teacher' ? '班主任填写' : '任课老师填写' }}</text>
+            <text class="meta">{{ row.teacher_name || (row.teacher_role === 'head_teacher' ? '班主任' : '任课老师') }}填写{{ row.can_edit === false ? ' · 仅查看' : '' }}</text>
           </view>
-          <button size="mini" class="write-button" @click="openRow(row)">{{ row.writing_status === 'written' ? '查看 / 修改' : '去填写' }}</button>
+          <button size="mini" class="write-button" :disabled="row.can_edit === false && row.writing_status !== 'written'" @click="openRow(row)">{{ row.can_edit === false ? (row.writing_status === 'written' ? '查看评定' : '待老师填写') : (row.writing_status === 'written' ? '查看 / 修改' : '去填写') }}</button>
         </view>
       </view>
       <view v-if="pageTotal > 50" class="pagination"><button size="mini" :disabled="page === 1 || loading" @click="turnPage(-1)">上一页</button><text>{{ page }} / {{ Math.ceil(pageTotal / 50) }}</text><button size="mini" :disabled="page * 50 >= pageTotal || loading" @click="turnPage(1)">下一页</button></view>
@@ -89,6 +89,10 @@ function changeMonth(e) { month.value = e.detail.value; query() }
 function changeStatus(e) { statusIndex.value = Number(e.detail.value); query() }
 function turnPage(delta) { page.value += delta; load() }
 function openRow(row) {
+  if (row.can_edit === false) {
+    if (row.report_id && row.writing_status === 'written') uni.navigateTo({ url: `/subTeacher/monthlyReports/detail?id=${row.report_id}` })
+    return
+  }
   uni.navigateTo({ url: `/subTeacher/monthlyReports/generate?classId=${row.class_id}&studentId=${row.student_id}&month=${row.month_label}&evaluationRole=${row.teacher_role}` })
 }
 defineExpose({ load })
