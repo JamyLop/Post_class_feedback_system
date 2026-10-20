@@ -15,6 +15,7 @@ const routes = [
       { path: 'cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'timetable', component: () => import('../views/timetable/Timetable.vue') },
       { path: 'monthly-reports', component: () => import('../views/admin/MonthlyReports.vue') },
+      { path: 'monthly-exam-scores', component: () => import('../views/teacher/WeeklyScores.vue') },
       { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
       { path: 'users', component: () => import('../views/admin/Users.vue') },
       { path: 'invite-codes', component: () => import('../views/admin/InviteCodes.vue') },
@@ -32,6 +33,7 @@ const routes = [
     children: [
       { path: '', redirect: '/deyu/cases' },
       { path: 'cases', component: () => import('../views/deyu/DeyuCases.vue') },
+      { path: 'monthly-exam-scores', component: () => import('../views/teacher/WeeklyScores.vue') },
       { path: 'cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'timetable', component: () => import('../views/timetable/Timetable.vue') },
     ],

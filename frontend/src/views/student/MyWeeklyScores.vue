@@ -58,7 +58,7 @@ import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
-const subjects = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
+const subjects = ['语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理']
 const subject = ref('')
 const rows = ref([])
 const trend = ref([])

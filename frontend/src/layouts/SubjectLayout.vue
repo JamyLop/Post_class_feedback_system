@@ -18,7 +18,7 @@
           </el-menu-item>
           <el-menu-item index="/subject/weekly-scores">
             <el-icon><Files /></el-icon>
-            <span>月考成绩与评价</span>
+            <span>月考成绩</span>
           </el-menu-item>
           <el-menu-item index="/subject/monthly-reports">
             <el-icon><Files /></el-icon>

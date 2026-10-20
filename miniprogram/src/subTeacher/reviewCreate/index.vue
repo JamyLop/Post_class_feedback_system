@@ -78,7 +78,7 @@ const levels = [
   { value: 'head_teacher', label: '班主任督查' },
   { value: 'subject', label: '学科督查' },
 ]
-const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理']
+const allSubjects = ['语文','数学','英语','日语','物理','化学','生物','政治','历史','地理']
 const form = reactive({ review_level: 'head_teacher', subject: '', correction_due_on: '', problem: '', corrective_action: '', recheck_result: '' })
 
 const selectedCase = computed(() => cases.value.find(c => c.id === selectedCaseId.value))

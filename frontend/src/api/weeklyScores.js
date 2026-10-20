@@ -1,5 +1,7 @@
 import http from './index'
 
+export const getMonthlyExamOverview = (params = {}) => http.get('/monthly-exam-scores/overview', { params })
+
 export const listWeeklyScores = (params = {}) => http.get('/monthly-exam-scores', { params })
 export const getWeeklyTrend = (params = {}) => http.get('/monthly-exam-scores/trend', { params })
 export const getClassWeeklySummary = (params = {}) => http.get('/monthly-exam-scores/class-summary', { params })

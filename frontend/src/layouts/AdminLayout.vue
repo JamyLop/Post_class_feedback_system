@@ -28,6 +28,10 @@
             <el-icon><Calendar /></el-icon>
             <span>月度评定</span>
           </el-menu-item>
+          <el-menu-item index="/admin/monthly-exam-scores">
+            <el-icon><TrendCharts /></el-icon>
+            <span>月考成绩</span>
+          </el-menu-item>
           <el-menu-item index="/admin/timetable">
             <el-icon><Calendar /></el-icon>
             <span>课表编排</span>

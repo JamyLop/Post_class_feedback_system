@@ -105,7 +105,7 @@ const studentList = ref([])
 const scoreMap = reactive({})
 const rankMap = reactive({})
 
-const subjectOptions = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
+const subjectOptions = ['语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理']
 const subjectIndex = ref(0)
 
 const form = reactive({

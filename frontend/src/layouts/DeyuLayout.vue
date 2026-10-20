@@ -28,7 +28,7 @@
             <el-icon><TrendCharts /></el-icon>
             <span>积分周月报</span>
           </el-menu-item>
-          <el-menu-item index="/teacher/weekly-scores">
+          <el-menu-item index="/deyu/monthly-exam-scores">
             <el-icon><DataAnalysis /></el-icon>
             <span>月考成绩（查阅）</span>
           </el-menu-item>

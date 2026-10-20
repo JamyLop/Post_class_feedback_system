@@ -15,6 +15,7 @@ from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROL
 from app.models.weekly_score import WeeklyTestScore, WeeklyScoreEvaluation
 from app.schemas.weekly_score import (
     ClassWeeklySummary,
+    MonthlyExamOverview,
     WeeklyScoreEvaluationSave,
     WeeklyTestScoreBatchCreate,
     WeeklyTestScoreCreate,
@@ -58,7 +59,7 @@ def _can_manage_class(db: Session, class_id: int, user: User) -> bool:
         return False
     if cls.teacher_id == user.id:
         return True
-    return db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=user.id).first() is not None
+    return db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=user.id, role="head_teacher").first() is not None
 
 
 def _check_can_write(db: Session, class_id: int, user: User):
@@ -81,7 +82,7 @@ def _filter_scope(query, db: Session, user: User):
         if not student_ids:
             return query.filter(WeeklyTestScore.id == -1)
         return query.filter(WeeklyTestScore.student_id.in_(student_ids))
-    if user.role == ROLE_SUBJECT_TEACHER:
+    if user.role in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
         # 任课账号仅能读取自己任教班级的对应学科，所有月考读取接口共用此边界。
         relations = db.query(ClassTeacher).filter_by(teacher_id=user.id).all()
         scopes = [and_(WeeklyTestScore.class_id == r.class_id, WeeklyTestScore.subject == r.subject)
@@ -91,14 +92,6 @@ def _filter_scope(query, db: Session, user: User):
         if head_ids:
             scopes.append(WeeklyTestScore.class_id.in_(head_ids))
         return query.filter(or_(*scopes)) if scopes else query.filter(WeeklyTestScore.id == -1)
-    if user.role == ROLE_TEACHER:
-        # 教师仅可见自己负责的班级
-        legacy_ids = [r.id for r in db.query(Class).filter(Class.teacher_id == user.id).all()]
-        rel_ids = [r.class_id for r in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id).all()]
-        allowed = set(legacy_ids + rel_ids)
-        if not allowed:
-            return query.filter(WeeklyTestScore.id == -1)
-        return query.filter(WeeklyTestScore.class_id.in_(allowed))
     if user.role == ROLE_STUDENT:
         return query.filter(WeeklyTestScore.student_id == user.id)
     if user.role == ROLE_PARENT:
@@ -138,6 +131,25 @@ def list_scores(
         q = q.filter(WeeklyTestScore.exam_date <= end_date)
     rows = q.order_by(WeeklyTestScore.exam_month.desc(), WeeklyTestScore.exam_date.desc(), WeeklyTestScore.id.desc()).offset(offset).limit(limit).all()
     return [_enrich(r, db, user) for r in rows]
+
+
+@router.get("/overview", response_model=MonthlyExamOverview)
+def overview(
+    exam_month: str | None = Query(default=None, pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$"),
+    class_id: int | None = Query(default=None),
+    grade: str | None = Query(default=None),
+    subject: str | None = Query(default=None),
+    keyword: str = Query(default="", max_length=64),
+    limit: int = Query(default=50, ge=1, le=MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
+):
+    from app.services.monthly_exam_overview import build_overview
+
+    # 先限定真实任课范围再统计；班级、搜索及分页均不能改变排名基数。
+    query = _filter_scope(db.query(WeeklyTestScore), db, user)
+    return build_overview(db, user, query, exam_month, class_id, grade, subject, keyword, limit, offset)
 
 
 @router.get("/trend", response_model=list[WeeklyTestTrendPoint])

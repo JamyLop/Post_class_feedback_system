@@ -2,9 +2,8 @@
   <section class="page weekly-page">
     <header class="page-head">
       <div>
-        <div class="scope-line"><span>高三试点</span><span>月考成绩</span></div>
-        <h1>月考成绩与评价</h1>
-        <p>查看月考分数与趋势，由班主任和对应学科老师分别记录评价与学习建议。</p>
+        <h1>月考成绩</h1>
+        <p>{{ auth.role === 'subject_teacher' ? '按月查看所带班级对应学科的成绩与排名，记录学科学习评价。' : '按月查看学生总分、各科成绩与排名，也可在单科明细中记录评价。' }}</p>
       </div>
       <div v-if="canManageScores" class="head-actions">
         <el-button type="primary" @click="openBatchDialog"><el-icon><Plus /></el-icon>批量录入</el-button>
@@ -12,6 +11,12 @@
       </div>
     </header>
 
+    <el-radio-group v-model="viewMode" aria-label="成绩视图">
+      <el-radio-button value="overview">成绩总览与排名</el-radio-button>
+      <el-radio-button value="records">单科明细与评价</el-radio-button>
+    </el-radio-group>
+    <MonthlyExamOverview v-if="viewMode === 'overview'" ref="overviewRef" :classes="classes" />
+    <div v-show="viewMode === 'records'">
     <section class="filter-surface">
       <div class="filters">
         <el-select v-model="filters.class_id" placeholder="选择班级" clearable style="width: 180px" @change="load">
@@ -62,6 +67,7 @@
       </el-table>
     </section>
 
+    </div>
     <!-- 单条录入/编辑 -->
     <el-dialog v-model="singleVisible" :title="editingId ? '编辑成绩' : '单条录入'" width="520px" destroy-on-close>
       <el-form label-position="top">
@@ -130,13 +136,16 @@ import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import { useAuthStore } from '../../stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { EditPen, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import MonthlyExamOverview from '../../components/MonthlyExamOverview.vue'
 import * as echarts from 'echarts'
 import { listClasses, listStudents } from '../../api/classes'
 import { batchCreateWeeklyScores, createWeeklyScore, deleteWeeklyScore, getClassWeeklySummary, getWeeklyTrend, listWeeklyScores, updateWeeklyScore } from '../../api/weeklyScores'
 
 const auth = useAuthStore()
+const viewMode = ref('overview')
+const overviewRef = ref(null)
 const canManageScores = computed(() => ['admin', 'teacher'].includes(auth.role))
-const subjects = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
+const subjects = ['语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理']
 const classes = ref([])
 const rows = ref([])
 const loading = ref(false)
@@ -181,6 +190,10 @@ async function load() {
       if (filters.value.subject) sParams.subject = filters.value.subject
       summary.value = await getClassWeeklySummary(sParams)
     } else summary.value = []
+    overviewRef.value?.load()
+  } catch (error) {
+    rows.value = []
+    summary.value = []
   } finally { loading.value = false }
 }
 

@@ -709,7 +709,7 @@ const weeklySubjectEntries = computed(() => Object.entries(weeklyPoints.value?.p
 const reviewForm = ref(createEmptyReviewForm())
 const labels = { draft: '草稿', pending_confirmation: '待确认', executing: '执行中', pending_review: '待复盘', adjusted: '已调整', archived: '已归档' }
 const gradeOptions = ['初一', '初二', '初三', '高一', '高二', '高三', '复读']
-const subjectOrder = ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理', '德育']
+const subjectOrder = ['语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理', '德育']
 const OVERVIEW_PROBLEM_DEFAULTS = ['语文', '数学', '英语', '物理', '化学', '政治']
 const OVERVIEW_TARGET_DEFAULTS = ['短期（1-2个月）', '中期（3-4个月）', '高考目标']
 const overviewProblemEdits = ref([])

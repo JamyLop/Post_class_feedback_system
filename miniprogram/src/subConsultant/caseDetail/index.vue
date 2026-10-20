@@ -112,7 +112,7 @@ const tabs = [
   { key: 'subjects', label: '学科' },
   { key: 'tasks', label: '任务' },
 ]
-const allSubjects = ['语文','数学','英语','物理','化学','生物','政治','历史','地理']
+const allSubjects = ['语文','数学','英语','日语','物理','化学','生物','政治','历史','地理']
 const availableSubjects = computed(() => {
   const used = new Set((detail.value?.subject_plans || []).map(plan => plan.subject))
   return allSubjects.filter(subject => !used.has(subject))

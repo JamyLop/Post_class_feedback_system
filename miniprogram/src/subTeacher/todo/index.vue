@@ -155,9 +155,10 @@ const navItems = computed(() => {
     items.push({ title: '全部档案', desc: '全局档案查看', action: goCaseList })
     items.push({ title: '档案进展', desc: '查看任务与督查记录', action: goCaseList })
     items.push({ title: '任务执行进度', desc: '查看全校任务逾期与打卡', action: goPointsReports })
-    items.push({ title: '学生月考', desc: '查看全校月考成绩', action: goWeeklyScores })
+    items.push({ title: '月考成绩', desc: '全校总分、各科与排名', action: goWeeklyScores })
     items.push({ title: '课表编排', desc: '查看并维护全校课程', action: goTimetable })
   } else if (auth.role === 'admin') {
+    items.push({ title: '月考成绩', desc: '全校总分、各科与排名', action: goWeeklyScores })
     items.push({ title: '系统管理', desc: '统计与配置', action: goAdminStats })
     items.push({ title: '全部档案', desc: '全局档案查看', action: goCaseList })
     items.push({ title: '班级管理', desc: '管理班级与学生', action: goClassManager })
@@ -167,6 +168,7 @@ const navItems = computed(() => {
     items.push({ title: '关联学生', desc: '查看负责学生档案', action: () => uni.reLaunch({ url: '/subConsultant/caseList/index' }) })
     items.push({ title: '学生月考', desc: '查看负责学生月考成绩', action: goWeeklyScores })
   } else if (auth.role === 'subject_teacher') {
+    items.push({ title: '月考成绩', desc: '所带班级学科成绩与排名', action: goWeeklyScores })
     items.push({ title: '学生档案', desc: '查看所带班级档案', action: goCaseList })
     items.push({ title: '我的课表', desc: '查看课程安排', action: goTimetable })
   }

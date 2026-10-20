@@ -138,3 +138,38 @@ class ClassWeeklySummary(BaseModel):
     max_score: float
     min_score: float
     count: int
+
+
+class MonthlyExamCell(BaseModel):
+    score: float
+    max_score: float
+    class_rank: int | None = None
+    scope_rank: int | None = None
+
+
+class MonthlyExamStudent(BaseModel):
+    class_id: int
+    class_name: str
+    grade: str
+    student_id: int
+    student_name: str
+    scores: dict[str, MonthlyExamCell]
+    can_view_total: bool
+    study_subjects: list[str] = Field(default_factory=list)
+    total_score: float | None = None
+    total_max_score: float | None = None
+    complete: bool = False
+    missing_subjects: list[str] = Field(default_factory=list)
+    class_rank: int | None = None
+    scope_rank: int | None = None
+
+
+class MonthlyExamOverview(BaseModel):
+    exam_month: str | None
+    months: list[str]
+    grades: list[str]
+    subjects: list[str]
+    total: int
+    items: list[MonthlyExamStudent]
+    has_total_access: bool
+    ranking_note: str

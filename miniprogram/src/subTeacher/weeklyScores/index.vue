@@ -2,10 +2,17 @@
   <view class="page">
     <WorkspaceLink />
     <view class="head">
-      <text class="h1">月考成绩与评价</text>
-      <text class="p">查看月考表现，记录教师评价与学习建议</text>
+      <text class="h1">月考成绩</text>
+      <text class="p">{{ auth.role === 'subject_teacher' ? '查看所带班级对应学科的成绩与排名' : '查看学生总分、各科成绩与排名' }}</text>
     </view>
 
+    <view v-if="auth.role !== 'consultant'" class="view-tabs">
+      <button :class="{ active: viewMode === 'overview' }" @click="viewMode = 'overview'">成绩总览与排名</button>
+      <button :class="{ active: viewMode === 'records' }" @click="viewMode = 'records'">单科明细与评价</button>
+    </view>
+    <MonthlyExamOverview v-if="viewMode === 'overview'" ref="overviewRef" :classes="classList" />
+    <!-- 小程序 hidden 属性会被 display:flex 覆盖，条件渲染保证两个视图互斥。 -->
+    <view v-if="viewMode === 'records'" class="records-view">
     <!-- 筛选栏 -->
     <view class="filter-bar">
       <view class="filter-item">
@@ -94,11 +101,13 @@
         </view>
       </view>
     </view>
+    </view>
   </view>
 </template>
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
+import MonthlyExamOverview from '../../components/MonthlyExamOverview.vue'
 import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
@@ -108,12 +117,14 @@ import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
 const auth = useAuthStore()
+const viewMode = ref(auth.role === 'consultant' ? 'records' : 'overview')
+const overviewRef = ref(null)
 const loading = ref(false)
 const classList = ref([])
 const classIndex = ref(0)
 const subjectIndex = ref(0)
 const examMonth = ref('')
-const subjectOptions = ['全部科目', '语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理']
+const subjectOptions = ['全部科目', '语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理']
 const summaryList = ref([])
 const scoreList = ref([])
 
@@ -194,12 +205,17 @@ function goCreate() {
 onShow(() => {
   if (guardRole()) {
     loadClasses().then(() => loadData())
+    overviewRef.value?.load()
   }
 })
 </script>
 
 <style scoped>
 .page { padding: 28rpx; display: flex; flex-direction: column; gap: 20rpx; }
+.records-view { display: flex; flex-direction: column; gap: 20rpx; }
+.view-tabs { display: flex; gap: 12rpx; }
+.view-tabs button { flex: 1; min-width: 0; margin: 0; padding: 16rpx 6rpx; font-size: 24rpx; line-height: 1.5; background: #fff; color: #445269; border-radius: 8rpx; }
+.view-tabs button.active { color: #1762d4; background: #eaf3ff; }
 .h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
 .p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
