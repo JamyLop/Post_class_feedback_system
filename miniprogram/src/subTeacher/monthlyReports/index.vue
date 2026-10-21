@@ -10,7 +10,7 @@
       <button :class="{ active: activeTab === 'writing' }" @click="activeTab = 'writing'">填写状态查询</button>
       <button :class="{ active: activeTab === 'reports' }" @click="activeTab = 'reports'">评定列表</button>
     </view>
-    <MonthlyWritingStatus v-if="activeTab === 'writing'" ref="writingQuery" :classes="classList" />
+    <MonthlyWritingStatus v-if="activeTab === 'writing'" :key="auth.user?.supervisor_stage || ''" ref="writingQuery" :classes="classList" />
     <template v-if="activeTab === 'reports'">
     <!-- 筛选栏 -->
     <view class="filter-bar">
@@ -37,7 +37,7 @@
     <!-- 操作栏：任课老师仅评价，不展示新建入口 -->
     <view class="action-bar">
       <button class="btn-primary" @click="goGenerate">新建评定</button>
-      <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
+      <button class="btn-outline" @click="refreshPage" :loading="loading" :disabled="loading">刷新</button>
     </view>
 
     <!-- 评定列表 -->
@@ -71,10 +71,11 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import MonthlyWritingStatus from '../../components/MonthlyWritingStatus.vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listMonthlyReports } from '../../api/monthlyReports'
+import { listSupervisionClasses } from '../../api/studentCases'
 import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
@@ -84,11 +85,16 @@ const activeTab = ref(canQueryWriting ? 'writing' : 'reports')
 const writingQuery = ref(null)
 const loading = ref(false)
 const classList = ref([])
+const teachingClassList = ref([])
 const classIndex = ref(0)
 const statusIndex = ref(0)
 const statusOptions = ['全部', '待发布', '已发布', '待填写', '待补充']
 const statusValues = ['', 'generated', 'published', 'generating', 'failed']
 const reportList = ref([])
+let classesRequestId = 0
+let reportsRequestId = 0
+let pageReady = false
+let refreshingIdentity = false
 
 const classNames = computed(() => ['全部班级', ...classList.value.map(c => c.name)])
 const selectedClassId = computed(() => classIndex.value > 0 ? classList.value[classIndex.value - 1]?.id : null)
@@ -108,21 +114,36 @@ function guardRole() {
 }
 
 async function loadClasses() {
-  try { classList.value = await listClasses() } catch (e) { classList.value = [] }
+  const requestId = ++classesRequestId
+  const selectedId = selectedClassId.value
+  const stage = auth.user?.supervisor_stage || ''
+  const [own, stageClasses] = await Promise.all([
+    listClasses().catch(() => []),
+    stage ? listSupervisionClasses().catch(() => []) : Promise.resolve([]),
+  ])
+  if (requestId !== classesRequestId) return false
+  teachingClassList.value = own
+  const seen = new Set()
+  classList.value = [...stageClasses, ...own].filter(c => !seen.has(c.id) && seen.add(c.id))
+  // 扩大或收回查看范围后，picker 的旧下标不能指向另一个班。
+  classIndex.value = selectedId ? classList.value.findIndex(c => c.id === selectedId) + 1 : 0
+  return true
 }
 
 async function loadData() {
+  const requestId = ++reportsRequestId
   writingQuery.value?.load()
   loading.value = true
   try {
     const params = {}
     if (selectedClassId.value) params.class_id = selectedClassId.value
     if (selectedStatus.value) params.status = selectedStatus.value
-    reportList.value = await listMonthlyReports(params)
+    const data = await listMonthlyReports(params)
+    if (requestId === reportsRequestId) reportList.value = data
   } catch (e) {
-    reportList.value = []
+    if (requestId === reportsRequestId) reportList.value = []
   } finally {
-    loading.value = false
+    if (requestId === reportsRequestId) loading.value = false
   }
 }
 
@@ -138,6 +159,10 @@ function goGenerate() {
     uni.showToast({ title: '请先选择班级', icon: 'none' })
     return
   }
+  if (!teachingClassList.value.some(c => c.id === selectedClassId.value)) {
+    uni.showToast({ title: '只能为自己任教的班级填写评定', icon: 'none' })
+    return
+  }
   uni.navigateTo({ url: `/subTeacher/monthlyReports/generate?classId=${selectedClassId.value}` })
 }
 
@@ -145,9 +170,34 @@ function goDetail(id) {
   uni.navigateTo({ url: `/subTeacher/monthlyReports/detail?id=${id}` })
 }
 
-onShow(() => {
-  if (guardRole()) loadClasses().then(() => loadData())
+async function reloadScope() {
+  if (!await loadClasses()) return
+  await nextTick()
+  await loadData()
+}
+
+async function refreshPage() {
+  if (!guardRole()) return
+  refreshingIdentity = true
+  try {
+    // 每次回到页面都同步身份，避免继续使用授权变更前的缓存。
+    await auth.refreshMe()
+  } catch {
+    uni.showToast({ title: '身份信息刷新失败，请重试', icon: 'none' })
+    return
+  } finally {
+    refreshingIdentity = false
+  }
+  if (!guardRole()) return
+  pageReady = true
+  await reloadScope()
+}
+
+watch(() => auth.user?.supervisor_stage || '', () => {
+  classIndex.value = 0
+  if (pageReady && !refreshingIdentity) reloadScope()
 })
+onShow(refreshPage)
 </script>
 
 <style scoped>

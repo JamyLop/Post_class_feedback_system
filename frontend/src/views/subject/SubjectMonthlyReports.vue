@@ -7,14 +7,14 @@
         <p>为对应学生填写所带学科的总结、问题、计划；德育由班主任填写。</p>
       </div>
       <el-button type="primary" @click="openCreate">填写本月评定</el-button>
-      <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+      <el-button :icon="Refresh" :loading="loading" @click="refreshPage">刷新</el-button>
     </header>
 
     <el-tabs v-model="activeTab">
       <el-tab-pane v-if="canQueryWriting" label="填写状态查询" name="writing" />
       <el-tab-pane label="评定列表" name="reports" />
     </el-tabs>
-    <MonthlyWritingStatus v-if="activeTab === 'writing'" :classes="classes" @saved="load" />
+    <MonthlyWritingStatus v-if="activeTab === 'writing'" :key="auth.user?.supervisor_stage || ''" ref="writingQuery" :classes="classes" @saved="load" />
     <template v-if="activeTab === 'reports'">
     <section class="filter-surface">
       <div class="filters">
@@ -46,7 +46,7 @@
     </template>
     <el-dialog v-model="creating" title="填写学科月度评定" width="min(560px, 92vw)">
       <el-form label-position="top">
-        <el-form-item label="班级"><el-select v-model="form.class_id" @change="changeClass"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
+        <el-form-item label="班级"><el-select v-model="form.class_id" @change="changeClass"><el-option v-for="c in teachingClasses" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
         <el-form-item label="学生"><el-select v-model="form.student_id" filterable><el-option v-for="s in students" :key="s.id" :label="s.name" :value="s.id" /></el-select></el-form-item>
         <el-form-item label="月份"><el-date-picker v-model="form.month_label" type="month" value-format="YYYY-MM" /></el-form-item>
         <MonthlyReviewForm v-model="form.final_content" :limit="600" :disabled="saving" />
@@ -59,13 +59,14 @@
 <script setup>
 import MonthlyWritingStatus from '../../components/MonthlyWritingStatus.vue'
 import { useAuthStore } from '../../stores/auth'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
 import { completeReview } from '../../utils/monthlyReview'
 import { ElMessage } from 'element-plus'
 import { listClasses, listStudents } from '../../api/classes'
+import { listSupervisionClasses } from '../../api/users'
 import { createMonthlyReport, listMonthlyReports, saveMonthlyEvaluation } from '../../api/monthlyReports'
 
 const auth = useAuthStore()
@@ -82,7 +83,9 @@ async function changeClass() {
 }
 async function openCreate() {
   const now = new Date()
-  form.value = { class_id: filters.value.class_id || classes.value[0]?.id, student_id: null, month_label: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, final_content: '' }
+  const defaultClass = teachingClasses.value.some(c => c.id === filters.value.class_id)
+    ? filters.value.class_id : teachingClasses.value[0]?.id
+  form.value = { class_id: defaultClass || null, student_id: null, month_label: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, final_content: '' }
   await changeClass()
   creating.value = true
 }
@@ -106,10 +109,16 @@ async function submitCreate() {
   } finally { saving.value = false }
 }
 const classes = ref([])
+const teachingClasses = ref([])
+const writingQuery = ref(null)
 const rows = ref([])
 const loading = ref(false)
 const keyword = ref('')
 const filters = ref({ class_id: null, month_label: '' })
+let classesRequestId = 0
+let reportsRequestId = 0
+let pageReady = false
+let refreshingIdentity = false
 
 const statusText = (s) => ({ generating: '待填写', generated: '待发布', published: '已发布', failed: '待补充' }[s] || s)
 const statusType = (s) => ({ generated: 'warning', published: 'success', failed: 'danger' }[s] || 'info')
@@ -121,14 +130,16 @@ const filteredRows = computed(() => {
 })
 
 async function load() {
+  const requestId = ++reportsRequestId
   loading.value = true
   try {
     const params = {}
     if (filters.value.class_id) params.class_id = filters.value.class_id
     if (filters.value.month_label) params.month_label = filters.value.month_label
-    rows.value = await listMonthlyReports(params)
+    const data = await listMonthlyReports(params)
+    if (requestId === reportsRequestId) rows.value = data
   } finally {
-    loading.value = false
+    if (requestId === reportsRequestId) loading.value = false
   }
 }
 
@@ -136,11 +147,49 @@ async function onFilterClassChange() {
   await load()
 }
 
-onMounted(async () => {
-  classes.value = await listClasses().catch(() => [])
+async function loadClasses() {
+  const requestId = ++classesRequestId
+  const stage = auth.user?.supervisor_stage || ''
+  const [ownClasses, stageClasses] = await Promise.all([
+    listClasses().catch(() => []),
+    stage ? listSupervisionClasses().catch(() => []) : Promise.resolve([]),
+  ])
+  if (requestId !== classesRequestId) return false
+  teachingClasses.value = ownClasses
+  const seen = new Set()
+  classes.value = [...stageClasses, ...ownClasses].filter(c => !seen.has(c.id) && seen.add(c.id))
+  if (!classes.value.some(c => c.id === filters.value.class_id)) filters.value.class_id = null
   if (classes.value.length === 1) filters.value.class_id = classes.value[0].id
+  return true
+}
+
+async function reloadScope() {
+  if (!await loadClasses()) return
+  await nextTick()
+  writingQuery.value?.load()
   await load()
+}
+
+async function refreshPage() {
+  refreshingIdentity = true
+  try {
+    // 授权可在登录期间变化，班级范围不能依据本地缓存判断。
+    await auth.refreshMe()
+  } catch {
+    ElMessage.error('身份信息刷新失败，请重试')
+    return
+  } finally {
+    refreshingIdentity = false
+  }
+  pageReady = true
+  await reloadScope()
+}
+
+watch(() => auth.user?.supervisor_stage || '', () => {
+  filters.value.class_id = null
+  if (pageReady && !refreshingIdentity) reloadScope()
 })
+onMounted(refreshPage)
 </script>
 
 <style scoped>

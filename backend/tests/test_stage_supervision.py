@@ -60,6 +60,15 @@ def test_supervisor_stage_scope_and_read_only(client, auth, db, supervision_data
     assert len(rows) == 2 and {r["class_id"] for r in rows} == {data["classes"][index]}
     assert {r["teacher_id"] for r in rows} == {data["regular"], db.get(Class, data["classes"][index]).teacher_id}
     assert all(r["can_edit"] is False for r in rows)
+    # 日常任课页面同样能看到本学段其他老师的进度与评定，但不混入其他学段。
+    daily = client.get("/api/monthly-reports/writing-status", headers=supervisor,
+                       params={"month_label": "2026-10"}).json()
+    assert {r["class_id"] for r in daily["items"]} == {data["classes"][index]}
+    assert {r["teacher_id"] for r in daily["items"]} == {data["regular"], db.get(Class, data["classes"][index]).teacher_id}
+    listing = client.get("/api/monthly-reports", headers=supervisor,
+                         params={"month_label": "2026-10"}).json()
+    assert data["classes"][index] in {r["class_id"] for r in listing}
+    assert data["reports"][index] in {r["id"] for r in listing}
     opposite = client.get("/api/monthly-reports/writing-status", headers=supervisor,
                           params={**params, "class_id": data["classes"][1-index]}).json()
     assert opposite["items"] == [] and opposite["total"] == 0
