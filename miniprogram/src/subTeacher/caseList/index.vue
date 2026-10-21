@@ -1,6 +1,7 @@
 <template>
   <view class="page">
     <WorkspaceLink />
+    <SubjectPlanReminders ref="assignmentReminders" />
     <view class="head"><text class="h1">{{ checkinMode ? '选择打卡档案' : '学生档案' }}</text><text class="p">{{ checkinMode ? '先选择学生，再记录任务的执行情况' : '按班级与状态查阅学生的学业发展方案' }}</text></view>
     <view v-if="!checkinMode && auth.role === 'teacher'" class="action-bar">
       <button class="btn-primary" @click="openCreate">新建档案</button>
@@ -80,12 +81,13 @@
 </template>
 <script setup>
 import { ref, computed } from 'vue'
-import { onShow, onLoad } from '@dcloudio/uni-app'
+import { onShow, onHide, onLoad } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listStudentCases, listClasses, listClassStudents, listCaseCycles, createCaseCycle, createStudentCase, addStudentsToClass, listUsers } from '../../api/studentCases'
 import { CASE_STATUS_LABELS } from '../utils/constants'
 import { currentSchoolYear } from '../../utils/schoolYear'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
+import SubjectPlanReminders from '../../components/SubjectPlanReminders.vue'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import LoadState from '../../components/LoadState.vue'
@@ -223,7 +225,9 @@ async function submitCreate() {
   finally { creating.value = false }
 }
 onLoad(options => { checkinMode.value = options.action === 'checkin' })
-onShow(() => { if (guardRole()) refresh() })
+const assignmentReminders = ref(null)
+onShow(() => { if (guardRole()) { refresh(); assignmentReminders.value?.resume() } })
+onHide(() => assignmentReminders.value?.pause())
 </script>
 <style scoped>
 .page { padding: 28rpx 32rpx calc(40rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 24rpx; }

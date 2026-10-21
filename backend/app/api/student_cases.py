@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response, StreamingResponse
-from sqlalchemy import func, or_
+from sqlalchemy import String, cast, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ from app.models.student_case import (
     CASE_STATUS_PENDING_CONFIRMATION,
     CASE_STATUS_REVISION_REQUIRED,
     CaseCycle,
+    CaseAuditLog,
     CaseGoal,
     CaseImportBatch,
     CaseImportDocument,
@@ -538,6 +539,50 @@ def create_student_case(
     return _case_out(db, case)
 
 
+@router.get("/subject-plan-reminders")
+def subject_plan_reminders(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
+):
+    # 以最近一次明确分配和本人保存的审计序号判断待办；改派保留旧内容仍需新老师处理。
+    assigned = db.query(
+        CaseAuditLog.entity_id.label("plan_id"),
+        func.max(CaseAuditLog.id).label("log_id"),
+    ).filter_by(action="subject_plan.assigned", entity_type="subject_plan").group_by(CaseAuditLog.entity_id).subquery()
+    saved = db.query(
+        CaseAuditLog.entity_id.label("plan_id"),
+        func.max(CaseAuditLog.id).label("log_id"),
+    ).filter_by(action="subject_plan.upsert", entity_type="subject_plan", actor_id=user.id).filter(
+        # 旧日志没有内容标记，沿用历史保存记录；新日志明确排除空白保存。
+        func.coalesce(CaseAuditLog.detail["has_content"].as_boolean(), True).is_(True),
+    ).group_by(CaseAuditLog.entity_id).subquery()
+    empty_content = func.length(func.trim(func.concat(
+        SubjectPlan.problem_location, SubjectPlan.cause_analysis, SubjectPlan.struggle_goal,
+        SubjectPlan.gaokao_requirement, SubjectPlan.reinforcement,
+    ))) == 0
+    query = db.query(SubjectPlan, StudentCase, User.name, Class.name).join(
+        StudentCase, StudentCase.id == SubjectPlan.student_case_id,
+    ).join(User, User.id == StudentCase.student_id).outerjoin(
+        Class, Class.id == StudentCase.class_id,
+    ).join(assigned, assigned.c.plan_id == cast(SubjectPlan.id, String)).outerjoin(
+        saved, saved.c.plan_id == assigned.c.plan_id,
+    ).filter(
+        SubjectPlan.teacher_id == user.id,
+        SubjectPlan.subject != "德育",
+        StudentCase.status.in_(SUBJECT_PLAN_EDIT_STATUSES),
+        or_(saved.c.log_id.is_(None), saved.c.log_id < assigned.c.log_id, empty_content),
+    )
+    total = query.count()
+    rows = query.order_by(assigned.c.log_id.desc(), SubjectPlan.id).offset(offset).limit(limit).all()
+    return {"total": total, "items": [
+        {"plan_id": plan.id, "case_id": case.id, "student_name": student_name,
+         "class_name": class_name or "未分班", "subject": plan.subject}
+        for plan, case, student_name, class_name in rows
+    ]}
+
+
 @router.get("", response_model=list[StudentCaseOut])
 def list_student_cases(
     class_id: int | None = Query(default=None),
@@ -925,12 +970,17 @@ def upsert_subject_plan(
         body.teacher_name = user.name
     if case.status not in SUBJECT_PLAN_EDIT_STATUSES:
         raise HTTPException(status_code=409, detail="当前状态不能修改学科方案")
+    save_detail = {"subject": subject, "has_content": any(
+        (getattr(body, field) or "").strip() for field in (
+            "problem_location", "cause_analysis", "struggle_goal", "gaokao_requirement", "reinforcement",
+        )
+    )}
     if not manager:
         # 填写内容不经过姓名反查或班级关系同步，避免同名账号导致负责人变化。
         for field, value in body.model_dump().items():
             setattr(plan, field, value)
         db.flush()
-        audit(db, user.id, "subject_plan.upsert", "subject_plan", plan.id, case.id, {"subject": subject})
+        audit(db, user.id, "subject_plan.upsert", "subject_plan", plan.id, case.id, save_detail)
         db.commit()
         db.refresh(plan)
         return plan
@@ -972,7 +1022,7 @@ def upsert_subject_plan(
                 subject=subject,
             ))
     db.flush()
-    audit(db, user.id, "subject_plan.upsert", "subject_plan", plan.id, case.id, {"subject": subject})
+    audit(db, user.id, "subject_plan.upsert", "subject_plan", plan.id, case.id, save_detail)
     db.commit()
     db.refresh(plan)
     return plan

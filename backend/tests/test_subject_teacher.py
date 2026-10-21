@@ -320,6 +320,82 @@ def test_initial_filling_and_assignment_respect_review_locks(client, auth, db, s
         assert detail["editable_subjects"] == (["数学"] if writable else [])
 
 
+def test_assignment_reminder_persists_until_assignee_saves_content(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    teacher = db.query(User).filter_by(username="subject1").one()
+    manager, assignee = auth("teacher1"), auth("subject1")
+    url = f"/api/student-cases/{case_id}/subject-plans/数学"
+    reminders = "/api/student-cases/subject-plan-reminders"
+    assert client.get(reminders, headers=assignee).json() == {"total": 0, "items": []}
+    for _ in range(2):
+        assert client.put(url + "/assignment", headers=manager, json={"teacher_id": teacher.id}).status_code == 200
+    result = client.get(reminders, headers=assignee).json()
+    assert result["total"] == len(result["items"]) == 1
+    assert result["items"][0] == {
+        "plan_id": db.query(SubjectPlan).filter_by(student_case_id=case_id).one().id,
+        "case_id": case_id, "student_name": "张三", "class_name": "高二(1)班", "subject": "数学",
+    }
+    assert client.get(reminders, headers=auth("teacher2")).json()["total"] == 0
+    # 阅读、空白保存、班主任代改都不能冒充本人的填写。
+    client.get(f"/api/student-cases/{case_id}", headers=assignee)
+    body = {"subject": "数学", "teacher_id": teacher.id, "teacher_name": teacher.name}
+    assert client.put(url, headers=assignee, json={**body, "problem_location": "   "}).status_code == 200
+    assert client.get(reminders, headers=assignee).json()["total"] == 1
+    # 空白保存之后即使班主任补写，也仍需要本人处理。
+    assert client.put(url, headers=manager, json={**body, "problem_location": "班主任补充"}).status_code == 200
+    assert client.get(reminders, headers=assignee).json()["total"] == 1
+    assert client.put(url, headers=assignee, json={**body, "reinforcement": "每天练习"}).status_code == 200
+    assert client.get(reminders, headers=assignee).json() == {"total": 0, "items": []}
+
+
+def test_assignment_reminder_reassignment_and_editable_status_scope(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    teacher = db.query(User).filter_by(username="subject1").one()
+    db.add(ClassTeacher(class_id=class_id, teacher_id=seed_users["teacher2"], role="subject_teacher", subject="数学"))
+    db.commit()
+    manager, old, new = auth("teacher1"), auth("subject1"), auth("teacher2")
+    url = f"/api/student-cases/{case_id}/subject-plans/数学"
+    reminders = "/api/student-cases/subject-plan-reminders"
+    assert client.put(url + "/assignment", headers=manager, json={"teacher_id": teacher.id}).status_code == 200
+    assert client.put(url, headers=old, json={"subject": "数学", "teacher_id": teacher.id, "reinforcement": "原始内容"}).status_code == 200
+    assert client.put(url + "/assignment", headers=manager, json={"teacher_id": seed_users["teacher2"]}).status_code == 200
+    assert client.get(reminders, headers=old).json()["total"] == 0
+    assert client.get(reminders, headers=new).json()["total"] == 1
+    case = db.get(StudentCase, case_id)
+    for status in ["pending_confirmation", "executing", "adjusted", "archived", "revision_required", "pending_review"]:
+        case.status = status
+        db.commit()
+        assert client.get(reminders, headers=new).json()["total"] == (1 if status in {"revision_required", "pending_review"} else 0)
+    assert client.put(url, headers=new, json={"subject": "数学", "teacher_id": seed_users["teacher2"], "reinforcement": "新老师填写"}).status_code == 200
+    assert client.get(reminders, headers=new).json()["total"] == 0
+    # 再分配回原老师时，旧填写记录不能消除新的任务。
+    assert client.put(url + "/assignment", headers=manager, json={"teacher_id": teacher.id}).status_code == 200
+    assert client.get(reminders, headers=old).json()["total"] == 1
+
+
+def test_assignment_reminder_pagination_and_roles(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    teacher = db.query(User).filter_by(username="subject1").one()
+    db.add(ClassTeacher(class_id=class_id, teacher_id=teacher.id, role="subject_teacher", subject="英语"))
+    db.commit()
+    manager, assignee = auth("teacher1"), auth("subject1")
+    for subject in ["数学", "英语"]:
+        assert client.put(f"/api/student-cases/{case_id}/subject-plans/{subject}/assignment", headers=manager, json={"teacher_id": teacher.id}).status_code == 200
+    url = "/api/student-cases/subject-plan-reminders"
+    first = client.get(url, params={"limit": 1}, headers=assignee).json()
+    second = client.get(url, params={"limit": 1, "offset": 1}, headers=assignee).json()
+    assert first["total"] == second["total"] == 2
+    assert first["items"][0]["subject"] == "英语"
+    assert second["items"][0]["subject"] == "数学"
+    assert client.get(url, headers=auth("parent1")).status_code == 403
+    assert client.get(url, headers=auth("admin")).status_code == 403
+    assert client.get(url).status_code == 401
+    assert client.get(url, params={"limit": 0}, headers=assignee).status_code == 422
+
+
 def test_subject_teacher_register_with_invite(client, auth, db, seed_users):
     r = client.post(
         "/api/admin/invite-codes",

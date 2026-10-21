@@ -1,6 +1,7 @@
 import http from './index'
 
 export const listStudentCases = (params = {}) => http.get('/student-cases', { params })
+export const getSubjectPlanReminders = (params = {}) => http.get('/student-cases/subject-plan-reminders', { params })
 export const listCaseCycles = () => http.get('/student-cases/cycles')
 export const createCaseCycle = (data) => http.post('/student-cases/cycles', data)
 export const createStudentCase = (data) => http.post('/student-cases', data)

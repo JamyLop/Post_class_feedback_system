@@ -61,6 +61,7 @@
       </el-header>
 
       <el-main class="workspace">
+        <SubjectPlanReminders />
         <router-view />
       </el-main>
     </el-container>
@@ -69,6 +70,7 @@
 
 <script setup>
 import { onMounted } from 'vue'
+import SubjectPlanReminders from '../components/SubjectPlanReminders.vue'
 import { Calendar, Files } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'

@@ -697,7 +697,7 @@ const detail = ref(null)
 const deyuDialogVisible = ref(false)
 const deyuDecision = ref('approved')
 const deyuForm = ref({ subject: '', problem: '', corrective_action: '', correction_due_on: '' })
-const active = ref('overview')
+const active = ref(route.query.tab === 'subjects' ? 'subjects' : 'overview')
 const expandedTargetIndex = ref(null)
 const selectedGaokaoMonthKey = ref('')
 const targetScoreRows = ref([])
@@ -712,7 +712,7 @@ const versions = ref([])
 const versionsLoading = ref(false)
 const selectedVersionId = ref(null)
 const selectedVersion = computed(() => versions.value.find((v) => v.id === selectedVersionId.value) || versions.value[0] || null)
-const selectedSubject = ref('')
+const selectedSubject = ref(typeof route.query.subject === 'string' ? route.query.subject : '')
 const manualSubjects = ref([])
 const planForm = ref(createEmptyPlanForm())
 const suggestionText = ref('')
@@ -1129,6 +1129,7 @@ async function savePlan() {
     editingPlan.value = false
     planForm.value = createEmptyPlanForm()
     ElMessage.success(`${selectedSubject.value}方案已保存`)
+    window.dispatchEvent(new Event('subject-plan-updated'))
   } catch (e) {
     const detailMsg = e?.response?.data?.detail || e?.message || '保存失败，请重试'
     ElMessage.error(detailMsg)
@@ -1579,6 +1580,7 @@ async function load() {
   try {
     detail.value = await getStudentCase(route.params.id)
     if (!subjectOptions.value.includes(selectedSubject.value)) selectedSubject.value = subjectOptions.value[0] || ''
+    if (route.query.edit === '1' && active.value === 'subjects' && canEditPlan.value) startPlanEdit()
     const firstTask = tasksFor(selectedSubject.value)[0]
     checkinForm.value.task_id = firstTask?.id || null
     await loadWeeklyPoints()
@@ -1698,6 +1700,13 @@ async function handleArchive() {
     transitionError.value = e?.response?.data?.detail || e.message || '归档失败'
   } finally { submitting.value = false }
 }
+watch(() => [route.params.id, route.query.tab, route.query.subject, route.query.edit], () => {
+  if (!route.params.id) return
+  editingPlan.value = false
+  if (route.query.tab === 'subjects') active.value = 'subjects'
+  selectedSubject.value = typeof route.query.subject === 'string' ? route.query.subject : ''
+  load()
+})
 onMounted(load)
 </script>
 

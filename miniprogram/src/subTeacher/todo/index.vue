@@ -1,6 +1,7 @@
 <template>
   <view class="page">
     <WorkspaceLink />
+    <SubjectPlanReminders ref="assignmentReminders" />
     <view class="head">
       <text class="h1">{{ headTitle }}</text>
       <text class="p">{{ headDesc }}</text>
@@ -57,14 +58,16 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
+import SubjectPlanReminders from '../../components/SubjectPlanReminders.vue'
 import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShow, onHide } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { getCaseProgress, getTaskReminders, listStudentCases } from '../../api/studentCases'
 import LoadState from '../../components/LoadState.vue'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
 
 const auth = useAuthStore()
+const assignmentReminders = ref(null)
 const loading = ref(false)
 const error = ref('')
 const progress = ref({})
@@ -191,7 +194,8 @@ const headDesc = computed(() => ({
   subject_teacher: '查看所带班级学生档案',
 }[auth.role] || ''))
 
-onShow(() => { if (guardRole()) refresh() })
+onShow(() => { if (guardRole()) { refresh(); assignmentReminders.value?.resume() } })
+onHide(() => assignmentReminders.value?.pause())
 </script>
 
 <style scoped>

@@ -6,6 +6,7 @@ export const listClassStudents = (classId) => http.get(`/classes/${classId}/stud
 
 // ---- 一生一案：查询 ----
 export const listStudentCases = (params = {}) => http.get('/student-cases', params)
+export const getSubjectPlanReminders = (params = {}) => http.get('/student-cases/subject-plan-reminders', params)
 export const listCaseCycles = () => http.get('/student-cases/cycles')
 export const createCaseCycle = (data) => http.post('/student-cases/cycles', data)
 export const addStudentsToClass = (classId, studentIds, extra = {}) => {

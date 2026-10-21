@@ -46,6 +46,7 @@
       </el-header>
 
       <el-main ref="workspaceRef" class="workspace">
+        <SubjectPlanReminders v-if="auth.role === 'teacher'" />
         <router-view />
       </el-main>
     </el-container>
@@ -54,6 +55,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
+import SubjectPlanReminders from '../components/SubjectPlanReminders.vue'
 import { Bell, DataAnalysis, Files, Notebook, School, TrendCharts } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
