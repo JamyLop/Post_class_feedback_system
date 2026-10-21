@@ -11,7 +11,7 @@
       <view class="field"><text>填写状态</text><picker :range="statusNames" :value="statusIndex" @change="changeStatus"><view class="picker">{{ statusNames[statusIndex] }} ▾</view></picker></view>
     </view>
     <view v-if="!selectedStudent" class="search"><input v-model="keyword" placeholder="搜索学生" confirm-type="search" @confirm="query" /><button size="mini" :disabled="loading" @click="query">查询</button></view>
-    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : scope === 'supervision' ? '查看本学段所有老师的填写进度；点击学生查看各科状态与评定内容。' : auth.user?.supervisor_stage ? '科目与该生入学评定一致。主管查看本学段全部老师进度，任课老师查看本人科目。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</text>
+    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : scope === 'supervision' ? '查看本学段所有老师的填写进度；点击学生查看各科状态与评定内容。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</text>
     <view v-if="error" class="message"><text>填写状态加载失败</text><button size="mini" @click="load">重试</button></view>
     <template v-else>
       <text class="counts">{{ selectedStudent ? '' : `共 ${result.student_total} 名学生 · ` }}共 {{ result.total }} 项 · 已填写 {{ result.written }} 项 · 未填写 {{ result.unwritten }} 项</text>

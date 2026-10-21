@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.services.supervision_scope import can_supervise_class, supervised_class_ids, supervisor_stage
+from app.services.supervision_scope import can_supervise_class, supervised_class_ids
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.monthly_report import (
     MONTHLY_EVAL_ROLE_HEAD,
@@ -266,10 +266,8 @@ def list_reports(
             return []
         q = q.filter(MonthlyReport.class_id.in_(allowed))
     elif user.role == ROLE_SUBJECT_TEACHER:
-        # 任课老师看所带班级（全部状态，以便发布前提交学科评价）；学段主管额外查看本学段全部班级。
+        # 教学管理仅列本人任教班级；主管的学段进度在主管工作台查询。
         allowed = _subject_teacher_class_ids(db, user)
-        if supervisor_stage(user):
-            allowed |= supervised_class_ids(db, user)
         if not allowed:
             return []
         q = q.filter(MonthlyReport.class_id.in_(allowed))
@@ -305,15 +303,11 @@ def writing_status(
     _month_bounds(month_label)
     is_admin = user.role == ROLE_ADMIN
     is_supervision = scope == "supervision"
-    stage = supervisor_stage(user)
     allowed = {c.id for c in db.query(Class).all()} if is_admin else _subject_teacher_class_ids(db, user) | {
         c.id for c in db.query(Class).filter_by(teacher_id=user.id).all()
     }
     if is_supervision:
         allowed = supervised_class_ids(db, user)
-    elif stage:
-        # 主管在日常任课页面也能看到本学段其他老师的填写进度，但不获得代填权限。
-        allowed |= supervised_class_ids(db, user)
     if class_id is not None:
         allowed &= {class_id}
     classes = {c.id: c for c in db.query(Class).filter(Class.id.in_(allowed)).all()}
@@ -354,8 +348,8 @@ def writing_status(
         if keyword.strip().casefold() not in f"{student.name} {cls.name}".casefold():
             continue
         own_relations = [r for r in relations[cls.id] if r.teacher_id == user.id]
-        view_stage = bool(stage) and cls.education_stage == stage
-        is_head = is_admin or is_supervision or view_stage or cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
+        # 主管的管理职责仅在 supervision 查询生效，日常任课查询仍按本人职责汇总。
+        is_head = is_admin or is_supervision or cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
         report = reports.get((cls.id, student.id))
         case = cases_by_id.get(report.student_case_id) if report and report.student_case_id else latest_cases.get((cls.id, student.id))
         head_subjects = {r.subject for r in relations[cls.id] if r.teacher_id == cls.teacher_id and r.role == "subject_teacher"}
@@ -368,7 +362,7 @@ def writing_status(
         # 班主任可查看全班任课进度；任课老师仍仅查看本人职责，查看不授予代填权限。
         candidates = teachers.values() if is_head else [user]
         # 学科对应个人初评；德育是班主任固定职责，不依赖初评是否单独录入。
-        head = teachers.get(cls.teacher_id) if is_admin or is_supervision or view_stage else user
+        head = teachers.get(cls.teacher_id) if is_admin or is_supervision else user
         duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", head)] if is_head and head else []
         for teacher in candidates:
             teacher_relations = [r for r in relations[cls.id] if r.teacher_id == teacher.id]

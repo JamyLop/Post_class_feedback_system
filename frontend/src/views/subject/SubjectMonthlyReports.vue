@@ -66,7 +66,6 @@ import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
 import { completeReview } from '../../utils/monthlyReview'
 import { ElMessage } from 'element-plus'
 import { listClasses, listStudents } from '../../api/classes'
-import { listSupervisionClasses } from '../../api/users'
 import { createMonthlyReport, listMonthlyReports, saveMonthlyEvaluation } from '../../api/monthlyReports'
 
 const auth = useAuthStore()
@@ -149,15 +148,10 @@ async function onFilterClassChange() {
 
 async function loadClasses() {
   const requestId = ++classesRequestId
-  const stage = auth.user?.supervisor_stage || ''
-  const [ownClasses, stageClasses] = await Promise.all([
-    listClasses().catch(() => []),
-    stage ? listSupervisionClasses().catch(() => []) : Promise.resolve([]),
-  ])
+  const ownClasses = await listClasses().catch(() => [])
   if (requestId !== classesRequestId) return false
   teachingClasses.value = ownClasses
-  const seen = new Set()
-  classes.value = [...stageClasses, ...ownClasses].filter(c => !seen.has(c.id) && seen.add(c.id))
+  classes.value = ownClasses
   if (!classes.value.some(c => c.id === filters.value.class_id)) filters.value.class_id = null
   if (classes.value.length === 1) filters.value.class_id = classes.value[0].id
   return true

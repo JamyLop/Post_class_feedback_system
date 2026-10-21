@@ -32,6 +32,7 @@ function mountPage(t, page, initialStage = '') {
   })
   const api = {
     identity: async () => ({ supervisor_stage: initialStage }),
+    own: async () => own,
     stage: async () => stageClasses,
   }
   let lifecycle
@@ -40,7 +41,7 @@ function mountPage(t, page, initialStage = '') {
     onMounted: callback => { lifecycle = callback },
     onShow: callback => { lifecycle = callback },
     useAuthStore: () => auth,
-    listClasses: async () => { calls.own++; return own },
+    listClasses: async () => { calls.own++; return api.own() },
     listSupervisionClasses: async () => { calls.stage++; return api.stage() },
     listMonthlyReports: async params => { calls.reports.push({ ...params }); return [] },
     ElMessage: { error: message => calls.errors.push(message) },
@@ -59,13 +60,8 @@ function mountPage(t, page, initialStage = '') {
 
 const ids = page => Array.from(page.classes.value, row => row.id)
 const selectedId = page => page.filters ? page.filters.value.class_id : page.selectedClassId.value
-function selectStageClass(page) {
-  if (page.filters) page.filters.value.class_id = 10
-  else page.classIndex.value = 1
-}
-
 for (const page of pages) {
-  test(`${page.name}：等待最新身份后加载学段，旧缓存不会误选唯一任教班级`, async t => {
+  test(`${page.name}：同步主管身份后，教学入口仍只加载任教班级`, async t => {
     const view = mountPage(t, page)
     const identity = deferred()
     view.api.identity = () => identity.promise
@@ -75,25 +71,24 @@ for (const page of pages) {
     assert.equal(view.calls.stage, 0)
     identity.resolve({ supervisor_stage: '初中' })
     await opening
-    assert.deepEqual(ids(view), [10, 20])
+    assert.deepEqual(ids(view), [20])
     assert.deepEqual(Array.from(view.teachingClasses.value, row => row.id), [20])
-    assert.equal(selectedId(view), null)
-    assert.equal(view.calls.stage, 1)
-    assert.ok(view.calls.reports.every(params => !params.class_id))
+    assert.equal(selectedId(view), page.name === 'Web' ? 20 : null)
+    assert.equal(view.calls.stage, 0)
+    assert.ok(view.calls.reports.every(params => !params.class_id || params.class_id === 20))
   })
 
-  test(`${page.name}：登录期间授予、撤销主管身份会重载范围及旧筛选`, async t => {
+  test(`${page.name}：授予、撤销主管身份均不扩大学科评定班级范围`, async t => {
     const view = mountPage(t, page)
     await view.lifecycle()
     view.auth.user = { supervisor_stage: '初中' }
     await settle()
-    assert.deepEqual(ids(view), [10, 20])
-    assert.equal(selectedId(view), null)
-    selectStageClass(view)
+    assert.deepEqual(ids(view), [20])
     view.auth.user = { supervisor_stage: '' }
     await settle()
     assert.deepEqual(ids(view), [20])
     assert.notEqual(selectedId(view), 10)
+    assert.equal(view.calls.stage, 0)
     assert.ok(view.calls.writing >= 3)
   })
 
@@ -104,8 +99,9 @@ for (const page of pages) {
     const before = view.calls.own
     await view.refreshPage()
     await settle()
-    assert.deepEqual(ids(view), [10, 20])
-    assert.equal(selectedId(view), null)
+    assert.deepEqual(ids(view), [20])
+    assert.equal(selectedId(view), page.name === 'Web' ? 20 : null)
+    assert.equal(view.calls.stage, 0)
     assert.equal(view.calls.own - before, 1)
   })
 
@@ -119,18 +115,19 @@ for (const page of pages) {
     assert.equal(view.calls.reports.length, 0)
   })
 
-  test(`${page.name}：撤销身份后，先前的慢请求不能恢复主管班级`, async t => {
+  test(`${page.name}：任教班级慢请求不能覆盖最新班级范围`, async t => {
     const view = mountPage(t, page)
     await view.lifecycle()
     const stale = deferred()
-    view.api.stage = () => stale.promise
+    view.api.own = () => stale.promise
     view.auth.user = { supervisor_stage: '初中' }
     await settle()
-    assert.equal(view.calls.stage, 1)
+    assert.equal(view.calls.own, 2)
+    view.api.own = async () => own
     view.auth.user = { supervisor_stage: '' }
     await settle()
     assert.deepEqual(ids(view), [20])
-    stale.resolve(stageClasses)
+    stale.resolve([{ id: 30, name: '原任教班级' }])
     await settle()
     assert.deepEqual(ids(view), [20])
     assert.deepEqual(Array.from(view.teachingClasses.value, row => row.id), [20])
@@ -139,12 +136,13 @@ for (const page of pages) {
 
 test('小程序：返回页面时班级顺序变化，仍按班级 ID 保留原选择', async t => {
   const view = mountPage(t, pages[1], '初中')
+  view.api.own = async () => [{ id: 30, name: '本人第二个任教班级' }, ...own]
   await view.lifecycle()
   view.classIndex.value = 2
   assert.equal(selectedId(view), 20)
-  view.api.stage = async () => [...own, { id: 10, name: '学段其他班级' }]
+  view.api.own = async () => [...own, { id: 30, name: '本人第二个任教班级' }]
   await view.lifecycle()
-  assert.deepEqual(ids(view), [20, 10])
+  assert.deepEqual(ids(view), [20, 30])
   assert.equal(selectedId(view), 20)
   assert.equal(view.calls.reports.at(-1).class_id, 20)
 })

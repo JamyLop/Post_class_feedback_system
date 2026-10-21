@@ -75,7 +75,6 @@ import { ref, computed, nextTick, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listMonthlyReports } from '../../api/monthlyReports'
-import { listSupervisionClasses } from '../../api/studentCases'
 import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
@@ -116,16 +115,11 @@ function guardRole() {
 async function loadClasses() {
   const requestId = ++classesRequestId
   const selectedId = selectedClassId.value
-  const stage = auth.user?.supervisor_stage || ''
-  const [own, stageClasses] = await Promise.all([
-    listClasses().catch(() => []),
-    stage ? listSupervisionClasses().catch(() => []) : Promise.resolve([]),
-  ])
+  const own = await listClasses().catch(() => [])
   if (requestId !== classesRequestId) return false
   teachingClassList.value = own
-  const seen = new Set()
-  classList.value = [...stageClasses, ...own].filter(c => !seen.has(c.id) && seen.add(c.id))
-  // 扩大或收回查看范围后，picker 的旧下标不能指向另一个班。
+  classList.value = own
+  // 任教班级变化后，picker 的旧下标不能指向另一个班。
   classIndex.value = selectedId ? classList.value.findIndex(c => c.id === selectedId) + 1 : 0
   return true
 }

@@ -60,15 +60,13 @@ def test_supervisor_stage_scope_and_read_only(client, auth, db, supervision_data
     assert len(rows) == 2 and {r["class_id"] for r in rows} == {data["classes"][index]}
     assert {r["teacher_id"] for r in rows} == {data["regular"], db.get(Class, data["classes"][index]).teacher_id}
     assert all(r["can_edit"] is False for r in rows)
-    # 日常任课页面同样能看到本学段其他老师的进度与评定，但不混入其他学段。
+    # 日常教学入口只看本人职责；班级数学已明确分配给其他老师，主管没有待填项。
     daily = client.get("/api/monthly-reports/writing-status", headers=supervisor,
                        params={"month_label": "2026-10"}).json()
-    assert {r["class_id"] for r in daily["items"]} == {data["classes"][index]}
-    assert {r["teacher_id"] for r in daily["items"]} == {data["regular"], db.get(Class, data["classes"][index]).teacher_id}
+    assert daily["items"] == [] and daily["total"] == 0
     listing = client.get("/api/monthly-reports", headers=supervisor,
                          params={"month_label": "2026-10"}).json()
-    assert data["classes"][index] in {r["class_id"] for r in listing}
-    assert data["reports"][index] in {r["id"] for r in listing}
+    assert [r["id"] for r in listing] == [data["reports"][1]]
     opposite = client.get("/api/monthly-reports/writing-status", headers=supervisor,
                           params={**params, "class_id": data["classes"][1-index]}).json()
     assert opposite["items"] == [] and opposite["total"] == 0
@@ -98,6 +96,44 @@ def test_supervisor_stage_scope_and_read_only(client, auth, db, supervision_data
     if index == 0:
         assert client.get(f"/api/monthly-reports/{data['reports'][0]}", headers=supervisor).status_code == 403
     assert db.query(ClassTeacher).filter_by(teacher_id=data["manager"]).count() == 1
+
+
+@pytest.mark.parametrize("stage", ["初中", "高中"])
+def test_supervisor_teaching_progress_only_counts_own_subjects(client, auth, db, supervision_data, stage):
+    data = supervision_data
+    manager = db.get(User, data["manager"])
+    manager.supervisor_stage = stage
+    db.add(SubjectPlan(student_case_id=data["cases"][1], subject="英语",
+                       teacher_id=manager.id, teacher_name=manager.name))
+    db.commit()
+    headers = auth("stage-manager")
+    url = "/api/monthly-reports/writing-status"
+    params = {"month_label": "2026-10"}
+    # 无论是否在所管学段任教，教学入口只统计自己的英语，不计其他老师已填的数学、德育。
+    for scope in ({}, {"scope": "teaching"}):
+        response = client.get(url, headers=headers, params={**params, **scope})
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert (result["total"], result["written"], result["unwritten"]) == (1, 0, 1)
+        row, = result["items"]
+        assert (row["class_id"], row["subject"], row["teacher_id"], row["can_edit"]) == (
+            data["classes"][1], "英语", data["manager"], True)
+    summary = client.get(url, headers=headers, params={**params, "view": "students"}).json()
+    student, = summary["students"]
+    assert summary["student_total"] == 1
+    assert (student["class_id"], student["total"], student["written"], student["unwritten"]) == (
+        data["classes"][1], 1, 0, 1)
+    other_class = client.get(url, headers=headers, params={**params, "class_id": data["classes"][0]}).json()
+    assert other_class["total"] == 0 and other_class["items"] == []
+    assert client.put(f"/api/monthly-reports/{data['reports'][1]}/evaluation", headers=headers,
+                      json={"content": "本人英语评定"}).status_code == 200
+    written = client.get(url, headers=headers, params={**params, "writing_status": "written"}).json()
+    assert (written["total"], written["written"], written["unwritten"], written["filtered_total"]) == (1, 1, 0, 1)
+    assert written["items"][0]["subject"] == "英语"
+    # 主管工作台仍按管理学段汇总全部科目，并保持只读。
+    supervision = client.get(url, headers=headers, params={**params, "scope": "supervision"}).json()
+    assert {r["subject"] for r in supervision["items"]} == ({"数学", "德育"} if stage == "初中" else {"数学", "英语", "德育"})
+    assert all(r["can_edit"] is False for r in supervision["items"])
 
 
 def test_only_admin_can_assign_active_subject_teachers(client, auth, db, supervision_data, seed_users):

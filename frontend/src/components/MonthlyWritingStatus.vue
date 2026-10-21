@@ -18,7 +18,7 @@
       <el-input v-model="keyword" aria-label="搜索学生" placeholder="搜索学生，回车查询" clearable @keyup.enter="query" @clear="query" />
       <el-button :loading="loading" @click="query">查询</el-button>
     </div>
-    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : scope === 'supervision' ? '查看本学段所有老师的填写进度；点击学生查看各科状态与评定内容。' : isAdmin ? '科目与该生入学评定一致。选择班级查看班级汇总，点击学生查看各科填写情况。' : auth.user?.supervisor_stage ? '科目与该生入学评定一致。主管查看本学段全部老师进度，任课老师查看本人科目。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</p>
+    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : scope === 'supervision' ? '查看本学段所有老师的填写进度；点击学生查看各科状态与评定内容。' : isAdmin ? '科目与该生入学评定一致。选择班级查看班级汇总，点击学生查看各科填写情况。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <el-button v-if="error" @click="load">重新加载</el-button>
     <template v-else>
