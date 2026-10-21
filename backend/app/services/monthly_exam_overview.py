@@ -20,7 +20,7 @@ def _rank(entries):
         previous = value
 
 
-def build_overview(db, user, query, exam_month, class_id, grade, subject, keyword, limit, offset):
+def build_overview(db, user, query, exam_month, class_id, grade, subject, keyword, limit, offset, *, supervision=False):
     query = query.filter(WeeklyTestScore.exam_month.is_not(None), WeeklyTestScore.exam_month != "")
     months = [row[0] for row in query.with_entities(WeeklyTestScore.exam_month).distinct()
               .order_by(WeeklyTestScore.exam_month.desc()).all()]
@@ -30,7 +30,7 @@ def build_overview(db, user, query, exam_month, class_id, grade, subject, keywor
     classes = {cls.id: cls for cls in db.query(Class).filter(Class.id.in_(class_ids)).all()} if class_ids else {}
     student_ids = {record.student_id for record in records}
     students = {student.id: student for student in db.query(User).filter(User.id.in_(student_ids)).all()} if student_ids else {}
-    global_access = user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR)
+    global_access = supervision or user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR)
     head_ids = {cls.id for cls in classes.values() if cls.teacher_id == user.id}
     head_ids.update(row.class_id for row in db.query(ClassTeacher).filter_by(teacher_id=user.id, role="head_teacher").all())
 

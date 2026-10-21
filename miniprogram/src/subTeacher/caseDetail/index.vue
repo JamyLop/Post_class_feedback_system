@@ -29,6 +29,8 @@
         <view v-if="detail.viewer_role === 'subject_teacher'" class="actions-bar">
           <view class="action-btn primary" @click="goSuggestion"><text>学科建议</text></view>
         </view>
+        <view v-if="auth.role === 'admin'" class="actions-bar"><view class="action-btn primary" @click="goReview"><text>填写校级督查意见</text></view></view>
+        <AdminCaseStatus :case-id="detail.id" :status="detail.status" @saved="load" />
       </view>
 
       <view class="tabs">
@@ -70,19 +72,21 @@
         </view>
 
         <view v-if="active==='subjects'" class="tab-panel">
+          <view v-if="detail.can_assign_subjects" class="section-head-row"><text class="section-h">入学初评</text><text class="add-link" @click="goAssignPlans">分配填写</text></view>
           <view v-if="!detail.subject_plans.length" class="empty-text">暂无学科方案</view>
           <view v-for="plan in detail.subject_plans" :key="plan.id" class="plan-card">
             <view class="plan-head">
               <text class="subject-chip">{{ plan.subject }}</text>
-              <text v-if="detail.can_manage" class="edit-link" @click="goEditPlan(plan.subject)">编辑</text>
+              <text v-if="canEditPlan(plan.subject)" class="edit-link" @click="goEditPlan(plan.subject)">填写初评</text>
             </view>
+            <view class="field"><text class="dt">负责老师</text><text class="dd">{{ plan.teacher_name || '待分配' }}</text></view>
             <view class="field"><text class="dt">问题定位</text><text class="dd">{{ plan.problem_location || '—' }}</text></view>
             <view class="field"><text class="dt">原因剖析</text><text class="dd">{{ plan.cause_analysis || '—' }}</text></view>
             <view class="field"><text class="dt">奋斗目标</text><text class="dd">{{ plan.struggle_goal || '—' }}</text></view>
             <view class="field"><text class="dt">高考要求</text><text class="dd">{{ plan.gaokao_requirement || '—' }}</text></view>
             <view class="field"><text class="dt">具体强化</text><text class="dd">{{ plan.reinforcement || '—' }}</text></view>
           </view>
-          <view v-if="detail.can_manage" class="add-plan">
+          <view v-if="detail.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.status)" class="add-plan">
             <picker :range="availableSubjects" @change="onAddPlan">
               <text class="add-link">+ 新增学科方案</text>
             </picker>
@@ -116,7 +120,7 @@
         </view>
 
         <view v-if="active==='reviews'" class="tab-panel">
-          <view v-if="detail.can_manage" class="section-head-row">
+          <view v-if="detail.can_manage || auth.role === 'admin'" class="section-head-row">
             <text class="section-h">督查记录</text>
             <text class="add-link" @click="goReview">提交督查</text>
           </view>
@@ -130,6 +134,8 @@
 </template>
 
 <script setup>
+import AdminCaseStatus from '../../components/AdminCaseStatus.vue'
+import { useAuthStore } from '../../stores/auth'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
@@ -140,6 +146,7 @@ import Timeline from '../../components/Timeline.vue'
 import EmptyState from '../../components/EmptyState.vue'
 
 const loading = ref(false)
+const auth = useAuthStore()
 const detail = ref(null)
 const active = ref('overview')
 const weeklyPoints = ref(null)
@@ -239,6 +246,8 @@ function goEdit() { uni.navigateTo({ url: `/subTeacher/caseEdit/index?caseId=${c
 function goTasks() { uni.navigateTo({ url: `/subTeacher/taskManager/index?caseId=${caseId()}` }) }
 function goCheckin(taskId) { uni.navigateTo({ url: `/subTeacher/checkin/index?caseId=${caseId()}&taskId=${taskId}` }) }
 function goReview() { uni.navigateTo({ url: `/subTeacher/reviewCreate/index?caseId=${caseId()}` }) }
+function canEditPlan(subject) { return (detail.value?.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.value?.status)) || detail.value?.editable_subjects?.includes(subject) }
+function goAssignPlans() { uni.navigateTo({ url: `/subTeacher/caseEdit/index?caseId=${caseId()}&tab=subjects` }) }
 function goEditPlan(subject) { uni.navigateTo({ url: `/subTeacher/caseEdit/index?caseId=${caseId()}&tab=subjects&subject=${encodeURIComponent(subject)}` }) }
 function goSuggestion() { uni.navigateTo({ url: `/subTeacher/subjectSuggestion/index?id=${caseId()}` }) }
 function onAddPlan(e) {

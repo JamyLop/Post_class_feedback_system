@@ -52,6 +52,11 @@ class StudentCaseTransition(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class AdminCaseStatusChange(StudentCaseTransition):
+    expected_status: str = Field(min_length=1, max_length=32)
+    reason: str = Field(min_length=1, max_length=500)
+
+
 class StudentCaseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -136,6 +141,16 @@ class SubjectPlanOut(SubjectPlanUpsert):
     id: int
     student_case_id: int
     status: str
+
+
+class SubjectPlanAssignment(BaseModel):
+    teacher_id: int
+
+
+class SubjectTeacherOption(BaseModel):
+    teacher_id: int
+    teacher_name: str
+    subject: str
 
 
 class SubjectSuggestionCreate(BaseModel):
@@ -305,6 +320,9 @@ class GuardianAccountOut(BaseModel):
 class StudentCaseDetail(StudentCaseOut):
     viewer_role: str = ""
     can_manage: bool = False
+    editable_subjects: list[str] = []
+    can_assign_subjects: bool = False
+    subject_teacher_options: list[SubjectTeacherOption] = []
     student_profile: CaseStudentProfileOut
     guardian_accounts: list[GuardianAccountOut] = []
     subject_plans: list[SubjectPlanOut] = []

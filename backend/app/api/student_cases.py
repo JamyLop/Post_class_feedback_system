@@ -36,6 +36,7 @@ from app.models.student_case import (
 )
 from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
 from app.schemas.student_case import (
+    AdminCaseStatusChange,
     CaseCycleCreate,
     CaseCycleOut,
     CaseGoalCreate,
@@ -60,6 +61,7 @@ from app.schemas.student_case import (
     StudentCaseTransition,
     StudentCaseUpdate,
     SubjectPlanOut,
+    SubjectPlanAssignment,
     SubjectPlanUpsert,
     SubjectSuggestionCreate,
     SubjectSuggestionOut,
@@ -72,6 +74,8 @@ from app.services.student_case_service import (
     STUDENT_VISIBLE_STATUSES,
     audit,
     can_consultant_manage,
+    can_fill_subject_plan,
+    SUBJECT_PLAN_EDIT_STATUSES,
     is_head_teacher,
     require_case_access,
     require_case_manager,
@@ -232,7 +236,7 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
                 "other_health_notes": "",
             }
     # 任课老师：与班主任同等的档案可见性（健康按档案可见性开关脱敏），
-    # 仅学科方案列表按所带学科过滤（见下方 subject_plans），修改走学科建议链路。
+    # 学科方案按所带学科过滤；只有明确分配给本人的科目可以直接填写。
     result = {
         **_case_out(db, case),
         "viewer_role": user.role,
@@ -261,6 +265,20 @@ def _detail(db: Session, case: StudentCase, user: User) -> dict:
             else []
         ),
     }
+    plans = db.query(SubjectPlan).filter_by(student_case_id=case.id).all()
+    result["editable_subjects"] = [p.subject for p in plans if can_fill_subject_plan(db, case, user, p)]
+    result["can_assign_subjects"] = result["can_manage"] and case.status in SUBJECT_PLAN_EDIT_STATUSES and case.class_id is not None
+    result["subject_teacher_options"] = [
+        {"teacher_id": teacher.id, "teacher_name": teacher.name, "subject": link.subject}
+        for link, teacher in db.query(ClassTeacher, User).join(User, User.id == ClassTeacher.teacher_id).filter(
+            ClassTeacher.class_id == case.class_id,
+            ClassTeacher.role == "subject_teacher",
+            ClassTeacher.subject != "德育",
+            ClassTeacher.subject != "",
+            User.role.in_([ROLE_TEACHER, ROLE_SUBJECT_TEACHER]),
+            User.status == "active",
+        ).order_by(ClassTeacher.subject, User.id).all()
+    ] if result["can_manage"] and case.class_id is not None else []
     if review_query is not None:
         result["reviews"] = review_query.order_by(CaseReview.reviewed_at.desc()).all()
     return result
@@ -684,6 +702,46 @@ def upsert_student_profile(
     return profile
 
 
+@router.put("/{case_id}/admin-status", response_model=StudentCaseOut)
+def admin_change_case_status(
+    case_id: int, body: AdminCaseStatusChange,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_ADMIN])),
+):
+    from app.services.student_case_service import snapshot_payload
+    case = db.query(StudentCase).filter(StudentCase.id == case_id).with_for_update().first()
+    if case is None:
+        raise HTTPException(status_code=404, detail="学生总案不存在")
+    if case.status != body.expected_status:
+        raise HTTPException(status_code=409, detail="档案状态已变化，请刷新后重新调整")
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="请填写调整原因")
+    if case.status == body.target_status:
+        raise HTTPException(status_code=409, detail="目标状态与当前状态相同")
+    old_status = case.status
+    # 状态维护不切换教学阶段版本，避免任务积分被分到新阶段；操作前内容存入审计快照。
+    before = snapshot_payload(db, case)
+    now = datetime.now(timezone.utc)
+    for review in db.query(CaseReview).filter(
+        CaseReview.student_case_id == case.id,
+        CaseReview.workflow_status.in_(["open", "resubmitted"]),
+    ).all():
+        review.workflow_status = "closed"
+        review.resolved_at = now
+    case.status = body.target_status
+    if body.target_status == CASE_STATUS_REVISION_REQUIRED:
+        # 管理员退回也建立整改事项，保证班主任完成整改后仍可正常重新送审。
+        db.add(CaseReview(student_case_id=case.id, review_level="school", reviewer_id=user.id,
+                          decision="changes_requested", problem=reason, corrective_action=reason,
+                          workflow_status="open", visibility="internal", assigned_to=case.owner_teacher_id, target_version=case.version))
+    audit(db, user.id, "case.admin_status_changed", "student_case", case.id, case.id,
+          {"from": old_status, "to": case.status, "reason": reason, "version": case.version, "snapshot": before})
+    db.commit()
+    db.refresh(case)
+    return _case_out(db, case)
+
+
 @router.post("/{case_id}/transition", response_model=StudentCaseOut)
 def change_case_status(
     case_id: int,
@@ -703,11 +761,11 @@ def change_case_status(
             db.query(CaseReview)
             .filter_by(
                 student_case_id=case.id,
-                review_level="deyu",
                 decision="changes_requested",
                 workflow_status="open",
                 assigned_to=user.id,
             )
+            .filter(CaseReview.review_level.in_(["deyu", "school"]))
             .order_by(CaseReview.reviewed_at.desc())
             .first()
         )
@@ -809,21 +867,92 @@ def case_weekly_points(
     )
 
 
+@router.put("/{case_id}/subject-plans/{subject}/assignment", response_model=SubjectPlanOut)
+def assign_subject_plan(
+    case_id: int,
+    subject: str,
+    body: SubjectPlanAssignment,
+    db: Session = Depends(get_db),
+    user: User = Depends(_case_maintainer),
+):
+    case = require_case_access(db, case_id, user, write=True)
+    require_case_manager(db, case, user)
+    case = db.query(StudentCase).filter_by(id=case_id).populate_existing().with_for_update().one()
+    if case.status not in SUBJECT_PLAN_EDIT_STATUSES:
+        raise HTTPException(status_code=409, detail="当前状态不能分配入学初评")
+    if not subject.strip() or len(subject) > 32 or subject == "德育":
+        raise HTTPException(status_code=400, detail="请选择具体学科，德育由班主任维护")
+    teacher = db.get(User, body.teacher_id)
+    link = db.query(ClassTeacher).filter_by(
+        class_id=case.class_id, teacher_id=body.teacher_id, subject=subject, role="subject_teacher"
+    ).first() if case.class_id is not None else None
+    if link is None or teacher is None or teacher.role not in {ROLE_TEACHER, ROLE_SUBJECT_TEACHER} or teacher.status != "active":
+        raise HTTPException(status_code=400, detail="只能分配给本班该科已关联且启用的任课老师")
+    plan = db.query(SubjectPlan).filter_by(student_case_id=case_id, subject=subject).with_for_update().first()
+    previous_teacher_id = plan.teacher_id if plan else None
+    if plan is None:
+        plan = SubjectPlan(student_case_id=case_id, subject=subject, teacher_id=teacher.id)
+        db.add(plan)
+    plan.teacher_id = teacher.id
+    plan.teacher_name = teacher.name
+    db.flush()
+    audit(db, user.id, "subject_plan.assigned", "subject_plan", plan.id, case.id,
+          {"subject": subject, "previous_teacher_id": previous_teacher_id, "teacher_id": teacher.id})
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
 @router.put("/{case_id}/subject-plans/{subject}", response_model=SubjectPlanOut)
 def upsert_subject_plan(
     case_id: int,
     subject: str,
     body: SubjectPlanUpsert,
     db: Session = Depends(get_db),
-    user: User = Depends(_case_maintainer),
+    user: User = Depends(require_roles([ROLE_TEACHER, ROLE_CONSULTANT, ROLE_SUBJECT_TEACHER])),
 ):
     if body.subject != subject:
         raise HTTPException(status_code=400, detail="路径学科与请求内容不一致")
-    case = require_case_access(db, case_id, user, write=True, subject=subject)
-    require_case_manager(db, case, user)
-    if case.status not in {"draft", "revision_required", "pending_review"}:
+    case = require_case_access(db, case_id, user, subject=subject)
+    case = db.query(StudentCase).filter_by(id=case_id).populate_existing().with_for_update().one()
+    plan = db.query(SubjectPlan).filter_by(student_case_id=case_id, subject=subject).with_for_update().first()
+    manager = (user.role == ROLE_TEACHER and is_head_teacher(db, case.class_id, user.id)) or can_consultant_manage(db, case, user)
+    if not manager:
+        if plan is None or plan.subject == "德育" or plan.teacher_id != user.id:
+            raise HTTPException(status_code=403, detail="只能填写已分配给本人的入学初评科目")
+        if body.teacher_id != plan.teacher_id or body.teacher_name.strip() not in {"", plan.teacher_name, user.name}:
+            raise HTTPException(status_code=403, detail="任课老师不能变更初评负责人")
+        body.teacher_name = user.name
+    if case.status not in SUBJECT_PLAN_EDIT_STATUSES:
         raise HTTPException(status_code=409, detail="当前状态不能修改学科方案")
-    plan = db.query(SubjectPlan).filter_by(student_case_id=case_id, subject=subject).first()
+    if not manager:
+        # 填写内容不经过姓名反查或班级关系同步，避免同名账号导致负责人变化。
+        for field, value in body.model_dump().items():
+            setattr(plan, field, value)
+        db.flush()
+        audit(db, user.id, "subject_plan.upsert", "subject_plan", plan.id, case.id, {"subject": subject})
+        db.commit()
+        db.refresh(plan)
+        return plan
+    # 旧客户端把班主任 ID 当作任课 ID；姓名需解析到真实账号后才能授予班级权限。
+    if plan is not None and body.teacher_id == case.owner_teacher_id and not body.teacher_name.strip():
+        assigned_teacher = db.get(User, plan.teacher_id)
+        if assigned_teacher is not None and assigned_teacher.role == ROLE_SUBJECT_TEACHER:
+            body.teacher_id = plan.teacher_id
+            body.teacher_name = plan.teacher_name
+    teacher_name = body.teacher_name.strip()
+    teacher = db.get(User, body.teacher_id)
+    # 明确账号且姓名一致时保留 ID，兼课班主任与任课老师同名也不能被全局反查改派。
+    if teacher_name and not (teacher is not None and teacher.name == teacher_name and teacher.role in {ROLE_TEACHER, ROLE_SUBJECT_TEACHER}):
+        matches = db.query(User).filter_by(role=ROLE_SUBJECT_TEACHER, name=teacher_name).all()
+        if len(matches) > 1:
+            raise HTTPException(status_code=409, detail="存在同名任课老师，请由管理员明确班级任课关联")
+        if matches:
+            teacher = matches[0]
+            body.teacher_id = teacher.id
+        elif teacher is not None and teacher.role == ROLE_SUBJECT_TEACHER and teacher.name != teacher_name:
+            raise HTTPException(status_code=400, detail="任课老师姓名与账号不一致")
+    body.teacher_name = teacher_name
     if plan is None:
         plan = SubjectPlan(student_case_id=case_id, **body.model_dump())
         db.add(plan)
@@ -831,7 +960,7 @@ def upsert_subject_plan(
         for field, value in body.model_dump().items():
             setattr(plan, field, value)
     # 自动同步 class_teachers：确保该任课老师与班级关联（无班级档案暂不同步，入班后由班主任维护）
-    if body.teacher_id and case.class_id is not None:
+    if teacher is not None and teacher.role == ROLE_SUBJECT_TEACHER and case.class_id is not None:
         exists = db.query(ClassTeacher).filter_by(
             class_id=case.class_id, teacher_id=body.teacher_id, subject=subject
         ).first()
@@ -1050,7 +1179,7 @@ def decide_deyu_review(
         # 复审通过时关闭本轮所有已重新提交的退回意见，同时保留每轮审查原文。
         previous_returns = db.query(CaseReview).filter(
             CaseReview.student_case_id == case.id,
-            CaseReview.review_level == "deyu",
+            CaseReview.review_level.in_(["deyu", "school"]),
             CaseReview.decision == "changes_requested",
             CaseReview.workflow_status.in_(["open", "resubmitted"]),
         ).all()

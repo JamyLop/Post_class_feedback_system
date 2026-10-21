@@ -4,14 +4,14 @@
     <view v-if="loading" class="loading-bar">
       <text class="loading-text">加载中...</text>
     </view>
-    <template v-else>
+    <template v-else-if="detail">
       <view class="tabs">
         <view class="tab-bar">
-          <text class="tab" :class="{ active: tab==='basic' }" @click="tab='basic'">总案信息</text>
+          <text v-if="detail?.can_manage" class="tab" :class="{ active: tab==='basic' }" @click="tab='basic'">总案信息</text>
           <text class="tab" :class="{ active: tab==='subjects' }" @click="tab='subjects'">学科方案</text>
         </view>
 
-        <view v-if="tab==='basic'" class="tab-panel">
+        <view v-if="tab==='basic' && detail?.can_manage" class="tab-panel">
           <view class="form">
             <view class="field">
               <text class="label">总体问题</text>
@@ -34,12 +34,17 @@
           <view v-for="plan in plans" :key="plan.subject" class="plan-card">
             <view class="plan-head">
               <text class="subject-chip">{{ plan.subject }}</text>
-              <text class="edit-link" @click="editPlan(plan)">编辑</text>
+              <text v-if="canEditPlan(plan.subject)" class="edit-link" @click="editPlan(plan)">填写初评</text>
             </view>
+            <view class="field"><text class="dt">负责老师</text><text class="dd">{{ plan.teacher_name || '待分配' }}</text></view>
+            <picker v-if="detail.can_assign_subjects && teacherOptions(plan.subject).length" :range="teacherOptions(plan.subject)" range-key="label" :disabled="savingAssignment" @change="assignPlan(plan.subject, $event)">
+              <view class="add-btn">分配给任课老师填写</view>
+            </picker>
+            <text v-else-if="detail.can_assign_subjects && plan.subject !== '德育'" class="dt">本班尚未关联该科任课老师，请联系管理员维护。</text>
             <view class="field"><text class="dt">问题定位</text><text class="dd">{{ plan.problem_location || '—' }}</text></view>
             <view class="field"><text class="dt">原因剖析</text><text class="dd">{{ plan.cause_analysis || '—' }}</text></view>
           </view>
-          <picker :range="availableSubjects" @change="onAddPlan">
+          <picker v-if="canManagePlans && availableSubjects.length" :range="availableSubjects" @change="onAddPlan">
             <view class="add-btn"><text class="add-link">+ 新增学科方案</text></view>
           </picker>
         </view>
@@ -88,11 +93,12 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getStudentCase, updateStudentCase, upsertSubjectPlan } from '../../api/studentCases'
+import { assignSubjectPlan, getStudentCase, updateStudentCase, upsertSubjectPlan } from '../../api/studentCases'
 
 const loading = ref(false)
 const saving = ref(false)
 const savingPlan = ref(false)
+const savingAssignment = ref(false)
 const tab = ref('basic')
 const detail = ref(null)
 const showPlanForm = ref(false)
@@ -103,6 +109,24 @@ const planForm = reactive({ problem_location: '', cause_analysis: '', struggle_g
 
 const plans = computed(() => detail.value?.subject_plans || [])
 const allSubjects = ['语文','数学','英语','日语','物理','化学','生物','政治','历史','地理','德育']
+const canManagePlans = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.value?.status))
+function canEditPlan(subject) { return canManagePlans.value || detail.value?.editable_subjects?.includes(subject) }
+function teacherOptions(subject) {
+  return (detail.value?.subject_teacher_options || []).filter(t => t.subject === subject).map(t => ({ ...t, label: `${t.teacher_name}（账号 ${t.teacher_id}）` }))
+}
+async function assignPlan(subject, event) {
+  const teacher = teacherOptions(subject)[Number(event.detail.value)]
+  if (!teacher || savingAssignment.value) return
+  savingAssignment.value = true
+  try {
+    await assignSubjectPlan(getCaseId(), subject, teacher.teacher_id)
+    showPlanForm.value = false
+    detail.value = await getStudentCase(getCaseId())
+    uni.showToast({ title: '已分配给任课老师', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: e.message || '分配失败', icon: 'none' })
+  } finally { savingAssignment.value = false }
+}
 const availableSubjects = computed(() => {
   const used = new Set(plans.value.map(p => p.subject))
   return allSubjects.filter(s => !used.has(s))
@@ -120,6 +144,7 @@ async function load() {
     const id = getCaseId()
     if (!id) throw new Error('缺少 caseId')
     detail.value = await getStudentCase(id)
+    if (!detail.value.can_manage) tab.value = 'subjects'
     basicForm.overall_problem = detail.value.overall_problem || ''
     basicForm.admission_target = detail.value.admission_target || ''
     basicForm.current_summary = detail.value.current_summary || ''
@@ -153,7 +178,8 @@ async function saveBasic() {
 }
 
 function editPlan(plan) {
-  editingPlan.value = { subject: plan.subject }
+  if (!canEditPlan(plan.subject)) return
+  editingPlan.value = { ...plan }
   planForm.problem_location = plan.problem_location || ''
   planForm.cause_analysis = plan.cause_analysis || ''
   planForm.struggle_goal = plan.struggle_goal || ''
@@ -163,8 +189,17 @@ function editPlan(plan) {
 }
 
 function onAddPlan(e) {
+  if (!canManagePlans.value) return
   const subject = availableSubjects.value[e.detail.value]
   if (!subject) return
+  const teachers = teacherOptions(subject)
+  if (teachers.length) {
+    uni.showActionSheet({
+      itemList: teachers.map(t => `分配给 ${t.label}`),
+      success: result => assignPlan(subject, { detail: { value: result.tapIndex } }),
+    })
+    return
+  }
   editingPlan.value = { subject }
   planForm.problem_location = ''
   planForm.cause_analysis = ''
@@ -175,11 +210,13 @@ function onAddPlan(e) {
 }
 
 async function savePlan() {
+  if (!canEditPlan(editingPlan.value.subject) || savingPlan.value || savingAssignment.value) return
   savingPlan.value = true
   try {
     await upsertSubjectPlan(getCaseId(), editingPlan.value.subject, {
       subject: editingPlan.value.subject,
-      teacher_id: detail.value.owner_teacher_id,
+      teacher_id: editingPlan.value.teacher_id || detail.value.owner_teacher_id,
+      teacher_name: editingPlan.value.teacher_name || '',
       problem_location: planForm.problem_location,
       cause_analysis: planForm.cause_analysis,
       struggle_goal: planForm.struggle_goal,

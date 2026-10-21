@@ -18,7 +18,7 @@
       <el-input v-model="keyword" aria-label="搜索学生" placeholder="搜索学生，回车查询" clearable @keyup.enter="query" @clear="query" />
       <el-button :loading="loading" @click="query">查询</el-button>
     </div>
-    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : isAdmin ? '科目与该生入学评定一致。选择班级查看班级汇总，点击学生查看各科填写情况。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</p>
+    <p class="query-note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : scope === 'supervision' ? '查看本学段所有老师的填写进度；点击学生查看各科状态与评定内容。' : isAdmin ? '科目与该生入学评定一致。选择班级查看班级汇总，点击学生查看各科填写情况。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <el-button v-if="error" @click="load">重新加载</el-button>
     <template v-else>
@@ -62,7 +62,7 @@ import { completeReview } from '../utils/monthlyReview'
 import { useAuthStore } from '../stores/auth'
 import { changeMonthlyReportMonth, createMonthlyReport, getMonthlyReport, listMonthlyReports, listMonthlyWritingStatus, saveMonthlyEvaluation, updateMonthlyReport } from '../api/monthlyReports'
 
-defineProps({ classes: { type: Array, default: () => [] } })
+const props = defineProps({ classes: { type: Array, default: () => [] }, scope: { type: String, default: 'teaching' } })
 const emit = defineEmits(['saved'])
 const now = new Date()
 const month = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
@@ -89,7 +89,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await listMonthlyWritingStatus({ month_label: month.value, class_id: selectedStudent.value?.class_id || classId.value || undefined, view: selectedStudent.value ? 'items' : 'students', student_id: selectedStudent.value?.student_id, writing_status: selectedStudent.value ? undefined : status.value || undefined, keyword: selectedStudent.value ? undefined : keyword.value.trim(), offset: (page.value - 1) * 50, limit: 50 })
+    const data = await listMonthlyWritingStatus({ scope: props.scope, month_label: month.value, class_id: selectedStudent.value?.class_id || classId.value || undefined, view: selectedStudent.value ? 'items' : 'students', student_id: selectedStudent.value?.student_id, writing_status: selectedStudent.value ? undefined : status.value || undefined, keyword: selectedStudent.value ? undefined : keyword.value.trim(), offset: (page.value - 1) * 50, limit: 50 })
     if (id === requestId) {
       result.value = data
       const lastPage = Math.max(1, Math.ceil(pageTotal.value / 50))

@@ -22,6 +22,7 @@ class UserOut(BaseModel):
     role: str
     status: str = "active"
     subject: str = ""
+    supervisor_stage: str = ""
 
 
 class LoginResponse(BaseModel):

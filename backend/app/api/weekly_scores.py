@@ -1,6 +1,7 @@
 """月考成绩 API：单条录入、批量录入、查询、修改、删除与趋势。"""
 
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, or_
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.services.supervision_scope import supervised_class_ids
 from app.core.pagination import MAX_LIMIT
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentConsultant, StudentGuardian
 from app.models.user import ROLE_ADMIN, ROLE_CONSULTANT, ROLE_DEYU_DIRECTOR, ROLE_PARENT, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_TEACHER, User
@@ -135,6 +137,7 @@ def list_scores(
 
 @router.get("/overview", response_model=MonthlyExamOverview)
 def overview(
+    scope: Literal["teaching", "supervision"] = Query(default="teaching"),
     exam_month: str | None = Query(default=None, pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$"),
     class_id: int | None = Query(default=None),
     grade: str | None = Query(default=None),
@@ -149,7 +152,11 @@ def overview(
 
     # 先限定真实任课范围再统计；班级、搜索及分页均不能改变排名基数。
     query = _filter_scope(db.query(WeeklyTestScore), db, user)
-    return build_overview(db, user, query, exam_month, class_id, grade, subject, keyword, limit, offset)
+    if scope == "supervision":
+        # 学段范围在汇总与排名前收窄，不能混入本人跨学段任教的数据。
+        query = db.query(WeeklyTestScore).filter(WeeklyTestScore.class_id.in_(supervised_class_ids(db, user)))
+    return build_overview(db, user, query, exam_month, class_id, grade, subject, keyword, limit, offset,
+                          supervision=scope == "supervision")
 
 
 @router.get("/trend", response_model=list[WeeklyTestTrendPoint])

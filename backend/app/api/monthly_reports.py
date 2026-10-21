@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.services.supervision_scope import can_supervise_class, supervised_class_ids
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.monthly_report import (
     MONTHLY_EVAL_ROLE_HEAD,
@@ -148,6 +149,8 @@ def _report_access(db: Session, report_id: int, user: User) -> MonthlyReport:
     if r is None:
         raise HTTPException(status_code=404, detail="月度评定不存在")
     if user.role == ROLE_ADMIN:
+        return r
+    if can_supervise_class(db, user, r.class_id):
         return r
     if user.role == ROLE_STUDENT:
         if r.student_id != user.id or r.status != MONTHLY_STATUS_PUBLISHED:
@@ -290,6 +293,7 @@ def writing_status(
     student_id: int | None = Query(default=None),
     writing_status: Literal["written", "unwritten"] | None = Query(default=None),
     view: Literal["items", "students"] = Query(default="items"),
+    scope: Literal["teaching", "supervision"] = Query(default="teaching"),
     keyword: str = Query(default="", max_length=100),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -298,9 +302,12 @@ def writing_status(
 ):
     _month_bounds(month_label)
     is_admin = user.role == ROLE_ADMIN
+    is_supervision = scope == "supervision"
     allowed = {c.id for c in db.query(Class).all()} if is_admin else _subject_teacher_class_ids(db, user) | {
         c.id for c in db.query(Class).filter_by(teacher_id=user.id).all()
     }
+    if is_supervision:
+        allowed = supervised_class_ids(db, user)
     if class_id is not None:
         allowed &= {class_id}
     classes = {c.id: c for c in db.query(Class).filter(Class.id.in_(allowed)).all()}
@@ -341,7 +348,7 @@ def writing_status(
         if keyword.strip().casefold() not in f"{student.name} {cls.name}".casefold():
             continue
         own_relations = [r for r in relations[cls.id] if r.teacher_id == user.id]
-        is_head = is_admin or cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
+        is_head = is_admin or is_supervision or cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
         report = reports.get((cls.id, student.id))
         case = cases_by_id.get(report.student_case_id) if report and report.student_case_id else latest_cases.get((cls.id, student.id))
         head_subjects = {r.subject for r in relations[cls.id] if r.teacher_id == cls.teacher_id and r.role == "subject_teacher"}
@@ -354,7 +361,7 @@ def writing_status(
         # 班主任可查看全班任课进度；任课老师仍仅查看本人职责，查看不授予代填权限。
         candidates = teachers.values() if is_head else [user]
         # 学科对应个人初评；德育是班主任固定职责，不依赖初评是否单独录入。
-        head = teachers.get(cls.teacher_id) if is_admin else user
+        head = teachers.get(cls.teacher_id) if is_admin or is_supervision else user
         duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", head)] if is_head and head else []
         for teacher in candidates:
             teacher_relations = [r for r in relations[cls.id] if r.teacher_id == teacher.id]
@@ -378,7 +385,7 @@ def writing_status(
             rows.append(dict(student_id=student.id, student_name=student.name, class_id=cls.id,
                              class_name=cls.name, month_label=month_label, teacher_role=role,
                              subject=subject, report_id=report.id if report else None,
-                             teacher_id=teacher.id, teacher_name=teacher.name, can_edit=not is_admin and teacher.id == user.id,
+                             teacher_id=teacher.id, teacher_name=teacher.name, can_edit=not (is_admin or is_supervision) and teacher.id == user.id,
                              writing_status="written" if content and content.strip() else "unwritten"))
         if is_head:
             # 初评科目即使尚未关联任课账号也必须可见；不能把未关联误报为全部已填。

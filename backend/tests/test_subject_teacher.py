@@ -1,10 +1,11 @@
-"""任课老师角色验收：可见范围限定所带学科班级、只读方案、可提交学科建议。"""
+"""任课老师角色验收：班级可见范围、分配初评填写、学科建议与权限边界。"""
 
 from datetime import date, timedelta
 
 from app.core.security import hash_password
 from app.models.class_ import Class, ClassStudent, ClassTeacher
 from app.models.user import ROLE_SUBJECT_TEACHER, User
+from app.models.student_case import CaseAuditLog, StudentCase, SubjectPlan
 
 
 def _setup_subject_scope(db, seed_users):
@@ -111,6 +112,51 @@ def test_subject_teacher_list_scoped_to_own_classes(client, auth, db, seed_users
     assert other_case_id not in ids
 
 
+def test_plan_teacher_name_resolves_real_account_and_class_scope(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, other_case_id = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    subject_teacher = db.query(User).filter_by(username="subject1").one()
+    db.query(ClassTeacher).filter_by(teacher_id=subject_teacher.id).delete()
+    db.commit()
+    response = client.put(
+        f"/api/student-cases/{case_id}/subject-plans/数学",
+        headers=auth("teacher1"),
+        json={"subject": "数学", "teacher_id": seed_users["teacher1"], "teacher_name": "李老师"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["teacher_id"] == subject_teacher.id
+    assert db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=seed_users["teacher1"]).count() == 0
+    classes = client.get("/api/classes", headers=auth("subject1"))
+    assert {row["id"] for row in classes.json()} == {class_id}
+    students = client.get(f"/api/classes/{class_id}/students", headers=auth("subject1"))
+    assert students.status_code == 200
+    assert {row["id"] for row in students.json()} == {seed_users["student1"]}
+    cases = client.get("/api/student-cases", headers=auth("subject1"))
+    assert {row["id"] for row in cases.json()} == {case_id}
+    assert client.get(f"/api/student-cases/{other_case_id}", headers=auth("subject1")).status_code == 403
+    # 旧版小程序再次保存不能把已修复的任课归属写回班主任。
+    response = client.put(
+        f"/api/student-cases/{case_id}/subject-plans/数学",
+        headers=auth("teacher1"),
+        json={"subject": "数学", "teacher_id": seed_users["teacher1"], "reinforcement": "更新措施"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["teacher_id"] == subject_teacher.id
+    assert response.json()["teacher_name"] == "李老师"
+
+
+def test_manual_teacher_name_does_not_grant_head_teacher_subject_scope(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    response = client.put(
+        f"/api/student-cases/{case_id}/subject-plans/英语",
+        headers=auth("teacher1"),
+        json={"subject": "英语", "teacher_id": seed_users["teacher1"], "teacher_name": "尚未注册的老师"},
+    )
+    assert response.status_code == 200, response.text
+    assert db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=seed_users["teacher1"]).count() == 0
+
+
 def test_subject_teacher_detail_sees_only_own_subject_plans(client, auth, db, seed_users):
     class_id, other_class_id = _setup_subject_scope(db, seed_users)
     _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
@@ -173,6 +219,107 @@ def test_subject_teacher_cannot_write_plans_or_cases(client, auth, db, seed_user
     assert r.status_code == 403
 
 
+def test_initial_assignment_and_subject_teacher_filling(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, other_case_id = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    teacher = db.query(User).filter_by(username="subject1").one()
+    url = f"/api/student-cases/{case_id}/subject-plans/数学"
+    manager_headers, teacher_headers = auth("teacher1"), auth("subject1")
+    detail = client.get(f"/api/student-cases/{case_id}", headers=manager_headers).json()
+    assert detail["can_assign_subjects"] is True
+    assert detail["subject_teacher_options"] == [{"subject": "数学", "teacher_id": teacher.id, "teacher_name": teacher.name}]
+    # 班级任课关系不允许自领；班主任可直接建立空白科目并分配。
+    body = {"subject": "数学", "teacher_id": teacher.id, "problem_location": "函数基础薄弱"}
+    assert client.put(url, headers=teacher_headers, json=body).status_code == 403
+    assigned = client.put(url + "/assignment", headers=manager_headers, json={"teacher_id": teacher.id})
+    assert assigned.status_code == 200, assigned.text
+    assert assigned.json()["problem_location"] == ""
+    detail = client.get(f"/api/student-cases/{case_id}", headers=teacher_headers).json()
+    assert detail["can_manage"] is False
+    assert detail["can_assign_subjects"] is False
+    assert detail["subject_teacher_options"] == []
+    assert detail["editable_subjects"] == ["数学"]
+    response = client.put(url, headers=teacher_headers, json=body)
+    assert response.status_code == 200, response.text
+    assert response.json()["problem_location"] == "函数基础薄弱"
+    # 任课老师不能跨科、改派、改总案或修改任务。
+    assert client.put(url.replace("数学", "英语"), headers=teacher_headers, json={**body, "subject": "英语"}).status_code == 403
+    assert client.put(url, headers=teacher_headers, json={**body, "teacher_id": seed_users["teacher1"]}).status_code == 403
+    assert client.put(url, headers=teacher_headers, json={**body, "teacher_name": "其他老师"}).status_code == 403
+    assert client.put(url + "/assignment", headers=teacher_headers, json={"teacher_id": teacher.id}).status_code == 403
+    assert client.patch(f"/api/student-cases/{case_id}", headers=teacher_headers, json={"overall_problem": "越权"}).status_code == 403
+    assert client.put(f"/api/student-cases/{other_case_id}/subject-plans/数学", headers=teacher_headers, json=body).status_code == 403
+    log = db.query(CaseAuditLog).filter_by(action="subject_plan.assigned", student_case_id=case_id).one()
+    assert log.detail == {"subject": "数学", "previous_teacher_id": None, "teacher_id": teacher.id}
+
+
+def test_initial_reassignment_preserves_content_and_revokes_previous_writer(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    teacher = db.query(User).filter_by(username="subject1").one()
+    # 兼任其他班班主任的老师也可以承担本班数学；同名不影响按账号分配。
+    db.add(ClassTeacher(class_id=class_id, teacher_id=seed_users["teacher2"], role="subject_teacher", subject="数学"))
+    db.commit()
+    url = f"/api/student-cases/{case_id}/subject-plans/数学"
+    manager_headers, teacher_headers = auth("teacher1"), auth("subject1")
+    assert client.put(url + "/assignment", headers=manager_headers, json={"teacher_id": teacher.id}).status_code == 200
+    content = {"subject": "数学", "teacher_id": teacher.id, "problem_location": "原始问题", "reinforcement": "原始措施"}
+    assert client.put(url, headers=teacher_headers, json=content).status_code == 200
+    response = client.put(url + "/assignment", headers=manager_headers, json={"teacher_id": seed_users["teacher2"]})
+    assert response.status_code == 200, response.text
+    assert response.json()["problem_location"] == "原始问题"
+    assert response.json()["reinforcement"] == "原始措施"
+    # 班主任后续核对保存，也不能把同名的兼课账号反查成另一个老师。
+    response = client.put(url, headers=manager_headers, json={**content, "teacher_id": seed_users["teacher2"], "teacher_name": teacher.name})
+    assert response.status_code == 200, response.text
+    assert response.json()["teacher_id"] == seed_users["teacher2"]
+    assert client.put(url, headers=teacher_headers, json=content).status_code == 403
+    assert client.get(f"/api/student-cases/{case_id}", headers=teacher_headers).json()["editable_subjects"] == []
+    new_headers = auth("teacher2")
+    assert client.get(f"/api/student-cases/{case_id}", headers=new_headers).json()["editable_subjects"] == ["数学"]
+    response = client.put(url, headers=new_headers, json={**content, "teacher_id": seed_users["teacher2"], "reinforcement": "兼课老师填写"})
+    assert response.status_code == 200, response.text
+    assert response.json()["teacher_id"] == seed_users["teacher2"]
+
+
+def test_initial_assignment_rejects_wrong_subject_class_disabled_and_roles(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    teacher = db.query(User).filter_by(username="subject1").one()
+    url = f"/api/student-cases/{case_id}/subject-plans"
+    headers = auth("teacher1")
+    for subject, teacher_id in [("英语", teacher.id), ("德育", teacher.id), ("数学", seed_users["teacher2"]), ("数学", seed_users["student1"]), ("数学", 999999)]:
+        response = client.put(f"{url}/{subject}/assignment", headers=headers, json={"teacher_id": teacher_id})
+        assert response.status_code == 400, response.text
+    assert client.put(f"{url}/数学/assignment", headers=auth("teacher2"), json={"teacher_id": teacher.id}).status_code == 403
+    assert client.put(f"{url}/数学/assignment", headers=auth("admin"), json={"teacher_id": teacher.id}).status_code == 403
+    teacher.status = "disabled"
+    db.commit()
+    assert client.get(f"/api/student-cases/{case_id}", headers=headers).json()["subject_teacher_options"] == []
+    assert client.put(f"{url}/数学/assignment", headers=headers, json={"teacher_id": teacher.id}).status_code == 400
+    assert db.query(SubjectPlan).filter_by(student_case_id=case_id).count() == 0
+
+
+def test_initial_filling_and_assignment_respect_review_locks(client, auth, db, seed_users):
+    class_id, other_class_id = _setup_subject_scope(db, seed_users)
+    _, case_id, _ = _create_cycle_and_cases(client, auth, class_id, other_class_id, seed_users)
+    teacher = db.query(User).filter_by(username="subject1").one()
+    manager_headers, teacher_headers = auth("teacher1"), auth("subject1")
+    url = f"/api/student-cases/{case_id}/subject-plans/数学"
+    assert client.put(url + "/assignment", headers=manager_headers, json={"teacher_id": teacher.id}).status_code == 200
+    case = db.get(StudentCase, case_id)
+    for status in ["pending_confirmation", "executing", "adjusted", "archived", "revision_required", "pending_review"]:
+        case.status = status
+        db.commit()
+        writable = status in {"revision_required", "pending_review"}
+        response = client.put(url, headers=teacher_headers, json={"subject": "数学", "teacher_id": teacher.id, "problem_location": "新问题"})
+        assert response.status_code == (200 if writable else 409), response.text
+        response = client.put(url + "/assignment", headers=manager_headers, json={"teacher_id": teacher.id})
+        assert response.status_code == (200 if writable else 409), response.text
+        detail = client.get(f"/api/student-cases/{case_id}", headers=teacher_headers).json()
+        assert detail["editable_subjects"] == (["数学"] if writable else [])
+
+
 def test_subject_teacher_register_with_invite(client, auth, db, seed_users):
     r = client.post(
         "/api/admin/invite-codes",
@@ -190,7 +337,7 @@ def test_subject_teacher_register_with_invite(client, auth, db, seed_users):
     r = client.post(
         "/api/auth/register",
         json={
-            "username": "subject_new",
+            "username": "13900000088",
             "password": "test123456",
             "name": "新任课老师",
             "role": "subject_teacher",
@@ -202,7 +349,7 @@ def test_subject_teacher_register_with_invite(client, auth, db, seed_users):
     )
     assert r.status_code == 200, r.text
     assert r.json()["role"] == "subject_teacher"
-    assert db.query(User).filter_by(username="subject_new").one().subject == "数学"
+    assert db.query(User).filter_by(username="13900000088").one().subject == "数学"
 
 
 def test_admin_class_teacher_links_crud(client, auth, db, seed_users):

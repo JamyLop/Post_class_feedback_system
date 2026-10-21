@@ -12,6 +12,7 @@
       <el-scrollbar class="nav-scroll">
         <div class="nav-label">所带学科</div>
         <el-menu :default-active="$route.path" router>
+          <el-menu-item v-if="auth.user?.supervisor_stage" index="/subject/supervision"><el-icon><Files /></el-icon><span>{{ auth.user.supervisor_stage }}主管工作台</span></el-menu-item>
           <el-menu-item index="/subject/cases">
             <el-icon><Files /></el-icon>
             <span>班级档案与科目方案</span>
@@ -35,7 +36,7 @@
         <span class="subject-dot"></span>
         <div class="subject-text">
           <strong>教学协同</strong>
-          <small>查看学科方案，提交教学建议、月考评价与月度学科评价</small>
+          <small>填写入学初评，提交教学建议、月考评价与月度学科评价</small>
         </div>
       </div>
     </el-aside>
@@ -44,14 +45,14 @@
       <el-header class="header">
         <div class="header-left">
           <span class="role-title">任课老师工作台</span>
-          <span class="context-tag">所带学科 · 方案查阅与建议</span>
+          <span class="context-tag">所带学科 · 初评填写与建议</span>
         </div>
         <div class="header-right">
           <div class="user-profile">
             <span class="avatar-badge">任</span>
             <div class="user-meta">
               <strong class="user-name">{{ auth.user?.name || '任课老师' }}</strong>
-              <small class="user-role-text">任课老师</small>
+              <small class="user-role-text">任课老师{{ auth.user?.supervisor_stage ? ` · ${auth.user.supervisor_stage}主管` : '' }}</small>
             </div>
           </div>
           <div class="divider"></div>
@@ -67,12 +68,14 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { Calendar, Files } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
+onMounted(() => auth.refreshMe().catch(() => {}))
 
 function onLogout() {
   auth.logout()

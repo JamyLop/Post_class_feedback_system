@@ -11,6 +11,8 @@ from app.auth.deps import require_roles
 from app.core.database import get_db
 from app.core.pagination import MAX_LIMIT, pagination_params
 from app.core.security import hash_password
+from app.schemas.user import SupervisorAssignment
+from app.services.supervision_scope import supervised_class_ids
 from app.models.user import (
     ROLE_ADMIN,
     ROLE_CONSULTANT,
@@ -226,6 +228,47 @@ def link_consultant_student(
             if db.query(StudentConsultant).filter_by(consultant_id=user.id, student_id=body.student_id).first() is None:
                 raise
     return ConsultantStudentOption(id=student.id, name=student.name, username=student.username, linked=True)
+
+
+@router.get("/supervisors", response_model=list[UserOut])
+def list_supervisors(
+    stage: str = Query(pattern="^(初中|高中)$"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_ADMIN])),
+):
+    return db.query(User).filter(User.role == ROLE_SUBJECT_TEACHER, User.supervisor_stage == stage).order_by(User.id).all()
+
+
+@router.get("/supervision-classes")
+def supervision_classes(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_SUBJECT_TEACHER])),
+):
+    from app.models.class_ import Class
+    ids = supervised_class_ids(db, user)
+    return [dict(id=c.id, name=c.name, grade=c.grade, education_stage=c.education_stage)
+            for c in db.query(Class).filter(Class.id.in_(ids)).order_by(Class.id).all()]
+
+
+@router.put("/{user_id}/supervisor", response_model=UserOut)
+def assign_supervisor(
+    user_id: int, body: SupervisorAssignment,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_ADMIN])),
+):
+    from app.services.student_case_service import audit
+    target = db.query(User).filter(User.id == user_id).with_for_update().first()
+    if target is None:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if target.role != ROLE_SUBJECT_TEACHER or (body.stage and target.status != USER_STATUS_ACTIVE):
+        raise HTTPException(status_code=400, detail="主管只能从在用的任课老师中选择")
+    old = target.supervisor_stage
+    target.supervisor_stage = body.stage
+    audit(db, user.id, "user.supervisor_changed", "user", target.id, None,
+          {"from": old, "to": body.stage})
+    db.commit()
+    db.refresh(target)
+    return target
 
 
 @router.get("/{user_id}", response_model=UserOut)

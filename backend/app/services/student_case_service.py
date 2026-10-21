@@ -89,6 +89,20 @@ def teacher_subjects(db: Session, class_id: int, teacher_id: int) -> set[str]:
     }
 
 
+SUBJECT_PLAN_EDIT_STATUSES = {CASE_STATUS_DRAFT, CASE_STATUS_REVISION_REQUIRED, CASE_STATUS_PENDING_REVIEW}
+
+
+def can_fill_subject_plan(db: Session, case: StudentCase, user: User, plan: SubjectPlan) -> bool:
+    # 班级任课关系用于候选人；明确分配到该生该科后才开放填写，不能自领或改派。
+    return (
+        user.role in {ROLE_TEACHER, ROLE_SUBJECT_TEACHER}
+        and user.status == "active"
+        and case.status in SUBJECT_PLAN_EDIT_STATUSES
+        and plan.subject != "德育"
+        and plan.teacher_id == user.id
+    )
+
+
 def require_case_access(
     db: Session,
     case_id: int,

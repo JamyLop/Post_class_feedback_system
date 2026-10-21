@@ -21,6 +21,7 @@
           </div>
         </div>
         <div class="case-actions">
+          <AdminCaseStatus :case-id="detail.id" :status="detail.status" @saved="load" />
           <el-button :loading="exporting" :disabled="editingProfile || editingOverview || editingPlan || !!editingTask" @click="handleExport"><el-icon><Document /></el-icon>导出 Word</el-button>
           <span v-if="detail" class="export-meta">V{{ detail.version }} · {{ labels[detail.status] || detail.status }}</span>
           <template v-if="detail.can_manage && !editingProfile && !editingOverview && !editingPlan && !editingTask">
@@ -364,7 +365,7 @@
                 <span class="subject-task-count">{{ tasksFor(subject).length }}</span>
                 <el-icon><ArrowRight /></el-icon>
               </button>
-              <el-dropdown v-if="detail.can_manage && availableSubjects.length" class="subject-add" trigger="click" :disabled="editingPlan || editingTask || editingOverview" @command="addSubject">
+              <el-dropdown v-if="canManageSubjectPlans && availableSubjects.length" class="subject-add" trigger="click" :disabled="editingPlan || editingTask || editingOverview || assigningPlan" @command="addSubject">
                 <el-button link type="primary"><el-icon><Plus /></el-icon>添加学科</el-button>
                 <template #dropdown><el-dropdown-menu><el-dropdown-item v-for="subject in availableSubjects" :key="subject" :command="subject">{{ subject }}</el-dropdown-item></el-dropdown-menu></template>
               </el-dropdown>
@@ -375,7 +376,7 @@
                 <div><span class="subject-chip">{{ selectedSubject === '德育' ? '德育' : selectedSubject }}</span><h2>{{ selectedSubject === '德育' ? '德育行为记录' : selectedSubject + '学业提升方案' }}</h2></div>
                 <div class="subject-header-actions">
                   <div class="subject-counts"><span>{{ tasksFor(selectedSubject).length }} 项任务</span><span>{{ checkinsFor(selectedSubject).length }} 条执行记录</span></div>
-                  <el-button v-if="canEditPlan && !editingPlan && !editingTask" plain @click="startPlanEdit"><el-icon><EditPen /></el-icon>编辑方案</el-button>
+                  <el-button v-if="canEditPlan && !editingPlan && !editingTask" :disabled="assigningPlan" plain @click="startPlanEdit"><el-icon><EditPen /></el-icon>编辑方案</el-button>
                   <template v-else-if="editingPlan">
                     <el-button :disabled="savingPlan" @click="cancelPlanEdit">取消编辑</el-button>
                     <el-button type="primary" :loading="savingPlan" @click="savePlan">保存方案</el-button>
@@ -385,11 +386,25 @@
 
               <div v-if="editingPlan" class="editing-note"><el-icon><EditPen /></el-icon><span>正在编辑 {{ selectedSubject }}方案，所有字段将按原文完整保存。</span></div>
 
+              <section v-if="detail.can_assign_subjects && selectedSubject !== '德育' && !editingPlan" class="subject-section">
+                <h3>分配初评填写</h3>
+                <p>选择本班该科任课老师，分配后由该老师填写，已有内容会保留。</p>
+                <el-form label-position="top">
+                  <el-form-item label="负责老师">
+                    <el-select v-model="assignmentTeacherId" placeholder="选择本班任课老师" :disabled="assigningPlan || !assignmentOptions.length" style="width: 100%">
+                      <el-option v-for="teacher in assignmentOptions" :key="teacher.teacher_id" :label="`${teacher.teacher_name}（账号 ${teacher.teacher_id}）`" :value="teacher.teacher_id" />
+                    </el-select>
+                  </el-form-item>
+                  <p v-if="!assignmentOptions.length">本班尚未关联该科任课老师，请先由管理员维护班级任课关系。</p>
+                  <el-button type="primary" :loading="assigningPlan" :disabled="!assignmentTeacherId" @click="assignPlan">分配填写</el-button>
+                </el-form>
+              </section>
+
               <section class="subject-section">
                 <div class="subject-section-heading"><div><el-icon><Search /></el-icon><h3>{{ selectedSubject === '德育' ? '行为表现' : '问题' }}</h3></div><span>{{ selectedSubject === '德育' ? '记录日常行为与关键表现' : '明确当前差距与主要原因' }}</span></div>
                 <div v-if="selectedPlan?.teacher_name" class="teacher-info-bar"><span class="teacher-label">授课老师</span><span class="teacher-name">{{ selectedPlan.teacher_name }}</span></div>
                 <el-form v-if="editingPlan" label-position="top" class="subject-edit-form">
-                  <el-form-item label="学科老师姓名"><el-input v-model="planForm.teacher_name" placeholder="填写负责该科方案的老师姓名" maxlength="64" /></el-form-item>
+                  <el-form-item v-if="detail.can_manage" label="学科老师姓名"><el-input v-model="planForm.teacher_name" placeholder="填写负责该科方案的老师姓名" maxlength="64" /></el-form-item>
                   <el-form-item :label="selectedSubject === '德育' ? '行为表现' : '问题定位'"><el-input v-model="planForm.problem_location" type="textarea" :autosize="{ minRows: 3, maxRows: 14 }" :placeholder="selectedSubject === '德育' ? '记录课堂、作业、纪律、品行等日常行为表现' : '完整填写该学科的问题定位'" /></el-form-item>
                   <el-form-item :label="selectedSubject === '德育' ? '原因/背景' : '原因剖析'"><el-input v-model="planForm.cause_analysis" type="textarea" :autosize="{ minRows: 3, maxRows: 14 }" :placeholder="selectedSubject === '德育' ? '分析行为背后的原因及需要关注的点' : '完整填写问题产生的原因'" /></el-form-item>
                 </el-form>
@@ -479,13 +494,13 @@
             </main>
           </div>
           <div v-else class="empty-panel subject-empty">
-            <template v-if="detail.can_manage">
+            <template v-if="canManageSubjectPlans">
               <h3>尚未建立入学评定</h3><p>班主任可以直接选择学科，从空白方案开始完整填写。</p>
               <div class="subject-create-actions"><el-button v-for="subject in subjectOrder" :key="subject" type="primary" plain @click="addSubject(subject)">新建{{ subject }}方案</el-button></div>
             </template>
             <template v-else>
               <h3>{{ auth.role === 'subject_teacher' ? '所带学科暂未建立方案' : '尚未建立入学评定' }}</h3>
-              <p>{{ auth.role === 'subject_teacher' ? '班主任建立所带入学评定后，可在此查看并提交学科建议。' : '暂无可查看的入学评定。' }}</p>
+              <p>{{ auth.role === 'subject_teacher' ? '班主任分配具体科目后，可在此填写入学初评。' : '暂无可查看的入学评定。' }}</p>
             </template>
           </div>
         </el-tab-pane>
@@ -646,12 +661,13 @@
 </template>
 
 <script setup>
+import AdminCaseStatus from '../../components/AdminCaseStatus.vue'
 import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Calendar, CircleCheck, CircleCheckFilled, Document, EditPen, Hide, Plus, Search, TrendCharts, Upload, View, WarningFilled } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, decideTaskChange, exportStudentCase, getStudentCase, listCaseVersions, getWeeklyPoints, requestTaskChange, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
+import { assignSubjectPlan, checkinCaseTask, createCaseReview, createCaseTask, createSubjectSuggestion, decideDeyuReview, decideTaskChange, exportStudentCase, getStudentCase, listCaseVersions, getWeeklyPoints, requestTaskChange, transitionStudentCase, updateCaseTask, updateStudentCase, updateStudentProfile, upsertSubjectPlan } from '../../api/studentCases'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
@@ -666,6 +682,8 @@ const loading = ref(false)
 const submitting = ref(false)
 const editingPlan = ref(false)
 const savingPlan = ref(false)
+const assigningPlan = ref(false)
+const assignmentTeacherId = ref(null)
 const editingTask = ref(null)
 const savingTask = ref(false)
 const savingCheckin = ref(false)
@@ -772,7 +790,8 @@ const subjectOptions = computed(() => {
 })
 const selectedPlan = computed(() => detail.value?.subject_plans?.find((item) => item.subject === selectedSubject.value))
 const availableSubjects = computed(() => subjectOrder.filter((item) => !subjectOptions.value.includes(item)))
-const canEditPlan = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.value?.status) && !editingProfile.value && !editingOverview.value && !editingTask.value)
+const canManageSubjectPlans = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.value?.status))
+const canEditPlan = computed(() => (canManageSubjectPlans.value || detail.value?.editable_subjects?.includes(selectedSubject.value)) && !editingProfile.value && !editingOverview.value && !editingTask.value)
 const canEditOverview = computed(() => detail.value?.can_manage && ['draft', 'revision_required', 'pending_review'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingTask.value)
 const canEditTasks = computed(() => detail.value?.can_manage && !['pending_confirmation', 'adjusted', 'archived'].includes(detail.value?.status) && !editingProfile.value && !editingPlan.value && !editingOverview.value)
 const canCreateReview = computed(() => {
@@ -1040,18 +1059,19 @@ function selectSubject(subject) {
 }
 
 function addSubject(subject) {
-  if (!detail.value?.can_manage) {
+  if (!canManageSubjectPlans.value) {
     ElMessage.error('暂无权限新建入学评定')
     return
   }
   if (!manualSubjects.value.includes(subject)) manualSubjects.value.push(subject)
   selectedSubject.value = subject
-  startPlanEdit()
+  if (!assignmentOptions.value.length) startPlanEdit()
 }
 
 function startPlanEdit() {
   const plan = selectedPlan.value
   planForm.value = plan ? {
+    teacher_name: plan.teacher_name || '',
     problem_location: plan.problem_location || '',
     cause_analysis: plan.cause_analysis || '',
     struggle_goal: plan.struggle_goal || '',
@@ -1059,6 +1079,25 @@ function startPlanEdit() {
     reinforcement: plan.reinforcement || '',
   } : createEmptyPlanForm()
   editingPlan.value = true
+}
+
+const assignmentOptions = computed(() => (detail.value?.subject_teacher_options || []).filter(t => t.subject === selectedSubject.value))
+watch([selectedSubject, () => selectedPlan.value?.teacher_id], () => {
+  const options = assignmentOptions.value
+  const current = selectedPlan.value?.teacher_id
+  assignmentTeacherId.value = options.some(t => t.teacher_id === current) ? current : options.length === 1 ? options[0].teacher_id : null
+})
+
+async function assignPlan() {
+  if (!assignmentTeacherId.value || assigningPlan.value) return
+  assigningPlan.value = true
+  try {
+    await assignSubjectPlan(detail.value.id, selectedSubject.value, assignmentTeacherId.value)
+    detail.value = await getStudentCase(detail.value.id)
+    ElMessage.success(`${selectedSubject.value}初评已分配给任课老师填写`)
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || e?.message || '分配失败，请重试')
+  } finally { assigningPlan.value = false }
 }
 
 function cancelPlanEdit() {
@@ -1458,7 +1497,8 @@ function handleCheckinFileChange(file, fileList) {
 }
 
 function subjectStatusText(subject) {
-  if (detail.value?.subject_plans?.some((item) => item.subject === subject)) return '方案已录入'
+  const plan = detail.value?.subject_plans?.find(item => item.subject === subject)
+  if (plan) return [plan.problem_location, plan.cause_analysis, plan.struggle_goal, plan.gaokao_requirement, plan.reinforcement].some(v => v?.trim()) ? '已填写' : '待填写'
   if (tasksFor(subject).length) return '已有任务'
   return '待完善'
 }

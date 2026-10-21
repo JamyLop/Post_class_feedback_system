@@ -30,12 +30,18 @@
 </template>
 <script setup>
 import { computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { ROLE_LABELS, entriesForRole, groupsForRole } from '../../utils/navigation'
 const auth = useAuthStore()
-const roleLabel = computed(() => ROLE_LABELS[auth.role] || '访客')
+const roleLabel = computed(() => auth.user?.supervisor_stage ? `${auth.user.supervisor_stage}主管 · 任课老师` : ROLE_LABELS[auth.role] || '访客')
 const primaryEntry = computed(() => entriesForRole(auth.role)[0])
-const groups = computed(() => groupsForRole(auth.role).map(group => ({ ...group, entries: group.entries.filter(entry => entry.route !== primaryEntry.value?.route) })).filter(group => group.entries.length))
+const groups = computed(() => {
+  const result = groupsForRole(auth.role).map(group => ({ ...group, entries: group.entries.filter(entry => entry.route !== primaryEntry.value?.route) })).filter(group => group.entries.length)
+  if (auth.role === 'subject_teacher' && auth.user?.supervisor_stage) result.unshift({ title: '学段管理', entries: [{ title: `${auth.user.supervisor_stage}主管工作台`, desc: '查看本学段评定填写状态与月考成绩', route: '/subTeacher/supervision/index' }] })
+  return result
+})
+onShow(() => { if (auth.isLoggedIn) auth.refreshMe().catch(() => {}) })
 const roleHint = computed(() => ({ teacher: '学生的目标、方案与进展，都在这里。', student: '关注孩子的成长，与老师保持同一步调。', parent: '关注孩子的成长，与老师保持同一步调。', deyu_director: '跟进方案审查与整改落实。', admin: '掌握全校档案进展与教学管理情况。', subject_teacher: '查阅学科方案，记录有依据的教学建议。', consultant: '持续了解所负责学生的学业进展。' }[auth.role] || '连接学校、教师与家庭的学业发展记录。'))
 const primaryLabel = computed(() => ['teacher', 'admin', 'deyu_director'].includes(auth.role) ? '工作概览' : '成长档案')
 const primaryHint = computed(() => ['parent', 'student'].includes(auth.role) ? '以老师发布的版本为准' : '关注当前状态，跟进下一步工作')

@@ -14,6 +14,7 @@ export const createCaseReview = (caseId, data) => http.post(`/student-cases/${ca
 export const decideDeyuReview = (caseId, data) => http.post(`/student-cases/${caseId}/deyu-review`, data)
 export const exportStudentCase = (id) => http.get(`/student-cases/${id}/export`, { responseType: 'blob' })
 export const upsertSubjectPlan = (caseId, subject, data) => http.put(`/student-cases/${caseId}/subject-plans/${encodeURIComponent(subject)}`, data)
+export const assignSubjectPlan = (caseId, subject, teacherId) => http.put(`/student-cases/${caseId}/subject-plans/${encodeURIComponent(subject)}/assignment`, { teacher_id: teacherId })
 export const listSubjectSuggestions = (caseId) => http.get(`/student-cases/${caseId}/subject-suggestions`)
 export const createSubjectSuggestion = (caseId, data) => http.post(`/student-cases/${caseId}/subject-suggestions`, data)
 export const createCaseTask = (caseId, data) => http.post(`/student-cases/${caseId}/tasks`, data)
@@ -37,3 +38,4 @@ export const rebuildStageCompletion = (caseId) => http.post(`/student-cases/${ca
 export const getWeeklyPoints = (caseId) => http.get(`/student-cases/${caseId}/weekly-points`)
 export const getMyCase = () => http.get('/student-cases/my-case')
 export const listCaseVersions = (caseId) => http.get(`/student-cases/${caseId}/versions`)
+export const changeAdminCaseStatus = (id, data) => http.put(`/student-cases/${id}/admin-status`, data)

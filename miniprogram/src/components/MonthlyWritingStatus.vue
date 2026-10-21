@@ -11,7 +11,7 @@
       <view class="field"><text>填写状态</text><picker :range="statusNames" :value="statusIndex" @change="changeStatus"><view class="picker">{{ statusNames[statusIndex] }} ▾</view></picker></view>
     </view>
     <view v-if="!selectedStudent" class="search"><input v-model="keyword" placeholder="搜索学生" confirm-type="search" @confirm="query" /><button size="mini" :disabled="loading" @click="query">查询</button></view>
-    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</text>
+    <text class="note">{{ selectedStudent ? `${selectedStudent.class_name} · ${selectedStudent.month_label}，点击科目操作进入评定。` : scope === 'supervision' ? '查看本学段所有老师的填写进度；点击学生查看各科状态与评定内容。' : '科目与该生入学评定一致。班主任查看全部进度，任课老师查看本人科目。' }}</text>
     <view v-if="error" class="message"><text>填写状态加载失败</text><button size="mini" @click="load">重试</button></view>
     <template v-else>
       <text class="counts">{{ selectedStudent ? '' : `共 ${result.student_total} 名学生 · ` }}共 {{ result.total }} 项 · 已填写 {{ result.written }} 项 · 未填写 {{ result.unwritten }} 项</text>
@@ -43,7 +43,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { listMonthlyWritingStatus } from '../api/monthlyReports'
-const props = defineProps({ classes: { type: Array, default: () => [] } })
+const props = defineProps({ classes: { type: Array, default: () => [] }, scope: { type: String, default: 'teaching' } })
 const classIndex = ref(0)
 const classNames = computed(() => ['全部班级', ...props.classes.map(c => c.name)])
 const now = new Date()
@@ -65,7 +65,7 @@ async function load() {
   loading.value = true
   error.value = false
   try {
-    const params = { month_label: month.value, view: selectedStudent.value ? 'items' : 'students', limit: 50, offset: (page.value - 1) * 50 }
+    const params = { scope: props.scope, month_label: month.value, view: selectedStudent.value ? 'items' : 'students', limit: 50, offset: (page.value - 1) * 50 }
     // 微信 GET 会把 undefined 序列化为字符串，可选参数必须按需添加。
     if (selectedStudent.value) params.student_id = selectedStudent.value.student_id
     else params.keyword = keyword.value.trim()
@@ -90,7 +90,7 @@ function changeStatus(e) { statusIndex.value = Number(e.detail.value); query() }
 function turnPage(delta) { page.value += delta; load() }
 function openRow(row) {
   if (row.can_edit === false) {
-    if (row.report_id && row.writing_status === 'written') uni.navigateTo({ url: `/subTeacher/monthlyReports/detail?id=${row.report_id}` })
+    if (row.report_id && row.writing_status === 'written') uni.navigateTo({ url: `/subTeacher/monthlyReports/detail?id=${row.report_id}${props.scope === 'supervision' ? '&readonly=1' : ''}` })
     return
   }
   uni.navigateTo({ url: `/subTeacher/monthlyReports/generate?classId=${row.class_id}&studentId=${row.student_id}&month=${row.month_label}&evaluationRole=${row.teacher_role}` })

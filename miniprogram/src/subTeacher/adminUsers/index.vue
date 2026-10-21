@@ -21,6 +21,13 @@
             <input v-model="keyword" placeholder="搜索姓名" confirm-type="search" class="search-input" @confirm="loadUsers" />
           </view>
         </view>
+        <view v-if="supervisorStage" class="supervisor-form">
+          <text class="user-meta">从在用任课老师中选择，保留原任课职责，每位老师可担任一个学段主管。</text>
+          <input v-model="candidateKeyword" class="search-input" placeholder="搜索任课老师姓名 / 账号" confirm-type="search" @confirm="loadCandidates" />
+          <button size="mini" :disabled="loadingCandidates" @click="loadCandidates">搜索老师</button>
+          <picker :range="candidates" range-key="label" :disabled="loadingCandidates || savingSupervisor" @change="candidateIndex = Number($event.detail.value)"><view class="picker">{{ candidates[candidateIndex]?.label || '请选择任课老师' }}</view></picker>
+          <button size="mini" :loading="savingSupervisor" :disabled="savingSupervisor || !candidates[candidateIndex]" @click="saveSupervisor">添加{{ supervisorStage }}主管</button>
+        </view>
         <view v-if="loadingUsers" class="loading-bar">
           <text class="loading-text">加载中...</text>
         </view>
@@ -30,16 +37,17 @@
               <view class="user-avatar">{{ (u.name || '?').slice(0,1) }}</view>
               <view class="user-info">
                 <text class="user-name">{{ u.name }}</text>
-                <text class="user-meta">{{ u.username }} · {{ roleLabel(u.role) }}</text>
+                <text class="user-meta">{{ u.username }} · {{ roleLabel(u.role) }}{{ u.supervisor_stage ? ' · ' + u.supervisor_stage + '主管' : '' }}</text>
               </view>
               <view class="user-status" :class="u.status === 'active' ? 'active' : 'disabled'">
                 {{ u.status === 'active' ? '正常' : '禁用' }}
               </view>
-              <text class="edit-link" @click="editUser(u)">编辑</text>
+              <text v-if="supervisorStage" class="danger-link" @click="removeSupervisor(u)">移除主管</text>
+              <text v-else class="edit-link" @click="editUser(u)">编辑</text>
             </view>
           </view>
           <view v-else class="empty-text">暂无用户</view>
-          <button class="btn-outline" @click="showCreateUser = true">+ 新建用户</button>
+          <button v-if="!supervisorStage" class="btn-outline" @click="showCreateUser = true">+ 新建用户</button>
         </template>
       </view>
 
@@ -161,6 +169,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { listUsers, createUser, updateUser, listInviteCodes, createInviteCode, disableInviteCode } from '../../api/studentCases'
+import { listSupervisors, assignSupervisor } from '../../api/studentCases'
 
 const auth = useAuthStore()
 const tab = ref('users')
@@ -175,17 +184,50 @@ const roleOptions = [
   { value: 'deyu_director', label: '德育主任' },
   { value: 'consultant', label: '咨询老师' },
   { value: 'subject_teacher', label: '任课老师' },
+  { value: 'junior_supervisor', label: '初中主管' },
+  { value: 'senior_supervisor', label: '高中主管' },
   { value: 'student', label: '家长（学号登录）' },
   { value: 'parent', label: '历史家长账号' },
 ]
 const currentRoleLabel = computed(() => roleOptions.find(r => r.value === selectedRole.value)?.label || '')
 function roleLabel(v) { return roleOptions.find(r => r.value === v)?.label || v }
-function onRoleChange(e) { selectedRole.value = roleOptions[e.detail.value].value; loadUsers() }
+function onRoleChange(e) { selectedRole.value = roleOptions[e.detail.value].value; loadUsers(); if (supervisorStage.value) loadCandidates() }
+const supervisorStage = computed(() => ({ junior_supervisor: '初中', senior_supervisor: '高中' }[selectedRole.value] || ''))
+const candidateKeyword = ref(''), candidates = ref([]), candidateIndex = ref(-1)
+const loadingCandidates = ref(false), savingSupervisor = ref(false)
+let candidateRequest = 0
+async function loadCandidates() {
+  const id = ++candidateRequest
+  loadingCandidates.value = true; candidateIndex.value = -1
+  try {
+    const rows = await listUsers({ role: 'subject_teacher', keyword: candidateKeyword.value, limit: 500 })
+    if (id === candidateRequest) candidates.value = rows.filter(t => t.status === 'active' && t.supervisor_stage !== supervisorStage.value).map(t => ({ ...t, label: `${t.name}（${t.username}）${t.supervisor_stage ? ' · ' + t.supervisor_stage + '主管' : ''}` }))
+  } catch (e) { uni.showToast({ title: e.message || '老师加载失败', icon: 'none' }) }
+  finally { if (id === candidateRequest) loadingCandidates.value = false }
+}
+async function saveSupervisor() {
+  const teacher = candidates.value[candidateIndex.value]
+  if (!teacher || savingSupervisor.value) return
+  if (teacher.supervisor_stage) {
+    const result = await uni.showModal({ title: '调整主管学段', content: `该老师目前为${teacher.supervisor_stage}主管，确认调整为${supervisorStage.value}主管？` })
+    if (!result.confirm) return
+  }
+  savingSupervisor.value = true
+  try { await assignSupervisor(teacher.id, supervisorStage.value); uni.showToast({ title: '主管已添加' }); await loadUsers(); await loadCandidates() }
+  catch (e) { uni.showToast({ title: e.message || '添加失败', icon: 'none' }) }
+  finally { savingSupervisor.value = false }
+}
+async function removeSupervisor(teacher) {
+  const result = await uni.showModal({ title: '移除主管', content: `移除${teacher.name}的${teacher.supervisor_stage}主管身份？任课职责保留。` })
+  if (!result.confirm) return
+  try { await assignSupervisor(teacher.id, ''); await loadUsers(); await loadCandidates() }
+  catch (e) { uni.showToast({ title: e.message || '移除失败', icon: 'none' }) }
+}
 
 const showCreateUser = ref(false)
 const creatingUser = ref(false)
 const newUser = reactive({ username: '', password: '', name: '', role: 'student' })
-const createRoleOptions = roleOptions.filter(r => !['admin', 'parent'].includes(r.value))
+const createRoleOptions = roleOptions.filter(r => !['admin', 'parent', 'junior_supervisor', 'senior_supervisor'].includes(r.value))
 const createRoleLabel = computed(() => createRoleOptions.find(r => r.value === newUser.role)?.label || '')
 
 const editingUser = ref(null)
@@ -194,10 +236,16 @@ const editForm = reactive({ name: '', password: '', status: 'active' })
 const statusOptions = [{ value: 'active', label: '正常' }, { value: 'disabled', label: '禁用' }]
 const editStatusLabel = computed(() => statusOptions.find(s => s.value === editForm.status)?.label || '')
 
+let userListRequest = 0
 async function loadUsers() {
+  const request = ++userListRequest
   loadingUsers.value = true
-  try { users.value = await listUsers({ role: selectedRole.value, keyword: keyword.value || undefined }) }
-  catch (_) { users.value = [] } finally { loadingUsers.value = false }
+  try {
+    const rows = supervisorStage.value ? (await listSupervisors(supervisorStage.value)).filter(t => `${t.name} ${t.username}`.includes(keyword.value.trim())) : await listUsers({ role: selectedRole.value, keyword: keyword.value || undefined })
+    if (request === userListRequest) users.value = rows
+  } catch (e) {
+    if (request === userListRequest) { users.value = []; uni.showToast({ title: e.message || '用户加载失败', icon: 'none' }) }
+  } finally { if (request === userListRequest) loadingUsers.value = false }
 }
 
 async function doCreateUser() {
@@ -240,7 +288,7 @@ const creatingInvite = ref(false)
 const newInviteRole = ref('teacher')
 const newInviteMaxUses = ref(1)
 const newInviteExpireDate = ref('')
-const inviteRoleOptions = roleOptions.filter(r => !['student', 'parent'].includes(r.value))
+const inviteRoleOptions = roleOptions.filter(r => !['student', 'parent', 'junior_supervisor', 'senior_supervisor'].includes(r.value))
 const inviteRoleLabel = computed(() => inviteRoleOptions.find(r => r.value === newInviteRole.value)?.label || '')
 function incMaxUses() { if (newInviteMaxUses.value < 10000) newInviteMaxUses.value += 1 }
 function decMaxUses() { if (newInviteMaxUses.value > 1) newInviteMaxUses.value -= 1 }
@@ -292,6 +340,7 @@ onShow(() => {
 </script>
 
 <style scoped>
+.supervisor-form { display: flex; flex-direction: column; gap: 20rpx; padding-bottom: 24rpx; }
 .page { box-sizing: border-box; width: 100%; padding: 24rpx 32rpx calc(40rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 24rpx; }
 .tabs {
   background: #fff; border-radius: 16rpx; overflow: hidden;

@@ -66,7 +66,8 @@
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { listStudentCases, createCaseReview } from '../../api/studentCases'
+import { listStudentCases, getStudentCase, createCaseReview } from '../../api/studentCases'
+import { useAuthStore } from '../../stores/auth'
 
 const loadingCase = ref(false)
 const submitting = ref(false)
@@ -74,12 +75,16 @@ const cases = ref([])
 const selectedCaseId = ref(null)
 const presetCaseId = ref(null)
 
-const levels = [
+const auth = useAuthStore()
+const levels = auth.role === 'admin' ? [
+  { value: 'school', label: '校级督查' },
+  { value: 'principal', label: '校长督查' },
+] : [
   { value: 'head_teacher', label: '班主任督查' },
   { value: 'subject', label: '学科督查' },
 ]
 const allSubjects = ['语文','数学','英语','日语','物理','化学','生物','政治','历史','地理']
-const form = reactive({ review_level: 'head_teacher', subject: '', correction_due_on: '', problem: '', corrective_action: '', recheck_result: '' })
+const form = reactive({ review_level: levels[0].value, subject: '', correction_due_on: '', problem: '', corrective_action: '', recheck_result: '' })
 
 const selectedCase = computed(() => cases.value.find(c => c.id === selectedCaseId.value))
 const selectedCaseLabel = computed(() => selectedCase.value ? `${selectedCase.value.student_name} · ${selectedCase.value.class_name}` : '')
@@ -103,7 +108,8 @@ async function load() {
       presetCaseId.value = Number(opts.caseId || opts.case_id)
       selectedCaseId.value = presetCaseId.value
     }
-    const list = await listStudentCases()
+    // 指定档案直接读取，避免档案在列表分页之外时丢失。
+    const list = presetCaseId.value ? [await getStudentCase(presetCaseId.value)] : await listStudentCases()
     cases.value = (Array.isArray(list) ? list : []).map(c => ({
       ...c,
       label: `${c.student_name || '学生#'+c.student_id} · ${c.class_name || ''} (${c.status})`,
@@ -118,6 +124,7 @@ async function load() {
 }
 
 async function submit() {
+  if (submitting.value) return
   if (!selectedCaseId.value) return uni.showToast({ title: '请选择档案', icon: 'none' })
   if (!form.problem && !form.corrective_action) return uni.showToast({ title: '请填问题或整改要求', icon: 'none' })
   submitting.value = true

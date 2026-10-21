@@ -39,7 +39,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getMonthlyExamOverview } from '../api/weeklyScores'
-const props = defineProps({ classes: { type: Array, default: () => [] } })
+const props = defineProps({ classes: { type: Array, default: () => [] }, scope: { type: String, default: 'teaching' } })
 const month = ref('')
 const keyword = ref('')
 const classIndex = ref(0)
@@ -62,7 +62,7 @@ async function load() {
   const id = ++requestId
   loading.value = true
   error.value = ''
-  const params = { limit: 50, offset: (page.value - 1) * 50 }
+  const params = { scope: props.scope, limit: 50, offset: (page.value - 1) * 50 }
   if (month.value) params.exam_month = month.value
   if (classIndex.value) params.class_id = props.classes[classIndex.value - 1]?.id
   if (gradeIndex.value) params.grade = result.value.grades[gradeIndex.value - 1]

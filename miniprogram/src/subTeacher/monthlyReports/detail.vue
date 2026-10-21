@@ -68,6 +68,7 @@ import { getMonthlyReport, updateMonthlyReport, publishMonthlyReport } from '../
 
 const auth = useAuthStore()
 const report = ref(null)
+const readOnly = ref(false)
 const loading = ref(false)
 const isEditing = ref(false)
 const editContent = ref('')
@@ -86,6 +87,7 @@ function formatTime(t) {
 }
 
 onLoad((options) => {
+  readOnly.value = options.readonly === '1'
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return }
   if (!['teacher', 'admin', 'subject_teacher'].includes(auth.role)) {
     uni.showToast({ title: '当前角色无权限', icon: 'none' })
@@ -99,6 +101,7 @@ async function loadReport(id) {
   loading.value = true
   try {
     report.value = await getMonthlyReport(id)
+    if (readOnly.value) Object.assign(report.value, { can_manage: false, can_publish: false, can_evaluate: false })
   } catch (e) {
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {

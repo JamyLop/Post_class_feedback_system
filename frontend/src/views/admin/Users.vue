@@ -3,10 +3,10 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">全校用户与权限管理</h1>
-        <p class="header-desc">统一维护学生、班主任、德育主任、家长与校级管理账号及账户启用状态。</p>
+        <p class="header-desc">维护全校用户与学段主管，主管从任课老师中选择，保留原任课职责。</p>
       </div>
       <el-button type="primary" @click="openCreate">
-        <el-icon><Plus /></el-icon>新建系统用户
+        <el-icon><Plus /></el-icon>{{ supervisorStage ? '添加主管' : '新建系统用户' }}
       </el-button>
     </div>
 
@@ -16,6 +16,8 @@
           <el-radio-button value="student">学生档案 / 家长学号</el-radio-button>
           <el-radio-button value="teacher">班主任</el-radio-button>
           <el-radio-button value="subject_teacher">任课老师</el-radio-button>
+          <el-radio-button value="junior_supervisor">初中主管</el-radio-button>
+          <el-radio-button value="senior_supervisor">高中主管</el-radio-button>
           <el-radio-button value="deyu_director">德育主任</el-radio-button>
           <el-radio-button value="consultant">咨询老师</el-radio-button>
           <el-radio-button value="parent">历史家长账号</el-radio-button>
@@ -32,6 +34,7 @@
         />
       </div>
 
+      <p v-if="supervisorStage" class="header-desc">{{ supervisorStage }}主管可查看本学段所有老师的月度评定填写状态与月考成绩。</p>
       <el-table :data="users" v-loading="loading" empty-text="当前角色暂无用户" style="width: 100%">
         <el-table-column prop="id" label="序号" width="80" />
         <el-table-column label="姓名 / 身份" min-width="160">
@@ -44,9 +47,9 @@
         </el-table-column>
         <el-table-column prop="username" label="登录用户名" min-width="140" />
         <el-table-column prop="channel" label="渠道" min-width="120" />
-        <el-table-column prop="role" label="系统角色" width="130">
+        <el-table-column prop="role" label="系统角色" :width="supervisorStage ? 190 : 130">
           <template #default="{ row }">
-            <span class="role-badge">{{ roleLabel(row.role) }}</span>
+            <span class="role-badge">{{ roleLabel(row.role) }}{{ row.supervisor_stage ? ` · ${row.supervisor_stage}主管` : '' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="账号状态" width="110">
@@ -58,6 +61,8 @@
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
+            <el-button v-if="supervisorStage" link type="danger" @click="removeSupervisor(row)">移除主管</el-button>
+            <template v-else>
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button
               v-if="row.role === 'student' || row.role === 'teacher' || row.role === 'subject_teacher' || row.role === 'deyu_director' || row.role === 'consultant' || row.role === 'parent'"
@@ -75,12 +80,18 @@
             >
               删除
             </el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑用户' : '新建用户'" width="440px">
+    <el-dialog v-model="supervisorDialog" :title="`添加${supervisorStage}主管`" width="min(460px, 92vw)" :close-on-click-modal="!savingSupervisor" :show-close="!savingSupervisor">
+      <el-form label-position="top"><el-form-item label="任课老师"><el-select v-model="supervisorTeacherId" filterable remote :remote-method="loadCandidates" :loading="loadingCandidates" placeholder="搜索并选择在用的任课老师" style="width:100%"><el-option v-for="teacher in candidates" :key="teacher.id" :value="teacher.id" :label="`${teacher.name}（${teacher.username}）${teacher.supervisor_stage ? ' · ' + teacher.supervisor_stage + '主管' : ''}`" /></el-select></el-form-item></el-form>
+      <p class="header-desc">授予{{ supervisorStage }}主管身份，任课职责保留。每位老师可担任一个学段的主管。</p>
+      <template #footer><el-button :disabled="savingSupervisor" @click="supervisorDialog = false">取消</el-button><el-button type="primary" :loading="savingSupervisor" :disabled="!supervisorTeacherId" @click="saveSupervisor">添加主管</el-button></template>
+    </el-dialog>
+    <el-dialog v-model="dialogVisible" :title="editing ? '编辑用户' : '新建用户'" width="min(440px, 92vw)">
       <el-form :model="form" label-width="70px">
         <el-form-item label="角色">
           <el-radio-group v-model="form.role" :disabled="editing">
@@ -115,16 +126,42 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { useAuthStore } from '../../stores/auth'
-import { listUsers, createUser, updateUser } from '../../api/users'
+import { listUsers, createUser, updateUser, listSupervisors, assignSupervisor } from '../../api/users'
 import { deleteUser as deleteUserApi } from '../../api/admin'
 
 const auth = useAuthStore()
 const users = ref([])
 const role = ref('student')
+const supervisorStage = computed(() => ({ junior_supervisor: '初中', senior_supervisor: '高中' }[role.value] || ''))
+const supervisorDialog = ref(false), supervisorTeacherId = ref(null), candidates = ref([])
+const savingSupervisor = ref(false), loadingCandidates = ref(false)
+let candidateRequest = 0, listRequest = 0
+async function loadCandidates(keyword = '') {
+  const id = ++candidateRequest
+  loadingCandidates.value = true
+  try {
+    const data = await listUsers('subject_teacher', keyword, { limit: 500 })
+    if (id === candidateRequest) candidates.value = data.filter(t => t.status === 'active' && t.supervisor_stage !== supervisorStage.value)
+  } finally { if (id === candidateRequest) loadingCandidates.value = false }
+}
+async function saveSupervisor() {
+  if (savingSupervisor.value || !supervisorTeacherId.value) return
+  const teacher = candidates.value.find(t => t.id === supervisorTeacherId.value)
+  if (teacher?.supervisor_stage) {
+    try { await ElMessageBox.confirm(`该老师目前为${teacher.supervisor_stage}主管，确认调整为${supervisorStage.value}主管？`, '调整主管学段') } catch { return }
+  }
+  savingSupervisor.value = true
+  try { await assignSupervisor(supervisorTeacherId.value, supervisorStage.value); supervisorDialog.value = false; ElMessage.success('主管已添加'); await load() }
+  finally { savingSupervisor.value = false }
+}
+async function removeSupervisor(row) {
+  try { await ElMessageBox.confirm(`移除「${row.name}」的${row.supervisor_stage}主管身份？任课职责保留。`, '移除主管') } catch { return }
+  await assignSupervisor(row.id, ''); ElMessage.success('主管身份已移除'); await load()
+}
 const keyword = ref('')
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -136,15 +173,18 @@ function roleLabel(r) {
 }
 
 async function load() {
+  const id = ++listRequest
   loading.value = true
   try {
-    users.value = await listUsers(role.value, keyword.value)
+    const data = supervisorStage.value ? await listSupervisors(supervisorStage.value) : await listUsers(role.value, keyword.value)
+    if (id === listRequest) users.value = supervisorStage.value ? data.filter(u => `${u.name} ${u.username}`.includes(keyword.value.trim())) : data
   } finally {
-    loading.value = false
+    if (id === listRequest) loading.value = false
   }
 }
 
 function openCreate() {
+  if (supervisorStage.value) { supervisorTeacherId.value = null; supervisorDialog.value = true; loadCandidates(); return }
   editing.value = false
   Object.assign(form, { role: ['admin', 'parent'].includes(role.value) ? 'student' : role.value, username: '', name: '', password: '', channel: '' })
   dialogVisible.value = true
@@ -259,6 +299,7 @@ onMounted(load)
   gap: 16px;
   flex-wrap: wrap;
 }
+.filter-toolbar :deep(.el-radio-group) { flex-wrap: wrap; row-gap: 8px; }
 
 .name-text {
   font-size: 14px;

@@ -2,9 +2,9 @@
   <section class="page cases-page">
     <header class="page-head">
       <div class="head-info">
-        <span class="overline">任课协同 · 只读</span>
+        <span class="overline">任课协同</span>
         <h1>所带班级档案</h1>
-        <p>仅展示你所带学科的班级档案与科目方案；修改意见请在档案详情页提交学科建议，由班主任采纳维护。</p>
+        <p>查看所带班级档案，进入入学评定填写分配给本人的科目；其他调整可提交学科建议。</p>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
     </header>
@@ -86,7 +86,7 @@
         </el-table-column>
         <el-table-column label="操作" width="130" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click.stop="openCase(row)">查看方案并提建议</el-button>
+            <el-button link type="primary" @click.stop="openCase(row)">查看与填写初评</el-button>
           </template>
         </el-table-column>
       </el-table>

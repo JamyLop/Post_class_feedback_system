@@ -76,6 +76,7 @@
     {
       "root": "subTeacher",
       "pages": [
+        { "path": "supervision/index", "style": { "navigationBarTitleText": "学段主管" } },
         {
           "path": "todo/index",
           "style": { "navigationBarTitleText": "待办督查" }

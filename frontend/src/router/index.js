@@ -76,6 +76,7 @@ const routes = [
       { path: 'subject/weekly-scores', component: () => import('../views/teacher/WeeklyScores.vue') },
       { path: 'subject/monthly-reports', component: () => import('../views/subject/SubjectMonthlyReports.vue') },
       { path: 'subject/timetable', component: () => import('../views/timetable/Timetable.vue') },
+      { path: 'subject/supervision', component: () => import('../views/subject/StageSupervision.vue') },
     ],
   },
   {

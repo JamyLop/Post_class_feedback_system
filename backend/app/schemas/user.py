@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.user import ROLE_STUDENT, ROLES
@@ -28,6 +30,11 @@ class UserOut(BaseModel):
     status: str
     channel: str = ""
     dorm_number: str = ""
+    supervisor_stage: str = ""
+
+
+class SupervisorAssignment(BaseModel):
+    stage: Literal["初中", "高中", ""]
 
 
 class QuickStudentCreate(BaseModel):

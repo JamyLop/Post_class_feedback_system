@@ -52,3 +52,5 @@ class User(TimestampMixin, Base):
     dorm_number: Mapped[str] = mapped_column(String(32), default="", server_default="")
     # 任课老师教授学科（注册时填写）
     subject: Mapped[str] = mapped_column(String(32), default="", server_default="")
+    # 主管是任课老师的附加身份，不替换原任课角色和班级关系。
+    supervisor_stage: Mapped[str] = mapped_column(String(16), default="", server_default="")

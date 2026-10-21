@@ -41,7 +41,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getMonthlyExamOverview } from '../api/weeklyScores'
 
-defineProps({ classes: { type: Array, default: () => [] } })
+const props = defineProps({ classes: { type: Array, default: () => [] }, scope: { type: String, default: 'teaching' } })
 const filters = ref({ exam_month: '', grade: '', class_id: null, subject: '', keyword: '' })
 const result = ref({ items: [], subjects: [], grades: [], total: 0, ranking_note: '' })
 const page = ref(1)
@@ -56,7 +56,7 @@ async function load() {
   error.value = ''
   const params = Object.fromEntries(Object.entries(filters.value).filter(([, value]) => value !== '' && value != null))
   try {
-    const data = await getMonthlyExamOverview({ ...params, limit: 50, offset: (page.value - 1) * 50 })
+    const data = await getMonthlyExamOverview({ ...params, scope: props.scope, limit: 50, offset: (page.value - 1) * 50 })
     if (id !== requestId) return
     result.value = data
     if (!filters.value.exam_month && data.exam_month) filters.value.exam_month = data.exam_month
