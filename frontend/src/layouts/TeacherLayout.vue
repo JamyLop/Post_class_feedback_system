@@ -33,6 +33,7 @@
           <span class="context-tag">{{ pageContext }}</span>
         </div>
         <div class="header-right">
+          <SubjectPlanReminders v-if="auth.role === 'teacher'" />
           <div class="user-profile">
             <span class="avatar-badge">{{ auth.user?.name?.slice(0, 1) || '用' }}</span>
             <div class="user-meta">
@@ -46,7 +47,6 @@
       </el-header>
 
       <el-main ref="workspaceRef" class="workspace">
-        <SubjectPlanReminders v-if="auth.role === 'teacher'" />
         <router-view />
       </el-main>
     </el-container>
@@ -332,5 +332,12 @@ function onLogout() {
   :deep(.el-menu-item span) { display: none; }
   :deep(.el-menu-item .el-icon) { margin-right: 0; }
   .header { padding: 0 12px; }
+}
+@media (max-width: 600px) {
+  .header { gap: 12px; }
+  .header-left { flex: 1; min-width: 0; }
+  .role-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .context-tag, .divider { display: none; }
+  .header-right { flex-shrink: 0; gap: 6px; }
 }
 </style>

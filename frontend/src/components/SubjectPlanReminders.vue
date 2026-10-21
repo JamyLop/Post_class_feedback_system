@@ -1,23 +1,33 @@
 <template>
-  <section v-if="total || error" class="assignment-reminders" aria-label="入学初评填写提醒">
-    <div class="reminder-heading">
-      <strong>入学初评待填写<span v-if="total"> · {{ total }} 科</span></strong>
-      <el-button link :loading="loading" @click="refresh()">刷新提醒</el-button>
-    </div>
-    <p v-if="error" role="status">提醒读取失败，请刷新重试。</p>
-    <template v-else>
-      <p>已分配给您，请填写并保存对应科目。</p>
-      <div v-for="item in items" :key="item.plan_id" class="reminder-row">
-        <span><strong>{{ item.student_name }}</strong> · {{ item.class_name }} · {{ item.subject }}</span>
-        <el-button type="primary" plain size="small" @click="openPlan(item)">填写{{ item.subject }}初评</el-button>
-      </div>
-      <el-button v-if="items.length < total" link :loading="loading" @click="refresh(true)">查看更多待填写科目（{{ total - items.length }}）</el-button>
-    </template>
-  </section>
+  <div v-if="total || error" class="assignment-reminders">
+    <el-popover v-model:visible="expanded" placement="bottom-end" trigger="click" role="dialog" :width="360" :show-arrow="false" popper-class="assignment-reminder-popover">
+      <template #reference>
+        <button class="reminder-trigger" :aria-label="error ? '初评提醒加载失败，点击查看' : `入学初评待填写，共 ${total} 科`" :aria-expanded="expanded" aria-haspopup="dialog">
+          <el-icon><Bell /></el-icon><span class="trigger-label">初评待填</span><span class="reminder-count">{{ error ? '!' : total > 99 ? '99+' : total }}</span>
+        </button>
+      </template>
+      <section class="reminder-panel" aria-label="待填入学初评">
+        <div class="reminder-heading">
+          <div><strong>待填入学初评</strong><span v-if="total" class="total-label">{{ total }} 项</span></div>
+          <el-button text circle :icon="Refresh" :loading="loading" aria-label="刷新初评提醒" @click="refresh()" />
+        </div>
+        <p v-if="error" class="reminder-error" role="status">提醒加载失败，请点击右上角刷新重试。</p>
+        <div v-else class="reminder-list">
+          <button v-for="item in items" :key="item.plan_id" class="reminder-task" @click="openPlan(item)">
+            <span class="task-copy"><strong>{{ item.student_name }}</strong><span>{{ item.class_name }}</span></span>
+            <span class="task-subject">{{ item.subject }}</span>
+            <span class="task-action">去填写<el-icon><ArrowRight /></el-icon></span>
+          </button>
+          <el-button v-if="items.length < total" text class="load-more" :loading="loading" @click="refresh(true)">查看更多（{{ total - items.length }}）</el-button>
+        </div>
+      </section>
+    </el-popover>
+  </div>
 </template>
 
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { ArrowRight, Bell, Refresh } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getSubjectPlanReminders } from '../api/studentCases'
 import { useAuthStore } from '../stores/auth'
@@ -29,6 +39,7 @@ const total = ref(0)
 const items = ref([])
 const loading = ref(false)
 const error = ref(false)
+const expanded = ref(false)
 let timer
 let disposed = false
 async function refresh(more = false) {
@@ -44,6 +55,7 @@ async function refresh(more = false) {
   finally { loading.value = false }
 }
 function openPlan(item) {
+  expanded.value = false
   const base = auth.role === 'subject_teacher' ? '/subject/cases' : '/teacher/student-cases'
   router.push({ path: `${base}/${item.case_id}`, query: { tab: 'subjects', subject: item.subject, edit: '1' } })
 }
@@ -65,13 +77,31 @@ onUnmounted(() => {
 })
 </script>
 
+<style>
+.assignment-reminder-popover.el-popover { width: min(360px, calc(100vw - 24px)) !important; padding: 0; border: 0; border-radius: 8px; box-shadow: var(--shadow-raised, 0 8px 24px rgba(23, 32, 51, 0.10)); }
+</style>
 <style scoped>
-.assignment-reminders { padding: 16px; margin-bottom: 20px; border: 1px solid #d9b86c; border-radius: 8px; background: #fff8e8; color: #654710; }
-.reminder-heading, .reminder-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.reminder-heading strong { font-size: 16px; }
-p { margin: 4px 0 12px; font-size: 14px; }
-.reminder-row { padding: 10px 0; border-top: 1px solid #e8d8b6; font-size: 14px; }
-.reminder-row span { min-width: 0; overflow-wrap: anywhere; }
-.reminder-row .el-button { flex-shrink: 0; }
-@media (max-width: 540px) { .reminder-row { align-items: flex-start; flex-direction: column; } }
+.assignment-reminders { display: flex; flex-shrink: 0; }
+.reminder-trigger { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2, #445269); font: inherit; font-size: 13px; cursor: pointer; }
+.reminder-trigger:hover, .reminder-trigger[aria-expanded="true"] { background: var(--brand-soft, #eaf3ff); color: var(--brand-strong, #1762d4); }
+.reminder-trigger > .el-icon { font-size: 17px; }
+.reminder-count { min-width: 18px; padding: 0 5px; border-radius: 4px; background: var(--brand-strong, #1762d4); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
+.reminder-panel { color: var(--ink, #172033); }
+.reminder-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line, #e5eaf2); }
+.reminder-heading > div { display: flex; align-items: baseline; gap: 8px; }
+.reminder-heading strong { font-size: 14px; font-weight: 600; }
+.total-label { color: var(--ink-2, #445269); font-size: 12px; }
+.reminder-list { max-height: min(440px, 65vh); padding: 4px 8px; overflow-y: auto; }
+.reminder-task { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 8px; border: 0; border-radius: 4px; background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.reminder-task + .reminder-task { border-top: 1px solid var(--line, #e5eaf2); }
+.reminder-task:hover { background: var(--surface-soft, #f8fafd); }
+.task-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.task-copy strong { color: var(--ink, #172033); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.task-copy > span { color: var(--ink-2, #445269); font-size: 12px; overflow-wrap: anywhere; }
+.task-subject { flex-shrink: 0; padding: 2px 6px; border-radius: 4px; background: var(--surface-soft, #f8fafd); color: var(--ink-2, #445269); font-size: 12px; }
+.task-action { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--brand-strong, #1762d4); font-size: 13px; }
+.load-more { width: 100%; margin: 4px 0; }
+.reminder-error { margin: 0; padding: 18px 16px; color: var(--ink-2, #445269); font-size: 13px; line-height: 1.6; }
+.reminder-trigger:focus-visible, .reminder-task:focus-visible { outline: 2px solid var(--brand-strong, #1762d4); outline-offset: 2px; }
+@media (max-width: 960px) { .trigger-label { display: none; } .reminder-trigger { padding: 6px; gap: 5px; } }
 </style>
