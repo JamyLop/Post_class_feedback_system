@@ -82,13 +82,18 @@
           <LoadState :loading="monthlyLoading" :error="monthlyError" @retry="loadMonthly" />
           <template v-if="!monthlyLoading && !monthlyError">
             <EmptyState v-if="!monthlyReports.length" title="暂无已发布月度评定" desc="班主任发布后即可在此查阅" />
-            <view v-for="report in monthlyReports" :key="report.id" class="plan-card">
-              <text class="section-h">{{ report.month_label }} 月度评定</text>
-              <view class="field"><text class="dt">德育月度评定</text><text class="dd">{{ report.final_content || '暂无德育评定' }}</text></view>
-              <view v-for="item in report.evaluations || []" :key="item.id" class="field">
-                <text class="dt">{{ item.teacher_name || '老师' }} · {{ item.subject || '班主任' }}</text>
-                <text class="dd">{{ item.content }}</text>
-              </view>
+            <view v-if="months.length" class="monthly-heading">
+              <text class="section-h">选择月份</text>
+              <text class="monthly-meta">按月份、科目查阅月度评定</text>
+            </view>
+            <view v-if="months.length" class="monthly-list">
+              <button v-for="item in months" :key="item.month" class="monthly-row" hover-class="tap-active" @click="openMonth(item.month)">
+                <view class="monthly-row-body">
+                  <text class="monthly-row-title">{{ item.label }}</text>
+                  <text class="monthly-meta">{{ item.subjectCount }} 个科目可查阅</text>
+                </view>
+                <text class="monthly-arrow" aria-hidden="true">›</text>
+              </button>
             </view>
             <text v-if="monthlyReports.length" class="refresh-link" @click="loadMonthly">刷新月度评定</text>
           </template>
@@ -124,6 +129,7 @@ import { ref, computed, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getStudentCase } from '../../api/studentCases'
 import { listMonthlyReports } from '../../api/monthlyReports'
+import { monthlyGroups } from '../../utils/parentMonthlyReports'
 import { listWeeklyScores } from '../../api/weeklyScores'
 import LoadState from '../../components/LoadState.vue'
 import CaseStatusTag from '../../components/CaseStatusTag.vue'
@@ -135,6 +141,7 @@ const loading = ref(false)
 const detail = ref(null)
 const active = ref('overview')
 const monthlyReports = ref([])
+const months = computed(() => monthlyGroups(monthlyReports.value))
 const examScores = ref([])
 const monthlyLoading = ref(false)
 const examsLoading = ref(false)
@@ -203,6 +210,9 @@ const checkinsWithPhotos = computed(() => (detail.value?.task_checkins || []).fi
 function openTask(taskId) {
   if (!detail.value) return
   uni.navigateTo({ url: `/subParent/taskDetail/index?caseId=${detail.value.id}&taskId=${taskId}` })
+}
+function openMonth(month) {
+  uni.navigateTo({ url: `/subParent/monthlyReports/subjects?studentId=${detail.value.student_id}&month=${month}` })
 }
 
 async function load() {
@@ -293,3 +303,4 @@ onShow(load)
 </style>
 
 <style scoped src="../../styles/details.css"></style>
+<style scoped src="../monthlyReports/monthly.css"></style>

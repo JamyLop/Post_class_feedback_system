@@ -23,10 +23,11 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: int, role: str) -> str:
+def create_access_token(user_id: int, role: str, *, miniprogram: bool = False) -> str:
     """签发带过期时间的 JWT，subject 为用户 id。"""
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
+        minutes=(settings.miniprogram_access_token_expire_minutes
+                 if miniprogram else settings.access_token_expire_minutes)
     )
     payload = {"sub": str(user_id), "role": role, "exp": expire}
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)

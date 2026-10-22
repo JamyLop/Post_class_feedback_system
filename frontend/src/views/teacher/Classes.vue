@@ -5,9 +5,12 @@
         <h1 class="page-title">班级与教学组织</h1>
         <p class="header-desc">{{ canManageClass ? '由德育主任新建班级并分配班主任，班主任负责录入班级学生信息。' : '查看所带班级，班主任负责录入班级学生信息；新建/分配由德育主任操作。' }}</p>
       </div>
-      <el-button v-if="canManageClass" type="primary" @click="openDialog">
-        <el-icon><Plus /></el-icon>新建班级
-      </el-button>
+      <div v-if="canManageClass" class="class-header-actions">
+        <el-button @click="$router.push('/teacher/class-transfers')">批量调班</el-button>
+        <el-button type="primary" @click="openDialog">
+          <el-icon><Plus /></el-icon>新建班级
+        </el-button>
+      </div>
     </div>
 
     <div class="filter-card">
@@ -316,6 +319,7 @@ onMounted(load)
 </script>
 
 <style scoped>
+.class-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .classes-manage-page {
   display: flex;
   flex-direction: column;

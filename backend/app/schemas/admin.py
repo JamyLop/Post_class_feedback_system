@@ -87,6 +87,12 @@ class ClassTeacherLinkCreate(BaseModel):
     subject: str = Field(min_length=1, max_length=32)
 
 
+class ClassTeacherLinkAdjustment(BaseModel):
+    teacher_id: int = Field(gt=0)
+    previous_teacher_id: int = Field(gt=0)
+    reason: str = Field(default="", max_length=500)
+
+
 class ClassTeacherLinkOut(ClassTeacherLinkCreate):
     model_config = ConfigDict(from_attributes=True)
 
@@ -96,3 +102,7 @@ class ClassTeacherLinkOut(ClassTeacherLinkCreate):
     teacher_username: str = ""
     class_name: str = ""
     created_at: datetime
+
+
+class ClassTeacherLinkAdjustmentOut(ClassTeacherLinkOut):
+    updated_plans: int

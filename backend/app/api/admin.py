@@ -31,6 +31,8 @@ from app.models.user import (
 from app.schemas.admin import (
     AdminStats,
     ClassTeacherLinkCreate,
+    ClassTeacherLinkAdjustment,
+    ClassTeacherLinkAdjustmentOut,
     ClassTeacherLinkOut,
     GuardianLinkCreate,
     GuardianLinkOut,
@@ -274,6 +276,17 @@ def create_class_teacher_link(body: ClassTeacherLinkCreate, db: Session = Depend
     db.commit()
     db.refresh(link)
     return _class_teacher_out(db, link)
+
+
+@router.put("/class-teacher-links/{link_id}", response_model=ClassTeacherLinkAdjustmentOut)
+def adjust_class_teacher_link(
+    link_id: int, body: ClassTeacherLinkAdjustment,
+    db: Session = Depends(get_db), admin: User = Depends(_admin_only),
+):
+    from app.services.teacher_adjustment_service import adjust_class_teacher
+
+    link, updated_plans = adjust_class_teacher(db, link_id, body, admin)
+    return {**_class_teacher_out(db, link), "updated_plans": updated_plans}
 
 
 @router.delete("/class-teacher-links/{link_id}")

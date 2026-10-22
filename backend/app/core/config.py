@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     # 开发环境可以使用默认值；生产环境必须通过 SECRET_KEY 显式注入随机密钥。
     secret_key: str = "dev-secret-change-me"
     access_token_expire_minutes: int = 1440
+    # 小程序按首次验证起保留七天；独立于 Web 的会话时长。
+    miniprogram_access_token_expire_minutes: int = 7 * 24 * 60
     cors_origins: List[str] = ["http://localhost:5173"]
 
     database_url: str = "postgresql+psycopg://pfs:pfs@localhost:5432/pfs"

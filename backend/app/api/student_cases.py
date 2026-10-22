@@ -389,7 +389,11 @@ def supervision_progress(
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
         plan_case_ids = [row.student_case_id for row in db.query(SubjectPlan).filter(SubjectPlan.teacher_id == user.id)]
-        query = query.filter(or_(StudentCase.class_id.in_(set(legacy_ids + relation_ids)), StudentCase.id.in_(plan_case_ids or [-1])))
+        from app.models.class_transfer import ClassTransferItem
+        from app.services.class_transfer_service import current_head_student_ids
+        history_scope = StudentCase.student_id.in_(current_head_student_ids(db, user)) & db.query(ClassTransferItem.id).filter(
+            ClassTransferItem.student_id == StudentCase.student_id, ClassTransferItem.source_class_id == StudentCase.class_id).exists()
+        query = query.filter(or_(StudentCase.class_id.in_(set(legacy_ids + relation_ids)), StudentCase.id.in_(plan_case_ids or [-1]), history_scope))
     elif user.role not in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         # 学生不属于一生一案的内容管理或发布对象，保留其原作业系统权限即可。
         query = query.filter(StudentCase.id == -1)
@@ -616,7 +620,11 @@ def list_student_cases(
     elif user.role == ROLE_TEACHER:
         legacy_ids = [row.id for row in db.query(Class).filter(Class.teacher_id == user.id)]
         relation_ids = [row.class_id for row in db.query(ClassTeacher).filter(ClassTeacher.teacher_id == user.id)]
-        query = query.filter(StudentCase.class_id.in_(set(legacy_ids + relation_ids)))
+        from app.models.class_transfer import ClassTransferItem
+        from app.services.class_transfer_service import current_head_student_ids
+        history_scope = StudentCase.student_id.in_(current_head_student_ids(db, user)) & db.query(ClassTransferItem.id).filter(
+            ClassTransferItem.student_id == StudentCase.student_id, ClassTransferItem.source_class_id == StudentCase.class_id).exists()
+        query = query.filter(or_(StudentCase.class_id.in_(set(legacy_ids + relation_ids)), history_scope))
     elif user.role not in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR):
         query = query.filter(StudentCase.id == -1)
     if class_id is not None:

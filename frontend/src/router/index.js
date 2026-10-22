@@ -57,6 +57,7 @@ const routes = [
       { path: 'teacher/student-cases', component: () => import('../views/teacher/StudentCases.vue') },
       { path: 'teacher/student-cases/:id', component: () => import('../views/teacher/StudentCaseDetail.vue') },
       { path: 'teacher/classes', component: () => import('../views/teacher/Classes.vue'), meta: { roles: ['admin', 'teacher', 'deyu_director'] } },
+      { path: 'teacher/class-transfers', component: () => import('../views/teacher/ClassTransfers.vue'), meta: { roles: ['admin', 'deyu_director'] } },
       { path: 'teacher/classes/:id/students', component: () => import('../views/teacher/ClassStudents.vue'), meta: { roles: ['admin', 'teacher', 'deyu_director'] } },
       { path: 'teacher/weekly-scores', component: () => import('../views/teacher/WeeklyScores.vue'), meta: { roles: ['admin', 'teacher', 'deyu_director'] } },
       { path: 'teacher/monthly-reports', component: () => import('../views/teacher/MonthlyReports.vue'), meta: { roles: ['admin', 'teacher'] } },

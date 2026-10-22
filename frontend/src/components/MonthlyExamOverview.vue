@@ -7,6 +7,7 @@
       <label>排序<el-select v-model="filters.subject" clearable :placeholder="showTotals ? '总分从高到低' : '默认顺序'" @change="reload"><el-option v-for="subject in result.subjects" :key="subject" :label="`${subject}从高到低`" :value="subject" /></el-select></label>
       <label>学生姓名<el-input v-model="filters.keyword" clearable placeholder="输入姓名后回车" @keyup.enter="reload" @clear="reload" /></label>
       <el-button :loading="loading" @click="reload">查询成绩</el-button>
+      <el-button type="primary" plain :loading="exporting" @click="exportScores">导出 Excel</el-button>
     </div>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <template v-else>
@@ -39,7 +40,8 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getMonthlyExamOverview } from '../api/weeklyScores'
+import { ElMessage } from 'element-plus'
+import { exportMonthlyExamOverview, getMonthlyExamOverview } from '../api/weeklyScores'
 
 const props = defineProps({ classes: { type: Array, default: () => [] }, scope: { type: String, default: 'teaching' } })
 const filters = ref({ exam_month: '', grade: '', class_id: null, subject: '', keyword: '' })
@@ -47,14 +49,18 @@ const result = ref({ items: [], subjects: [], grades: [], total: 0, ranking_note
 const page = ref(1)
 const rankMode = ref('class_rank')
 const loading = ref(false)
+const exporting = ref(false)
 const error = ref('')
 const showTotals = computed(() => result.value.has_total_access)
 let requestId = 0
+function filterParams() {
+  return Object.fromEntries(Object.entries(filters.value).filter(([, value]) => value !== '' && value != null))
+}
 async function load() {
   const id = ++requestId
   loading.value = true
   error.value = ''
-  const params = Object.fromEntries(Object.entries(filters.value).filter(([, value]) => value !== '' && value != null))
+  const params = filterParams()
   try {
     const data = await getMonthlyExamOverview({ ...params, scope: props.scope, limit: 50, offset: (page.value - 1) * 50 })
     if (id !== requestId) return
@@ -65,6 +71,28 @@ async function load() {
   } finally { if (id === requestId) loading.value = false }
 }
 function reload() { page.value = 1; load() }
+async function exportScores() {
+  if (!result.value.exam_month) { ElMessage.warning('当前没有可导出的月考成绩'); return }
+  exporting.value = true
+  try {
+    const blob = await exportMonthlyExamOverview({ ...filterParams(), scope: props.scope })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${result.value.exam_month}月考成绩册.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    ElMessage.success('已导出 Excel')
+  } catch (e) {
+    let message = '导出失败，请重试'
+    if (e?.response?.data instanceof Blob) {
+      try { message = JSON.parse(await e.response.data.text()).detail || message } catch { message = '导出失败，请重试' }
+    }
+    ElMessage.error(message)
+  } finally { exporting.value = false }
+}
 defineExpose({ load })
 onMounted(load)
 </script>

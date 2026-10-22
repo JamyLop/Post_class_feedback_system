@@ -1,0 +1,18 @@
+.reader-page { padding: 28rpx 32rpx calc(40rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 24rpx; }
+.reader-heading { display: flex; flex-direction: column; gap: 10rpx; }
+.reader-title { font-size: 36rpx; font-weight: 600; color: var(--mp-ink); overflow-wrap: anywhere; }
+.reader-meta { display: block; font-size: 25rpx; color: var(--mp-muted); line-height: 1.7; overflow-wrap: anywhere; }
+.reader-list { background: var(--mp-surface); border-radius: 16rpx; overflow: hidden; }
+.reader-row { display: flex; align-items: center; gap: 20rpx; width: 100%; min-height: 112rpx; padding: 26rpx 28rpx; text-align: left; background: var(--mp-surface); border: 0; border-radius: 0; }
+.reader-row + .reader-row { border-top: 1rpx solid var(--mp-line); }
+.reader-row.tap-active { background: var(--mp-soft); }
+.reader-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8rpx; }
+.reader-row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16rpx; flex-wrap: wrap; }
+.reader-subject { font-size: 30rpx; font-weight: 600; color: var(--mp-ink); overflow-wrap: anywhere; }
+.reader-arrow { flex-shrink: 0; font-size: 40rpx; line-height: 1; color: var(--mp-muted); }
+.reader-content { background: var(--mp-surface); border-radius: 16rpx; padding: 30rpx; }
+.reader-author { display: block; font-size: 25rpx; color: var(--mp-muted); padding-bottom: 24rpx; border-bottom: 1rpx solid var(--mp-line); overflow-wrap: anywhere; }
+.reader-section { margin-top: 28rpx; }
+.reader-label { display: block; font-size: 29rpx; font-weight: 600; color: var(--mp-ink); margin-bottom: 12rpx; }
+.reader-text { display: block; font-size: 28rpx; line-height: 1.85; color: var(--mp-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.reader-publish { padding: 22rpx; border-radius: 8rpx; font-size: 28rpx; min-height: 88rpx; color: var(--mp-surface); background: var(--mp-primary); }

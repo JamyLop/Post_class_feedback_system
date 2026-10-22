@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -6,6 +8,7 @@ class LoginRequest(BaseModel):
     password: str
     captcha_id: str = ""
     captcha_code: str = ""
+    client: Literal["web", "miniprogram"] = "web"
 
 
 class TokenResponse(BaseModel):

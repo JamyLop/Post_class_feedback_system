@@ -47,7 +47,7 @@
 <script setup>
 import { useAuthStore } from '../../stores/auth'
 import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
-import { completeReview } from '../../utils/monthlyReview'
+import { completeReview, reviewError } from '../../utils/monthlyReview'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
@@ -100,7 +100,7 @@ async function loadStudents() {
 async function handleCreate() {
   if (submitting.value || loadingContent.value || loadFailed.value) return
   if (!completeReview(content.value)) {
-    uni.showToast({ title: '请填写总结、问题、计划', icon: 'none' })
+    uni.showToast({ title: reviewError(content.value), icon: 'none' })
     return
   }
   if (!studentList.value.length) {

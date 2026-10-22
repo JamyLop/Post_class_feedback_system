@@ -4,12 +4,13 @@
       <text class="review-label">{{ field.label }} *</text>
       <textarea :value="values[field.key]" @input="change(field.key, $event.detail.value)" class="review-input" :maxlength="limit" :disabled="disabled" :cursor-spacing="24" :placeholder="field.placeholder" />
       <text class="review-count">{{ values[field.key].length }}/{{ limit }}</text>
+      <text v-if="field.minLength" class="review-count">{{ reviewWordCount(values[field.key]) }} 字 / 至少 {{ field.minLength }} 字（不含空白）</text>
     </view>
   </view>
 </template>
 <script setup>
 import { computed } from 'vue'
-import { reviewFields, parseReview, formatReview } from '../utils/monthlyReview'
+import { reviewFields, parseReview, formatReview, reviewWordCount } from '../utils/monthlyReview'
 const props = defineProps({ modelValue: { type: String, default: '' }, disabled: Boolean, limit: { type: Number, default: 2500 } })
 const emit = defineEmits(['update:modelValue'])
 const values = computed(() => parseReview(props.modelValue))

@@ -11,7 +11,10 @@
     </view>
 
     <!-- 账号密码登录（主要入口） -->
-    <view class="card card-primary">
+    <view v-if="restoringSession" class="card card-primary">
+      <text class="card-desc">正在恢复登录…</text>
+    </view>
+    <view v-else class="card card-primary">
       <view class="card-header">
 
         <view class="card-text">
@@ -71,6 +74,7 @@ import { useAuthStore } from '../../stores/auth'
 import { getCaptcha } from '../../api/auth'
 
 const auth = useAuthStore()
+const restoringSession = ref(true)
 const pwdLoading = ref(false)
 const captchaLoading = ref(false)
 const agreed = ref(false)
@@ -106,12 +110,27 @@ function refreshCaptcha() {
   if (!pwdLoading.value) fetchCaptcha()
 }
 
-onMounted(fetchCaptcha)
+onMounted(async () => {
+  auth.restore()
+  if (auth.token) {
+    try {
+      // 由服务端校验有效期及账号状态；读取资料不会续期，也不保存密码或验证码。
+      const user = await auth.refreshMe({ showError: false })
+      uni.reLaunch({ url: routeByRole(user.role) })
+      return
+    } catch (_) {
+      // 401 拦截器已清理过期令牌；同步内存状态，网络故障则保留缓存供下次重试。
+      auth.restore()
+    }
+  }
+  restoringSession.value = false
+  await fetchCaptcha()
+})
 
 function routeByRole(role) { return ['student', 'parent'].includes(role) ? '/subParent/children/index' : '/pages/index/index' }
 
 async function handlePasswordLogin() {
-  if (pwdLoading.value || captchaLoading.value) return
+  if (restoringSession.value || pwdLoading.value || captchaLoading.value) return
   if (!agreed.value) return uni.showToast({ title: '请先阅读并同意相关协议', icon: 'none' })
   if (!form.username?.trim() || !form.password) return uni.showToast({ title: '请填写用户名和密码', icon: 'none' })
   if (!captcha.id) return uni.showToast({ title: '验证码尚未加载，请点击刷新', icon: 'none' })

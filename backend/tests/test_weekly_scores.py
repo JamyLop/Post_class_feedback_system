@@ -138,7 +138,7 @@ def test_evaluation_scope_and_identity_cannot_be_forged(client, auth, evaluation
     assert missing.status_code == 404
 
 
-def test_subject_teacher_reads_only_assigned_subject_and_cannot_change_scores(client, auth, evaluation_setup):
+def test_subject_teacher_reads_and_edits_only_assigned_subject(client, auth, evaluation_setup):
     own, other_subject, other_class = evaluation_setup
     headers = auth("subject1")
     response = client.get("/api/weekly-test-scores", headers=headers)
@@ -153,7 +153,10 @@ def test_subject_teacher_reads_only_assigned_subject_and_cannot_change_scores(cl
     ]:
         response = client.get("/api/weekly-test-scores" + endpoint, headers=headers, params=params)
         assert response.status_code == 200 and response.json() == [], response.text
-    assert client.put(f"/api/weekly-test-scores/{own['id']}", headers=headers, json={"score": 99}).status_code == 403
+    updated = client.put(f"/api/weekly-test-scores/{own['id']}", headers=headers, json={"score": 99})
+    assert updated.status_code == 200 and updated.json()["score"] == 99
+    for row in (other_subject, other_class):
+        assert client.put(f"/api/weekly-test-scores/{row['id']}", headers=headers, json={"score": 99}).status_code == 403
     assert client.delete(f"/api/weekly-test-scores/{own['id']}", headers=headers).status_code == 403
 
 

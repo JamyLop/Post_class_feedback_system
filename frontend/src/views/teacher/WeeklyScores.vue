@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h1>月考成绩</h1>
-        <p>{{ auth.role === 'subject_teacher' ? '按月查看所带班级对应学科的成绩与排名，记录学科学习评价。' : '按月查看学生总分、各科成绩与排名，也可在单科明细中记录评价。' }}</p>
+        <p>{{ auth.role === 'subject_teacher' ? '按月查看所带班级对应学科的成绩与排名，录入成绩并记录学科学习评价。' : '按月查看学生总分、各科成绩与排名，也可在单科明细中记录评价。' }}</p>
       </div>
       <div v-if="canManageScores" class="head-actions">
         <el-button type="primary" @click="openBatchDialog"><el-icon><Plus /></el-icon>批量录入</el-button>
@@ -59,8 +59,8 @@
         </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="canManageScores" link type="primary" @click="editRow(row)">编辑</el-button>
-            <el-button v-if="canManageScores" link type="danger" @click="removeRow(row)">删除</el-button>
+            <el-button v-if="row.can_edit" link type="primary" @click="editRow(row)">编辑</el-button>
+            <el-button v-if="row.can_delete" link type="danger" @click="removeRow(row)">删除</el-button>
             <el-button link @click="viewTrend(row)">趋势</el-button>
           </template>
         </el-table-column>
@@ -72,11 +72,11 @@
     <el-dialog v-model="singleVisible" :title="editingId ? '编辑成绩' : '单条录入'" width="520px" destroy-on-close>
       <el-form label-position="top">
         <div class="form-grid">
-          <el-form-item label="班级"><el-select v-model="singleForm.class_id" :disabled="!!editingId" style="width: 100%" @change="onSingleClassChange"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
+          <el-form-item label="班级"><el-select v-model="singleForm.class_id" :disabled="!!editingId" style="width: 100%" @change="onSingleClassChange"><el-option v-for="c in writableClasses" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
           <el-form-item label="学生"><el-select v-model="singleForm.student_id" :disabled="!!editingId" filterable style="width: 100%"><el-option v-for="s in singleClassStudents" :key="s.id" :label="s.name" :value="s.id" /></el-select></el-form-item>
         </div>
         <div class="form-grid">
-          <el-form-item label="学科"><el-select v-model="singleForm.subject" style="width: 100%"><el-option v-for="s in subjects" :key="s" :label="s" :value="s" /></el-select></el-form-item>
+          <el-form-item label="学科"><el-select v-model="singleForm.subject" style="width: 100%"><el-option v-for="s in writableSubjects(singleForm.class_id)" :key="s" :label="s" :value="s" /></el-select></el-form-item>
           <el-form-item label="考试日期"><el-date-picker v-model="singleForm.exam_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         </div>
         <el-form-item label="考试月份"><el-date-picker v-model="singleForm.exam_month" type="month" value-format="YYYY-MM" /></el-form-item>
@@ -97,8 +97,8 @@
     <el-dialog v-model="batchVisible" title="批量录入月考成绩" width="760px" destroy-on-close>
       <el-form label-position="top">
         <div class="form-grid-3">
-          <el-form-item label="班级"><el-select v-model="batchForm.class_id" style="width: 100%" @change="loadBatchStudents"><el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
-          <el-form-item label="学科"><el-select v-model="batchForm.subject" style="width: 100%"><el-option v-for="s in subjects" :key="s" :label="s" :value="s" /></el-select></el-form-item>
+          <el-form-item label="班级"><el-select v-model="batchForm.class_id" style="width: 100%" @change="loadBatchStudents"><el-option v-for="c in writableClasses" :key="c.id" :label="c.name" :value="c.id" /></el-select></el-form-item>
+          <el-form-item label="学科"><el-select v-model="batchForm.subject" style="width: 100%"><el-option v-for="s in writableSubjects(batchForm.class_id)" :key="s" :label="s" :value="s" /></el-select></el-form-item>
           <el-form-item label="考试日期"><el-date-picker v-model="batchForm.exam_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         </div>
         <div class="form-grid">
@@ -139,14 +139,30 @@ import { EditPen, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import MonthlyExamOverview from '../../components/MonthlyExamOverview.vue'
 import * as echarts from 'echarts'
 import { listClasses, listStudents } from '../../api/classes'
-import { batchCreateWeeklyScores, createWeeklyScore, deleteWeeklyScore, getClassWeeklySummary, getWeeklyTrend, listWeeklyScores, updateWeeklyScore } from '../../api/weeklyScores'
+import { batchCreateWeeklyScores, createWeeklyScore, deleteWeeklyScore, getClassWeeklySummary, getMonthlyExamEntryOptions, getWeeklyTrend, listWeeklyScores, updateWeeklyScore } from '../../api/weeklyScores'
 
 const auth = useAuthStore()
 const viewMode = ref('overview')
 const overviewRef = ref(null)
-const canManageScores = computed(() => ['admin', 'teacher'].includes(auth.role))
+const entryScopes = ref([])
+const writableClasses = computed(() => classes.value.filter(c => entryScopes.value.some(s => s.class_id === c.id)))
+const canManageScores = computed(() => writableClasses.value.length > 0)
 const subjects = ['语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理']
 const classes = ref([])
+
+function writableSubjects(classId) {
+  const scope = entryScopes.value.find(s => s.class_id === classId)
+  return scope?.all_subjects ? subjects : scope?.subjects || []
+}
+
+function resetEntrySubject(form) {
+  const options = writableSubjects(form.class_id)
+  if (!options.includes(form.subject)) form.subject = options[0] || ''
+}
+
+function defaultEntryClass() {
+  return writableClasses.value.find(c => c.id === filters.value.class_id)?.id || writableClasses.value[0]?.id || null
+}
 const rows = ref([])
 const loading = ref(false)
 const saving = ref(false)
@@ -201,13 +217,15 @@ function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(
 
 async function openSingleDialog() {
   editingId.value = null
-  singleForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, student_id: null, subject: filters.value.subject || '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' }
+  singleForm.value = { class_id: defaultEntryClass(), student_id: null, subject: filters.value.subject || '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', score: 0, max_score: null, rank_in_class: null, remark: '' }
+  resetEntrySubject(singleForm.value)
   if (singleForm.value.class_id) singleClassStudents.value = await listStudents(singleForm.value.class_id)
   singleVisible.value = true
 }
 
 async function onSingleClassChange(cid) {
   singleForm.value.student_id = null
+  resetEntrySubject(singleForm.value)
   singleClassStudents.value = cid ? await listStudents(cid) : []
 }
 
@@ -249,13 +267,15 @@ async function removeRow(row) {
 }
 
 async function openBatchDialog() {
-  batchForm.value = { class_id: filters.value.class_id || classes.value[0]?.id || null, subject: filters.value.subject || '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', max_score: null }
+  batchForm.value = { class_id: defaultEntryClass(), subject: filters.value.subject || '数学', exam_month: todayStr().slice(0,7), exam_date: todayStr(), exam_name: '', max_score: null }
+  resetEntrySubject(batchForm.value)
   batchStudents.value = []
   if (batchForm.value.class_id) await loadBatchStudents()
   batchVisible.value = true
 }
 
 async function loadBatchStudents() {
+  resetEntrySubject(batchForm.value)
   if (!batchForm.value.class_id) { batchStudents.value = []; return }
   const list = await listStudents(batchForm.value.class_id)
   batchStudents.value = list.map(s => ({ ...s, _score: null, _rank: null, _remark: '' }))
@@ -305,6 +325,9 @@ watch(trendVisible, (v) => { if (!v && chartInstance) { chartInstance.dispose();
 import { onMounted } from 'vue'
 onMounted(async () => {
   classes.value = await listClasses()
+  if (['admin', 'teacher', 'subject_teacher'].includes(auth.role)) {
+    entryScopes.value = await getMonthlyExamEntryOptions()
+  }
   // 默认选中第一个高三班级
   const g3 = classes.value.find(c => c.grade === '高三') || classes.value[0]
   if (g3) filters.value.class_id = g3.id

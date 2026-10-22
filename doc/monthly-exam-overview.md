@@ -12,6 +12,12 @@ Web 和小程序共用 `GET /api/monthly-exam-scores/overview`，继续使用已
 
 后端先按班主任及任课关系限制数据，再计算统计。学生、家长、咨询老师不能读取此成绩册接口，其原有个人/关联学生成绩入口不变。
 
+## 录入权限
+
+管理员及本班班主任可录入、修改本班各科成绩；任课老师（含在其他班兼课的班主任账号）可单条或批量录入、修改实际 `ClassTeacher(role=subject_teacher)` 关联班级的对应科目。主管身份和注册科目不扩大写权限，任课关系撤销后即时失去录入权限。修改科目时同时校验原科目与目标科目的权限，学生仍须属于目标班级。
+
+Web 与小程序通过 `GET /api/monthly-exam-scores/entry-options` 获取可录班级及科目。成绩记录的 `can_edit`、`can_delete` 由服务端计算；删除仍限管理员及本班班主任。学生、家长、咨询老师、德育主任保持只读。旧 `/api/weekly-test-scores` 入口执行相同权限校验，无需数据库迁移。
+
 ## 排名规则
 
 - 默认查询当前账号有权查看的最新考试月份，也支持明确指定月份；考试日期跨月不改变成绩归属月份。
@@ -28,6 +34,10 @@ Web 和小程序共用 `GET /api/monthly-exam-scores/overview`，继续使用已
 支持 `exam_month`、`class_id`、`grade`、`subject`、`keyword`、`limit`、`offset`。`subject` 指定按对应科目降序排列，仍返回有权查看的其他科目。未指定科目时，有完整总分者按总分降序排列。
 
 聚合在分页前覆盖全部当月可见记录，不依赖旧列表默认的 200 条限制。月份为空的迁移前历史记录不参与统计。
+
+## 导出
+
+总览页“导出 Excel”调用 `GET /api/monthly-exam-scores/overview/export`，参数与 `/overview` 一致（`scope`、`exam_month`、`class_id`、`grade`、`subject`、`keyword`），返回当前可见范围与筛选条件下的全部学生成绩册，不受分页限制。导出列包含总分、各科分数及班内/范围排名；任课老师导出仅含其任教学科，不包含总分列。
 
 在 backend 目录运行：
 

@@ -11,6 +11,7 @@ from app.api import (
     admin,
     case_tasks,
     classes,
+    class_transfers,
     monthly_reports,
     period_times,
     points_reports,
@@ -70,6 +71,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(classes.router, prefix=settings.api_prefix)
+app.include_router(class_transfers.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
 app.include_router(case_tasks.router, prefix=settings.api_prefix)
 app.include_router(case_tasks.stage_router, prefix=settings.api_prefix)

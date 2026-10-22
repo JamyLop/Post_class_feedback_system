@@ -3,7 +3,7 @@
     <WorkspaceLink />
     <view class="head">
       <text class="h1">月考成绩</text>
-      <text class="p">{{ auth.role === 'subject_teacher' ? '查看所带班级对应学科的成绩与排名' : '查看学生总分、各科成绩与排名' }}</text>
+      <text class="p">{{ auth.role === 'subject_teacher' ? '查看所带班级对应学科的成绩与排名，可录入任教学科成绩' : '查看学生总分、各科成绩与排名' }}</text>
     </view>
 
     <view v-if="auth.role !== 'consultant'" class="view-tabs">
@@ -112,7 +112,7 @@ import WeeklyScoreEvaluations from '../../components/WeeklyScoreEvaluations.vue'
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { listWeeklyScores, getClassSummary } from '../../api/weeklyScores'
+import { listWeeklyScores, getClassSummary, getMonthlyExamEntryOptions } from '../../api/weeklyScores'
 import { listClasses } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 
@@ -132,7 +132,10 @@ const classNames = computed(() => ['全部班级', ...classList.value.map(c => c
 const selectedClassId = computed(() => classIndex.value > 0 ? classList.value[classIndex.value - 1]?.id : null)
 const selectedSubject = computed(() => subjectIndex.value > 0 ? subjectOptions[subjectIndex.value] : null)
 
-const canWrite = computed(() => ['teacher', 'admin'].includes(auth.role))
+const entryScopes = ref([])
+const canWrite = computed(() => selectedClassId.value
+  ? entryScopes.value.some(s => s.class_id === selectedClassId.value)
+  : entryScopes.value.length > 0)
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
@@ -144,8 +147,14 @@ function guardRole() {
 }
 
 async function loadClasses() {
+  entryScopes.value = []
   try {
-    classList.value = await listClasses()
+    const [classes, scopes] = await Promise.all([
+      listClasses(),
+      ['teacher', 'admin', 'subject_teacher'].includes(auth.role) ? getMonthlyExamEntryOptions() : Promise.resolve([]),
+    ])
+    classList.value = classes
+    entryScopes.value = scopes
   } catch (e) {
     classList.value = []
     uni.showToast({ title: '班级加载失败，请点击刷新重试', icon: 'none' })
@@ -199,7 +208,8 @@ function goCreate() {
     uni.showToast({ title: '请先选择班级', icon: 'none' })
     return
   }
-  uni.navigateTo({ url: `/subTeacher/weeklyScores/create?classId=${selectedClassId.value}&className=${classNames.value[classIndex.value]}` })
+  if (!canWrite.value) return
+  uni.navigateTo({ url: `/subTeacher/weeklyScores/create?classId=${selectedClassId.value}&className=${encodeURIComponent(classNames.value[classIndex.value])}` })
 }
 
 onShow(() => {

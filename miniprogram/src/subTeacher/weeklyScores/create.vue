@@ -82,7 +82,7 @@
 
     <!-- 提交按钮 -->
     <view class="submit-bar">
-      <button class="btn-submit" :loading="submitting" :disabled="submitting" @click="handleSubmit">
+      <button class="btn-submit" :loading="submitting" :disabled="submitting || loadingStudents || !subjectOptions.length" @click="handleSubmit">
         {{ submitting ? '提交中...' : '保存成绩' }}
       </button>
     </view>
@@ -91,10 +91,10 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { listClassStudents } from '../api/classes'
-import { batchCreateWeeklyScores } from '../../api/weeklyScores'
+import { batchCreateWeeklyScores, getMonthlyExamEntryOptions } from '../../api/weeklyScores'
 import EmptyState from '../../components/EmptyState.vue'
 
 const classId = ref(null)
@@ -105,7 +105,8 @@ const studentList = ref([])
 const scoreMap = reactive({})
 const rankMap = reactive({})
 
-const subjectOptions = ['语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理']
+const allSubjects = ['语文', '数学', '英语', '日语', '物理', '化学', '生物', '政治', '历史', '地理']
+const subjectOptions = ref([])
 const subjectIndex = ref(0)
 
 const form = reactive({
@@ -128,6 +129,14 @@ onLoad((options) => {
 async function loadStudents() {
   loadingStudents.value = true
   try {
+    // 直接打开录入页也必须读取服务端授权科目，不能信任路由参数或注册科目。
+    const scopes = await getMonthlyExamEntryOptions()
+    const scope = scopes.find(s => s.class_id === classId.value)
+    subjectOptions.value = scope?.all_subjects ? allSubjects : scope?.subjects || []
+    if (!subjectOptions.value.length) {
+      uni.showToast({ title: '无权录入该班级成绩', icon: 'none' })
+      return
+    }
     studentList.value = await listClassStudents(classId.value)
   } catch (e) {
     studentList.value = []
@@ -137,7 +146,7 @@ async function loadStudents() {
 }
 
 function validate() {
-  if (!subjectOptions[subjectIndex.value]) {
+  if (!subjectOptions.value[subjectIndex.value]) {
     uni.showToast({ title: '请选择科目', icon: 'none' })
     return false
   }
@@ -178,7 +187,7 @@ async function handleSubmit() {
   try {
     await batchCreateWeeklyScores({
       class_id: classId.value,
-      subject: subjectOptions[subjectIndex.value],
+      subject: subjectOptions.value[subjectIndex.value],
       exam_month: form.exam_month,
       exam_date: form.exam_date,
       exam_name: form.exam_name || `${form.exam_month}月考`,

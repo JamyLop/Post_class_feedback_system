@@ -17,10 +17,13 @@ export const useAuthStore = defineStore('auth', {
         this.token = uni.getStorageSync('token') || ''
         const raw = uni.getStorageSync('user')
         this.user = raw ? JSON.parse(raw) : null
-      } catch (_) {}
+      } catch (_) {
+        this.token = ''
+        this.user = null
+      }
     },
     async login(username, password, captcha_id = '', captcha_code = '') {
-      const data = await http.post('/auth/login', { username, password, captcha_id, captcha_code })
+      const data = await http.post('/auth/login', { username, password, captcha_id, captcha_code, client: 'miniprogram' })
       this.token = data.access_token
       this.user = data.user
       uni.setStorageSync('token', data.access_token)
@@ -57,8 +60,8 @@ export const useAuthStore = defineStore('auth', {
       this.bindTicket = ''
       return data.user
     },
-    async refreshMe() {
-      const user = await http.get('/auth/me')
+    async refreshMe(options) {
+      const user = await http.get('/auth/me', undefined, options)
       this.user = user
       uni.setStorageSync('user', JSON.stringify(user))
       return user

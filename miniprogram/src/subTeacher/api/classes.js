@@ -1,7 +1,10 @@
 import { http } from '../../utils/request'
 
 // 班级列表
-export const listClasses = () => http.get('/classes')
+export const listClasses = () => http.get('/classes', { limit: 500 })
+export const previewTransfers = (data) => http.post('/class-transfers/preview', data, { timeout: 60000 })
+export const commitTransfers = (data) => http.post('/class-transfers', data, { timeout: 60000 })
+export const listTransfers = (params = {}) => http.get('/class-transfers', params)
 
 // 获取单个班级
 export const getClass = (id) => http.get(`/classes/${id}`)

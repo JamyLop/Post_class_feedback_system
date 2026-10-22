@@ -93,7 +93,7 @@ import MonthlyWritingStatus from '../../components/MonthlyWritingStatus.vue'
 import { useAuthStore } from '../../stores/auth'
 import { ref, onMounted } from 'vue'
 import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
-import { completeReview } from '../../utils/monthlyReview'
+import { completeReview, reviewError } from '../../utils/monthlyReview'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
@@ -150,7 +150,7 @@ function openGenerate() {
 async function submitGenerate() {
   if (!genForm.value.class_id || !genForm.value.student_id || !genForm.value.month_label) { ElMessage.warning('请选择班级、学生和月份'); return }
   if (generating.value) return
-  if (!completeReview(genForm.value.final_content)) { ElMessage.warning('请完整填写总结、问题、计划'); return }
+  if (!completeReview(genForm.value.final_content)) { ElMessage.warning(reviewError(genForm.value.final_content)); return }
   generating.value = true
   try {
     await createMonthlyReport(genForm.value)
@@ -165,7 +165,7 @@ async function openDetail(row) {
   detailVisible.value = true
 }
 async function saveEdit() {
-  if (!completeReview(editContent.value)) { ElMessage.warning('请完整填写总结、问题、计划'); return }
+  if (!completeReview(editContent.value)) { ElMessage.warning(reviewError(editContent.value)); return }
   saving.value = true
   try {
     const updated = await updateMonthlyReport(current.value.id, { final_content: editContent.value })
@@ -177,7 +177,7 @@ async function saveEdit() {
 async function publishRow(row) { await publishMonthlyReport(row.id); ElMessage.success('已发布'); await load() }
 async function publishCurrent() {
   if (saving.value) return
-  if (!completeReview(editContent.value)) { ElMessage.warning('请完整填写总结、问题、计划'); return }
+  if (!completeReview(editContent.value)) { ElMessage.warning(reviewError(editContent.value)); return }
   saving.value = true
   try {
     // 发布前保存当前编辑框，避免发布仍停留在数据库里的旧正文。

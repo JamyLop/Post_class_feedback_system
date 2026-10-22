@@ -111,7 +111,8 @@ def require_case_access(
     write: bool = False,
     subject: str = "",
 ) -> StudentCase:
-    case = db.get(StudentCase, case_id)
+    case = (db.query(StudentCase).filter_by(id=case_id).populate_existing().with_for_update().first()
+            if write else db.get(StudentCase, case_id))
     if case is None:
         raise HTTPException(status_code=404, detail="学生总案不存在")
     if user.role == ROLE_ADMIN:
@@ -136,6 +137,10 @@ def require_case_access(
         if write and not can_consultant_manage(db, case, user):
             raise HTTPException(status_code=403, detail="仅可修改自己关联学生的档案")
         return case
+    if not write and user.role == ROLE_TEACHER:
+        from app.services.class_transfer_service import can_read_transferred_history
+        if can_read_transferred_history(db, user, case.student_id, case.class_id):
+            return case
     if user.role == ROLE_SUBJECT_TEACHER:
         # 任课老师只能查看所带学科班级的档案，不能直接修改；修改意见走学科建议链路
         if write:

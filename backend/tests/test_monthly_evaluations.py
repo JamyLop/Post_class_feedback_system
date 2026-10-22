@@ -135,15 +135,29 @@ def test_three_part_review_and_head_only_management(client, auth, db, seed_users
     _, cls, _ = _setup(db, seed_users)
     report = _create_report(client, auth, cls, seed_users["student1"])
     url = f"/api/monthly-reports/{report['id']}"
-    review = "【总结】\n本月进步\n\n【问题】\n复盘不足\n\n【计划】\n每周复盘"
+    review = f"【总结】\n{'本月进步' * 13}\n\n【问题】\n{'复盘不足' * 13}\n\n【计划】\n每周复盘"
     result = client.put(url + "/evaluation", headers=auth("subject1"), json={"content": review})
     assert result.status_code == 200, result.text
     assert result.json()["evaluations"][0]["content"] == review
     assert result.json()["evaluation_subject"] == "数学"
     assert result.json()["can_manage"] is False
-    incomplete = review.replace("复盘不足", " ")
+    incomplete = review.replace("复盘不足" * 13, " ")
     assert client.put(url + "/evaluation", headers=auth("subject1"), json={"content": incomplete}).status_code == 422
     assert client.put(url, headers=auth("teacher1"), json={"final_content": incomplete}).status_code == 422
+    # 两栏分别校验，不能用另一栏的字数或空白凑足；失败不覆盖已有内容。
+    for field in ("summary", "problems"):
+        parts = {"summary": "结" * 50, "problems": "问" * 50, "plan": "改进"}
+        parts[field] = "字" * 49 + " \n\t　"
+        short = f"【总结】\n{parts['summary']}\n\n【问题】\n{parts['problems']}\n\n【计划】\n{parts['plan']}"
+        assert client.put(url + "/evaluation", headers=auth("subject1"), json={"content": short}).status_code == 422
+        assert client.put(url, headers=auth("teacher1"), json={"final_content": short}).status_code == 422
+        assert client.post("/api/monthly-reports", headers=auth("teacher1"), json={
+            "student_id": seed_users["student1"], "class_id": cls.id,
+            "month_label": "2026-10", "final_content": short,
+        }).status_code == 422
+    unchanged = client.get(url, headers=auth("subject1")).json()
+    assert unchanged["evaluations"][0]["content"] == review
+    assert unchanged["final_content"] == report["final_content"]
     # teacher 账号有任课关系也不能代写德育或发布、删除。
     db.add(ClassTeacher(class_id=cls.id, teacher_id=seed_users["teacher2"], role="subject_teacher", subject="英语"))
     db.commit()
@@ -214,7 +228,7 @@ def test_head_placeholder_does_not_block_class_subject_teacher(client, auth, db,
 
 def test_subject_can_start_report_before_head_teacher(client, auth, db, seed_users):
     _, cls, _ = _setup(db, seed_users)
-    payload = {"student_id": seed_users["student1"], "class_id": cls.id, "month_label": "2026-10", "final_content": "【总结】\n进步\n\n【问题】\n计算\n\n【计划】\n练习"}
+    payload = {"student_id": seed_users["student1"], "class_id": cls.id, "month_label": "2026-10", "final_content": f"【总结】\n{'进步' * 25}\n\n【问题】\n{'计算' * 25}\n\n【计划】\n练习"}
     first = client.post("/api/monthly-reports", headers=auth("subject1"), json=payload)
     assert first.status_code == 200, first.text
     row = first.json()

@@ -2,6 +2,7 @@ from app.core.database import Base  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian, StudentConsultant  # noqa: F401
 from app.models.invite import InviteCode  # noqa: F401
+from app.models.class_transfer import ClassTransferBatch, ClassTransferItem  # noqa: F401
 from app.models.student_case import (  # noqa: F401
     CaseAuditLog,
     CaseCycle,

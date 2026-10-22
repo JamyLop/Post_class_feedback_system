@@ -8,7 +8,7 @@
 """
 
 import calendar
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -280,17 +280,29 @@ def build_points_reports(
         start, end = parse_month_label(period_label)
     else:
         raise ValueError("period_type 仅支持 weekly/monthly")
-    members = db.query(ClassStudent).filter_by(class_id=class_id).all()
+    from app.services.class_transfer_service import roster_at, SCHOOL_TZ
+    boundary = datetime.combine(end, datetime.max.time(), tzinfo=SCHOOL_TZ)
+    roster, historic_contexts = roster_at(db, boundary, {class_id})
+    members = [member for member, _ in roster]
     if not members:
         raise ValueError("该班级暂无学生")
     results: list[StudentPointsReport] = []
     for member in members:
+        context = historic_contexts.get((class_id, member.student_id))
+        previous_report = db.query(StudentPointsReport).filter_by(student_id=member.student_id,
+            period_type=period_type, period_label=period_label).first()
+        if context and previous_report is not None:
+            # 已结束周期的报表保留原班和积分，不能用交接后的任务再次覆盖历史。
+            results.append(previous_report)
+            continue
         case = (
             db.query(StudentCase)
             .filter_by(class_id=class_id, student_id=member.student_id)
             .order_by(StudentCase.updated_at.desc())
             .first()
         )
+        if case is None and context and context["cases"]:
+            case = db.get(StudentCase, context["cases"][-1]["case"]["id"])
         tasks: list[CaseTask] = []
         task_map: dict[int, CaseTask] = {}
         if case is not None:

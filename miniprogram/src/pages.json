@@ -70,6 +70,14 @@
         {
           "path": "taskDetail/index",
           "style": { "navigationBarTitleText": "任务详情" }
+        },
+        {
+          "path": "monthlyReports/subjects",
+          "style": { "navigationBarTitleText": "评定科目" }
+        },
+        {
+          "path": "monthlyReports/detail",
+          "style": { "navigationBarTitleText": "评定内容" }
         }
       ]
     },
@@ -146,9 +154,21 @@
           "style": { "navigationBarTitleText": "评定详情" }
         },
         {
+          "path": "monthlyReports/subjects",
+          "style": { "navigationBarTitleText": "评定科目" }
+        },
+        {
+          "path": "monthlyReports/content",
+          "style": { "navigationBarTitleText": "评定内容" }
+        },
+        {
           "path": "classManager/index",
           "style": { "navigationBarTitleText": "班级管理" }
         },
+          {
+            "path": "classManager/transfers",
+            "style": { "navigationBarTitleText": "批量调班" }
+          },
         {
           "path": "classManager/create",
           "style": { "navigationBarTitleText": "新建班级" }

@@ -138,7 +138,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     if user.status != "active":
         raise HTTPException(status_code=403, detail="账号已被禁用")
-    token = create_access_token(user.id, user.role)
+    token = create_access_token(user.id, user.role, miniprogram=body.client == "miniprogram")
     return LoginResponse(access_token=token, user=UserOut.model_validate(user))
 
 
@@ -179,7 +179,7 @@ async def wx_login(body: WxLoginRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=403, detail="账号已被禁用")
         identity.last_login_at = datetime.now(timezone.utc)
         db.commit()
-        token = create_access_token(user.id, user.role)
+        token = create_access_token(user.id, user.role, miniprogram=True)
         # 审计：微信登录成功
         try:
             from app.services.student_case_service import audit
@@ -298,7 +298,7 @@ def wx_bind(body: WxBindRequest, db: Session = Depends(get_db)):
         pass
     db.commit()
     db.refresh(user)
-    token = create_access_token(user.id, user.role)
+    token = create_access_token(user.id, user.role, miniprogram=True)
     return {"access_token": token, "user": UserOut.model_validate(user).model_dump()}
 
 

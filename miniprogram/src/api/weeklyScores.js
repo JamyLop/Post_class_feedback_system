@@ -1,5 +1,7 @@
 import { http } from '../utils/request'
 
+export const getMonthlyExamEntryOptions = () => http.get('/monthly-exam-scores/entry-options')
+
 export const getMonthlyExamOverview = (params) => http.get('/monthly-exam-scores/overview', params)
 
 // 查询月考成绩列表

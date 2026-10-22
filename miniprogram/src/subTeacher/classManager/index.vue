@@ -9,6 +9,7 @@
     <view class="action-bar">
       <!-- 新建班级由德育主任操作；班主任仅维护学生名册 -->
       <button v-if="['admin', 'deyu_director'].includes(auth.role)" class="btn-primary" @click="goCreateClass">新建班级</button>
+      <button v-if="['admin', 'deyu_director'].includes(auth.role)" class="btn-outline" @click="uni.navigateTo({ url: '/subTeacher/classManager/transfers' })">批量调班</button>
       <button class="btn-outline" @click="loadData" :loading="loading" :disabled="loading">刷新</button>
     </view>
 

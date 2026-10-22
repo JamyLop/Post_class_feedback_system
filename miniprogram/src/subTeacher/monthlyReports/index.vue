@@ -56,8 +56,11 @@
               </view>
             </view>
             <text class="report-meta">{{ item.month_label }} · {{ item.class_name || '' }}</text>
-            <text v-if="item.final_content" class="report-preview">{{ item.final_content.slice(0, 60) }}...</text>
-            <MonthlyReportEvaluations :report="item" @saved="applyEvaluation" @click.stop />
+            <text v-if="auth.role === 'admin'" class="report-meta">查看科目评定</text>
+            <template v-else>
+              <text v-if="item.final_content" class="report-preview">{{ item.final_content.slice(0, 60) }}...</text>
+              <MonthlyReportEvaluations :report="item" @saved="applyEvaluation" @click.stop />
+            </template>
           </view>
           <text class="report-arrow">›</text>
         </view>
@@ -161,7 +164,8 @@ function goGenerate() {
 }
 
 function goDetail(id) {
-  uni.navigateTo({ url: `/subTeacher/monthlyReports/detail?id=${id}` })
+  const page = auth.role === 'admin' ? 'subjects' : 'detail'
+  uni.navigateTo({ url: `/subTeacher/monthlyReports/${page}?id=${id}` })
 }
 
 async function reloadScope() {

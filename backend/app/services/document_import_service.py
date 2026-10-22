@@ -152,6 +152,8 @@ def ensure_pilot_structure(
             class_id=cls.id, student_id=student.id
         ).first()
         if member is None:
+            from app.services.class_transfer_service import assert_can_enroll
+            assert_can_enroll(db, student.id, cls)
             db.add(ClassStudent(class_id=cls.id, student_id=student.id))
         case = db.query(StudentCase).filter_by(
             cycle_id=cycle.id, student_id=student.id

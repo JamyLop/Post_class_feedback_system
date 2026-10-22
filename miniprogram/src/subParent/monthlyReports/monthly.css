@@ -1,0 +1,16 @@
+.monthly-page { padding: 28rpx 32rpx calc(40rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 24rpx; }
+.monthly-heading { display: flex; flex-direction: column; gap: 10rpx; }
+.monthly-title { font-size: 36rpx; font-weight: 600; color: var(--mp-ink); overflow-wrap: anywhere; }
+.monthly-meta { display: block; font-size: 25rpx; color: var(--mp-muted); line-height: 1.7; overflow-wrap: anywhere; }
+.monthly-list { background: var(--mp-surface); border-radius: 16rpx; overflow: hidden; }
+.monthly-row { display: flex; align-items: center; gap: 20rpx; width: 100%; min-height: 112rpx; padding: 26rpx 28rpx; text-align: left; background: var(--mp-surface); border: 0; border-radius: 0; }
+.monthly-row + .monthly-row { border-top: 1rpx solid var(--mp-line); }
+.monthly-row.tap-active { background: var(--mp-soft); }
+.monthly-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8rpx; }
+.monthly-row-title { font-size: 30rpx; font-weight: 600; color: var(--mp-ink); overflow-wrap: anywhere; }
+.monthly-arrow { flex-shrink: 0; font-size: 40rpx; line-height: 1; color: var(--mp-muted); }
+.monthly-content { background: var(--mp-surface); border-radius: 16rpx; padding: 30rpx; }
+.monthly-author { display: block; font-size: 25rpx; color: var(--mp-muted); padding-bottom: 24rpx; border-bottom: 1rpx solid var(--mp-line); overflow-wrap: anywhere; }
+.review-section { margin-top: 28rpx; }
+.review-label { display: block; font-size: 29rpx; font-weight: 600; color: var(--mp-ink); margin-bottom: 12rpx; }
+.review-content { display: block; font-size: 28rpx; line-height: 1.85; color: var(--mp-body); white-space: pre-wrap; overflow-wrap: anywhere; }

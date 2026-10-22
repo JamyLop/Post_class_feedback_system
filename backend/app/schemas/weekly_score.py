@@ -118,6 +118,14 @@ class WeeklyTestScoreOut(BaseModel):
     class_name: str | None = None
     evaluations: list[WeeklyScoreEvaluationOut] = Field(default_factory=list)
     can_evaluate: bool = False
+    can_edit: bool = False
+    can_delete: bool = False
+
+
+class MonthlyExamEntryScope(BaseModel):
+    class_id: int
+    all_subjects: bool = False
+    subjects: list[str] = Field(default_factory=list)
 
 
 class WeeklyTestTrendPoint(BaseModel):

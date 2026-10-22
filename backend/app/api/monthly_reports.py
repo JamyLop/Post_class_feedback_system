@@ -5,13 +5,20 @@ import logging
 from collections import defaultdict
 from datetime import date
 from typing import Literal
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
 
 from app.auth.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.services.supervision_scope import can_supervise_class, supervised_class_ids
+from app.services.class_transfer_service import (
+    historical_roster, frozen_report_context, can_read_transferred_history, current_head_student_ids,
+    same_roster_scope,
+)
+from app.models.class_transfer import ClassTransferItem
 from app.models.class_ import Class, ClassStudent, ClassTeacher, StudentGuardian
 from app.models.monthly_report import (
     MONTHLY_EVAL_ROLE_HEAD,
@@ -63,14 +70,17 @@ def _enrich(row: MonthlyReport, db: Session, user: User) -> dict:
     role_subject = _evaluation_role(db, row, user)
     data["can_evaluate"] = role_subject is not None
     data["evaluation_subject"] = role_subject[1] if role_subject else ""
-    data["can_manage"] = _is_head_teacher(db, row.class_id, user)
-    data["can_publish"] = data["can_manage"] or user.role == ROLE_ADMIN
+    frozen = frozen_report_context(db, row) is not None
+    data["can_manage"] = not frozen and _is_head_teacher(db, row.class_id, user)
+    data["can_publish"] = not frozen and (data["can_manage"] or user.role == ROLE_ADMIN)
     return data
 
 
 def _evaluation_role(db: Session, row: MonthlyReport, user: User) -> tuple[str, str] | None:
     """判定用户可否评价该月度评定；返回 (role, subject)，班主任 subject 为空。"""
     if user.role not in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
+        return None
+    if frozen_report_context(db, row) is not None:
         return None
     cls = db.get(Class, row.class_id)
     relations = db.query(ClassTeacher).filter_by(class_id=row.class_id, teacher_id=user.id).all()
@@ -161,6 +171,10 @@ def _report_access(db: Session, report_id: int, user: User) -> MonthlyReport:
         if linked is None or r.status != MONTHLY_STATUS_PUBLISHED:
             raise HTTPException(status_code=403, detail="无权查看该月度评定")
         return r
+    if can_read_transferred_history(db, user, r.student_id, r.class_id):
+        return r
+    if frozen_report_context(db, r) is not None and _is_head_teacher(db, r.class_id, user):
+        return r
     if _evaluation_role(db, r, user) is not None:
         return r
     if user.role == ROLE_SUBJECT_TEACHER:
@@ -170,6 +184,11 @@ def _report_access(db: Session, report_id: int, user: User) -> MonthlyReport:
         return r
     _authorize_student_class(db, r.student_id, r.class_id, user)
     return r
+
+
+def _require_unfrozen(db, report):
+    if frozen_report_context(db, report) is not None:
+        raise HTTPException(409, "该月评已作为调班前的历史记录保留，仅可查看")
 
 @router.post("/generate")
 def generate_monthly(user: User = Depends(_manager)):
@@ -183,7 +202,7 @@ def create_monthly(
     db: Session = Depends(get_db),
     user: User = Depends(_manager),
 ):
-    stu = db.get(User, body.student_id)
+    stu = db.query(User).filter_by(id=body.student_id).with_for_update().first()
     if stu is None or stu.role != ROLE_STUDENT:
         raise HTTPException(status_code=404, detail="学生不存在")
     if not db.query(ClassStudent).filter_by(student_id=body.student_id, class_id=body.class_id).first():
@@ -199,6 +218,14 @@ def create_monthly(
     if role_subject is None:
         raise HTTPException(status_code=403, detail="仅对应任课老师或本班班主任可填写")
     period_start, period_end = _month_bounds(body.month_label)
+    period_members, _ = historical_roster(db, body.month_label, {body.class_id}, body.student_id)
+    if not period_members:
+        raise HTTPException(409, "该学生在所选月份不属于此班级，请查看原班历史评定")
+    for previous in db.query(MonthlyReport).filter_by(student_id=body.student_id, month_label=body.month_label,
+                                                     status=MONTHLY_STATUS_PUBLISHED):
+        if previous.class_id != body.class_id and frozen_report_context(db, previous) is not None and same_roster_scope(
+            db.get(Class, previous.class_id), db.get(Class, body.class_id)):
+            raise HTTPException(409, "该学生本月已有调班前发布的月评，请查看历史记录，无需重复填写")
     if body.student_case_id is not None:
         sc = db.get(StudentCase, body.student_case_id)
         if sc is None or sc.student_id != body.student_id or sc.class_id != body.class_id:
@@ -264,7 +291,10 @@ def list_reports(
         allowed = set(legacy_ids + rel_ids) | _subject_teacher_class_ids(db, user)
         if not allowed:
             return []
-        q = q.filter(MonthlyReport.class_id.in_(allowed))
+        history_scope = and_(MonthlyReport.student_id.in_(current_head_student_ids(db, user)),
+            db.query(ClassTransferItem.id).filter(ClassTransferItem.student_id == MonthlyReport.student_id,
+                ClassTransferItem.source_class_id == MonthlyReport.class_id).exists())
+        q = q.filter(or_(MonthlyReport.class_id.in_(allowed), history_scope))
     elif user.role == ROLE_SUBJECT_TEACHER:
         # 教学管理仅列本人任教班级；主管的学段进度在主管工作台查询。
         allowed = _subject_teacher_class_ids(db, user)
@@ -278,7 +308,11 @@ def list_reports(
     if student_id is not None:
         q = q.filter(MonthlyReport.student_id == student_id)
     if class_id is not None:
-        q = q.filter(MonthlyReport.class_id == class_id)
+        if user.role == ROLE_TEACHER and _is_head_teacher(db, class_id, user):
+            member_ids = db.query(ClassStudent.student_id).filter_by(class_id=class_id).scalar_subquery()
+            q = q.filter(or_(MonthlyReport.class_id == class_id, and_(MonthlyReport.student_id.in_(member_ids), history_scope)))
+        else:
+            q = q.filter(MonthlyReport.class_id == class_id)
     if month_label:
         q = q.filter(MonthlyReport.month_label == month_label)
     if status:
@@ -314,12 +348,7 @@ def writing_status(
     relations = defaultdict(list)
     for relation in db.query(ClassTeacher).filter(ClassTeacher.class_id.in_(allowed)).all():
         relations[relation.class_id].append(relation)
-    roster = db.query(ClassStudent, User).join(User, User.id == ClassStudent.student_id).filter(
-        ClassStudent.class_id.in_(allowed), User.role == ROLE_STUDENT,
-    )
-    if student_id is not None:
-        roster = roster.filter(User.id == student_id)
-    members = roster.order_by(ClassStudent.class_id, User.name, User.id).all()
+    members, historic_contexts = historical_roster(db, month_label, allowed, student_id)
     student_ids = {student.id for _, student in members}
     cases = db.query(StudentCase).filter(StudentCase.student_id.in_(student_ids)).order_by(StudentCase.id.desc()).all()
     cases_by_id = {case.id: case for case in cases}
@@ -333,6 +362,10 @@ def writing_status(
     teacher_ids = {r.teacher_id for group in relations.values() for r in group}
     teacher_ids.update(p.teacher_id for group in plans.values() for p in group)
     teacher_ids.update(c.teacher_id for c in classes.values())
+    for context in historic_contexts.values():
+        teacher_ids.add(context["source"]["teacher_id"])
+        teacher_ids.update(p["teacher_id"] for snap in context["cases"] for p in snap["subject_plans"])
+        teacher_ids.update(r["teacher_id"] for r in context["relations"])
     teacher_ids.add(user.id)
     teachers = {t.id: t for t in db.query(User).filter(
         User.id.in_(teacher_ids), User.role.in_([ROLE_TEACHER, ROLE_SUBJECT_TEACHER]),
@@ -341,6 +374,13 @@ def writing_status(
         MonthlyReport.class_id.in_(allowed), MonthlyReport.student_id.in_(student_ids),
         MonthlyReport.month_label == month_label,
     ).all()}
+    # 当月已发布的旧班月评继续作为该生本月成果，避免新班再次产生催填。
+    published_history = {}
+    for report in db.query(MonthlyReport).filter(MonthlyReport.student_id.in_(student_ids),
+        MonthlyReport.month_label == month_label, MonthlyReport.status == MONTHLY_STATUS_PUBLISHED):
+        context = frozen_report_context(db, report)
+        if context:
+            published_history[report.student_id] = (report, context)
     rows = []
     student_scopes = {}
     for member, student in members:
@@ -352,8 +392,27 @@ def writing_status(
         is_head = is_admin or is_supervision or cls.teacher_id == user.id or any(r.role == "head_teacher" for r in own_relations)
         report = reports.get((cls.id, student.id))
         case = cases_by_id.get(report.student_case_id) if report and report.student_case_id else latest_cases.get((cls.id, student.id))
-        head_subjects = {r.subject for r in relations[cls.id] if r.teacher_id == cls.teacher_id and r.role == "subject_teacher"}
         case_plans = plans[case.id] if case else []
+        duty_cls, duty_relations = cls, relations[cls.id]
+        context = historic_contexts.get((cls.id, student.id))
+        if not report and student.id in published_history:
+            previous_report, previous_context = published_history[student.id]
+            if same_roster_scope(cls, SimpleNamespace(**previous_context["source"])):
+                report, context = previous_report, previous_context
+        if context:
+            duty_cls = SimpleNamespace(**context["source"])
+            duty_relations = [SimpleNamespace(**r) for r in context["relations"] if r["class_id"] == duty_cls.id]
+            snapshots = context["cases"]
+            snapshot = next((s for s in snapshots if report and s["case"]["id"] == report.student_case_id),
+                            snapshots[-1] if snapshots and not (report and report.student_case_id) else None)
+            if snapshot:
+                case = SimpleNamespace(**snapshot["case"])
+                case_plans = [SimpleNamespace(**p) for p in snapshot["subject_plans"]]
+            # 过去的老师仍按原职责计数；不会因交接后的 teacher_id 变化把已填误报未填。
+            for tid in {duty_cls.teacher_id} | {p.teacher_id for p in case_plans} | {r.teacher_id for r in duty_relations}:
+                if tid not in teachers and (teacher := db.get(User, tid)) is not None:
+                    teachers[tid] = teacher
+        head_subjects = {r.subject for r in duty_relations if r.teacher_id == duty_cls.teacher_id and r.role == "subject_teacher"}
         initial_subjects = {p.subject.strip() for p in case_plans if p.subject.strip()}
         if is_head:
             student_scopes[(cls.id, student.id)] = dict(student_id=student.id, student_name=student.name,
@@ -362,11 +421,11 @@ def writing_status(
         # 班主任可查看全班任课进度；任课老师仍仅查看本人职责，查看不授予代填权限。
         candidates = teachers.values() if is_head else [user]
         # 学科对应个人初评；德育是班主任固定职责，不依赖初评是否单独录入。
-        head = teachers.get(cls.teacher_id) if is_admin or is_supervision else user
+        head = teachers.get(duty_cls.teacher_id) if is_admin or is_supervision or context else user
         duties = [(MONTHLY_EVAL_ROLE_HEAD, "德育", head)] if is_head and head else []
         for teacher in candidates:
-            teacher_relations = [r for r in relations[cls.id] if r.teacher_id == teacher.id]
-            assignment = _resolve_evaluation_role(cls, teacher_relations, case, case_plans, head_subjects, teacher)
+            teacher_relations = [r for r in duty_relations if r.teacher_id == teacher.id]
+            assignment = _resolve_evaluation_role(duty_cls, teacher_relations, case, case_plans, head_subjects, teacher)
             if assignment and assignment[0] == MONTHLY_EVAL_ROLE_SUBJECT:
                 # 每个初评科目单独一行；同一老师兼教也不合并成一个计数项。
                 for subject in assignment[1].split("、"):
@@ -383,10 +442,12 @@ def writing_status(
             if report and role == MONTHLY_EVAL_ROLE_SUBJECT:
                 content = next((e.content for e in report.evaluations if e.teacher_id == teacher.id and e.teacher_role == role
                                 and subject in e.subject.split("、")), "")
+                if not content and (report.input_snapshot or {}).get("transfer_origin"):
+                    content = next((e.content for e in report.evaluations if e.teacher_role == role and subject in e.subject.split("、")), "")
             rows.append(dict(student_id=student.id, student_name=student.name, class_id=cls.id,
                              class_name=cls.name, month_label=month_label, teacher_role=role,
                              subject=subject, report_id=report.id if report else None,
-                             teacher_id=teacher.id, teacher_name=teacher.name, can_edit=not (is_admin or is_supervision) and teacher.id == user.id,
+                             teacher_id=teacher.id, teacher_name=teacher.name, can_edit=not (is_admin or is_supervision or context) and teacher.id == user.id,
                              writing_status="written" if content and content.strip() else "unwritten"))
         if is_head:
             # 初评科目即使尚未关联任课账号也必须可见；不能把未关联误报为全部已填。
@@ -433,6 +494,7 @@ def change_report_month(
     report = db.get(MonthlyReport, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="月度评定不存在")
+    _require_unfrozen(db, report)
     # 与创建共用学生锁，再锁两个月的报告，避免与教师保存、重复移动互相覆盖。
     db.query(User).filter_by(id=report.student_id).with_for_update().first()
     report = db.query(MonthlyReport).filter_by(id=report_id).populate_existing().with_for_update().one()
@@ -498,6 +560,7 @@ def change_report_month(
 @router.put("/{report_id}", response_model=MonthlyReportOut)
 def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
+    _require_unfrozen(db, r)
     _require_manager(db, r.class_id, user)
     # 旧的失败/排队记录可由教师接手，保存后进入待发布状态。
     if r.status in (MONTHLY_STATUS_GENERATING, MONTHLY_STATUS_FAILED):
@@ -519,6 +582,7 @@ def update_report(report_id: int, body: MonthlyReportUpdateIn, db: Session = Dep
 @router.post("/{report_id}/publish", response_model=MonthlyReportOut)
 def publish_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
+    _require_unfrozen(db, r)
     if user.role != ROLE_ADMIN:
         _require_manager(db, r.class_id, user)
     if r.status != MONTHLY_STATUS_GENERATED:
@@ -546,6 +610,7 @@ def save_evaluation(
     row = db.query(MonthlyReport).filter_by(id=report_id).with_for_update().first()
     if row is None:
         raise HTTPException(status_code=404, detail="月度评定不存在")
+    _require_unfrozen(db, row)
     # 先校验可见性（任课老师仅所带班级），再校验评价身份。
     _report_access(db, report_id, user)
     role_subject = _evaluation_role(db, row, user)
@@ -572,6 +637,7 @@ def save_evaluation(
 @router.delete("/{report_id}")
 def delete_report(report_id: int, db: Session = Depends(get_db), user: User = Depends(_manager)):
     r = _report_access(db, report_id, user)
+    _require_unfrozen(db, r)
     if user.role != ROLE_ADMIN:
         _require_manager(db, r.class_id, user)
     db.delete(r)

@@ -33,6 +33,12 @@ def build_overview(db, user, query, exam_month, class_id, grade, subject, keywor
     global_access = supervision or user.role in (ROLE_ADMIN, ROLE_DEYU_DIRECTOR)
     head_ids = {cls.id for cls in classes.values() if cls.teacher_id == user.id}
     head_ids.update(row.class_id for row in db.query(ClassTeacher).filter_by(teacher_id=user.id, role="head_teacher").all())
+    history_keys = set()
+    if user.role == "teacher":
+        from app.models.class_transfer import ClassTransferItem
+        from app.services.class_transfer_service import current_head_student_ids
+        history_keys = {(r.source_class_id, r.student_id) for r in db.query(ClassTransferItem).filter(
+            ClassTransferItem.student_id.in_(current_head_student_ids(db, user)))}
 
     # 与入学评定、月度评定使用同一来源；同班学生的选科不能互相补齐。
     latest_cases = {}
@@ -49,6 +55,9 @@ def build_overview(db, user, query, exam_month, class_id, grade, subject, keywor
         if name and name != "德育":
             case_subjects[plan.student_case_id].add(name)
     expected = {key: case_subjects[case_id] for key, case_id in latest_cases.items()}
+    for record in records:
+        if record.study_subjects_snapshot is not None:
+            expected[(record.class_id, record.student_id)] = set(record.study_subjects_snapshot)
 
     rows = {}
     for record in records:
@@ -58,7 +67,7 @@ def build_overview(db, user, query, exam_month, class_id, grade, subject, keywor
             rows[key] = dict(class_id=cls.id, class_name=cls.name, grade=cls.grade,
                              student_id=record.student_id, student_name=students[record.student_id].name,
                              scores={}, total_score=None, total_max_score=None, complete=False,
-                             can_view_total=global_access or cls.id in head_ids,
+                             can_view_total=global_access or cls.id in head_ids or key in history_keys,
                              study_subjects=[], missing_subjects=[], class_rank=None, scope_rank=None)
         name = record.subject.strip()
         # 初评之外的历史录入保留在原记录中，不进入本人当前学习科目的成绩册。
@@ -112,7 +121,8 @@ def build_overview(db, user, query, exam_month, class_id, grade, subject, keywor
         return (value is None, -(value or 0), row["class_id"], row["student_id"])
 
     visible.sort(key=sort_key)
+    items = visible if limit is None else visible[offset:offset + limit]
     return dict(exam_month=month, months=months, grades=grades, subjects=subjects,
-                total=len(visible), items=visible[offset:offset + limit],
+                total=len(visible), items=items,
                 has_total_access=any(row["can_view_total"] for row in visible),
                 ranking_note="所学科目与本人入学评定一致；总分汇总本人已录入的初评科目成绩。本人初评科目成绩全部录入后，按同月、同年级、同科目及满分比较总分排名；同分并列。")

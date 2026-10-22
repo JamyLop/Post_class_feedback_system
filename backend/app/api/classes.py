@@ -218,6 +218,17 @@ def delete_class(
     blockers = []
     if db.query(StudentCase.id).filter_by(class_id=class_id).first():
         blockers.append("学生档案")
+    from app.models.class_transfer import ClassTransferItem
+    from app.models.monthly_report import MonthlyReport
+    from app.models.weekly_score import WeeklyTestScore
+    from app.models.case_points import StudentPointsReport
+    from sqlalchemy import or_
+    if db.query(ClassTransferItem.id).filter(or_(ClassTransferItem.source_class_id == class_id, ClassTransferItem.target_class_id == class_id)).first():
+        blockers.append("调班记录")
+    if db.query(MonthlyReport.id).filter_by(class_id=class_id).first() or db.query(WeeklyTestScore.id).filter_by(class_id=class_id).first():
+        blockers.append("历史月评或成绩")
+    if db.query(StudentPointsReport.id).filter_by(class_id=class_id).first():
+        blockers.append("积分报表")
     if blockers:
         raise HTTPException(
             status_code=409,
@@ -237,6 +248,12 @@ def add_students(
 ):
     """向班级批量添加学生（跳过非法/重复的 id）。"""
     cls = _check_class_owner(db, class_id, user)
+    from app.services.class_transfer_service import assert_can_enroll
+    # 先整体校验再入班；禁止用“添加已有学生”绕过仅管理员/德育主任的调班权限。
+    students = db.query(User).filter(User.id.in_(body.student_ids)).order_by(User.id).with_for_update().all()
+    for student in students:
+        if student.role == ROLE_STUDENT:
+            assert_can_enroll(db, student.id, cls)
     added = []
     for sid in body.student_ids:
         stu = db.get(User, sid)

@@ -1,6 +1,95 @@
 """月考按月份更新、跨月独立、汇总与角色权限回归。"""
-from app.models.class_ import Class, ClassStudent
+import pytest
+from tests.test_weekly_scores import evaluation_setup
+
+from app.models.class_ import Class, ClassStudent, ClassTeacher
 from app.models.weekly_score import WeeklyTestScore
+
+
+@pytest.mark.parametrize("account", ["subject1", "teacher2"])
+def test_subject_entry_scoped_by_class_and_subject(client, auth, db, evaluation_setup, seed_users, account):
+    own, english, other = evaluation_setup
+    if account == "teacher2":
+        # 旧班主任账号在其他班兼课，同样按班级和科目授予录入权。
+        db.add(ClassTeacher(class_id=own["class_id"], teacher_id=seed_users[account],
+                            role="subject_teacher", subject="数学"))
+        db.commit()
+    headers = auth(account)
+    api = "/api/monthly-exam-scores"
+    base = dict(class_id=own["class_id"], student_id=own["student_id"], subject="数学",
+                exam_month="2026-10", exam_date="2026-10-20", score=88, max_score=100)
+    scopes = client.get(api + "/entry-options", headers=headers)
+    assert scopes.status_code == 200
+    scope = next(s for s in scopes.json() if s["class_id"] == own["class_id"])
+    assert scope == {"class_id": own["class_id"], "all_subjects": False, "subjects": ["数学"]}
+    created = client.post(api, headers=headers, json=base)
+    assert created.status_code == 200, created.text
+    row = created.json()
+    assert row["can_edit"] is True and row["can_delete"] is False
+    overwritten = client.post(api, headers=headers, json={**base, "score": 89})
+    assert overwritten.status_code == 200 and overwritten.json()["id"] == row["id"]
+    assert overwritten.json()["score"] == 89
+    batch_base = {k: v for k, v in base.items() if k not in ("student_id", "score")}
+    batch = client.post(api + "/batch", headers=headers, json={
+        **batch_base, "records": [{"student_id": own["student_id"], "score": 90}],
+    })
+    assert batch.status_code == 200 and batch.json()[0]["id"] == row["id"]
+    updated = client.put(f"{api}/{row['id']}", headers=headers, json={"score": 91})
+    assert updated.status_code == 200 and updated.json()["score"] == 91
+    # 同班其他科目、改成其他科目、将其他科目改成自己的科目，均必须拦截。
+    assert client.post(api, headers=headers, json={**base, "subject": "英语"}).status_code == 403
+    assert client.post(api + "/batch", headers=headers, json={
+        **batch_base, "subject": "英语", "records": [{"student_id": own["student_id"], "score": 95}],
+    }).status_code == 403
+    for score_id, payload in [(row["id"], {"subject": "英语"}), (english["id"], {"subject": "数学"})]:
+        assert client.put(f"{api}/{score_id}", headers=headers, json=payload).status_code == 403
+    assert client.delete(f"{api}/{row['id']}", headers=headers).status_code == 403
+    if account == "subject1":
+        for method, url, payload in [
+            ("post", api, {**base, "class_id": other["class_id"], "student_id": other["student_id"]}),
+            ("post", api + "/batch", {**batch_base, "class_id": other["class_id"], "records": [{"student_id": other["student_id"], "score": 95}]}),
+            ("put", f"{api}/{other['id']}", {"score": 95}),
+        ]:
+            response = getattr(client, method)(url, headers=headers, json=payload)
+            assert response.status_code == 403, response.text
+    assert client.post(api + "/batch", headers=headers, json={
+        **batch_base, "records": [{"student_id": own["student_id"], "score": 99},
+                                  {"student_id": other["student_id"], "score": 99}],
+    }).status_code == 409
+    db.expire_all()
+    assert db.get(WeeklyTestScore, row["id"]).score == 91
+
+
+def test_entry_revocation_supervision_and_readonly_roles(client, auth, db, evaluation_setup, seed_users):
+    from app.models.user import User
+
+    own, _, other = evaluation_setup
+    headers = auth("subject1")
+    teacher = db.query(User).filter_by(username="subject1").one()
+    teacher.supervisor_stage = "高中"
+    teacher.subject = "数学"
+    db.query(ClassTeacher).filter_by(teacher_id=teacher.id).delete()
+    db.commit()
+    api = "/api/monthly-exam-scores"
+    base = dict(class_id=own["class_id"], student_id=own["student_id"], subject="数学",
+                exam_month="2026-10", exam_date="2026-10-20", score=88, max_score=100)
+    assert client.get(api + "/entry-options", headers=headers).json() == []
+    assert client.post(api, headers=headers, json=base).status_code == 403
+    assert client.put(f"{api}/{own['id']}", headers=headers, json={"score": 99}).status_code == 403
+    assert client.get(api + "/overview", headers=headers, params={"scope": "supervision"}).status_code == 200
+    for account in ("student1", "parent1", "deyu1"):
+        viewer = auth(account)
+        assert client.get(api + "/entry-options", headers=viewer).status_code == 403
+        assert client.post(api, headers=viewer, json=base).status_code == 403
+        assert client.post(api + "/batch", headers=viewer, json={
+            **base, "records": [{"student_id": own["student_id"], "score": 95}],
+        }).status_code == 403
+        assert client.put(f"{api}/{own['id']}", headers=viewer, json={"score": 99}).status_code == 403
+    admin_scopes = client.get(api + "/entry-options", headers=auth("admin")).json()
+    assert {s["class_id"] for s in admin_scopes} == {own["class_id"], other["class_id"]}
+    assert all(s["all_subjects"] for s in admin_scopes)
+    head_scopes = client.get(api + "/entry-options", headers=auth("teacher1")).json()
+    assert head_scopes == [{"class_id": own["class_id"], "all_subjects": True, "subjects": []}]
 
 
 def test_monthly_upsert_summary_trend_and_scope(client, auth, db, seed_users):

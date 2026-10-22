@@ -13,6 +13,10 @@ def validate_review(value: str) -> str:
         match = re.fullmatch(r"【总结】\n([\s\S]*?)\n\n【问题】\n([\s\S]*?)\n\n【计划】\n([\s\S]*)", value)
         if not match or not all(part.strip() for part in match.groups()):
             raise ValueError("请完整填写总结、问题、计划")
+        # 三栏分别校验；最低字数不包含空白，也不计入结构标题。
+        for label, part in zip(("总结", "问题"), match.groups()[:2]):
+            if len(re.sub(r"\s", "", part)) < 50:
+                raise ValueError(f"{label}至少填写50字（不含空白）")
     return value
 
 

@@ -2,6 +2,9 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
+from app.models.class_transfer import ClassTransferItem
+from app.services.class_transfer_service import current_head_student_ids
 
 from app.auth.deps import require_roles
 from app.core.database import get_db
@@ -35,8 +38,14 @@ def _scope_filter(query, db: Session, user: User):
         allowed = _teacher_class_ids(db, user)
         if not allowed:
             return query.filter(StudentPointsReport.id == -1)
-        return query.filter(StudentPointsReport.class_id.in_(allowed))
+        return query.filter(or_(StudentPointsReport.class_id.in_(allowed), _history_scope(db, user)))
     return query.filter(StudentPointsReport.id == -1)
+
+
+def _history_scope(db, user):
+    return and_(StudentPointsReport.student_id.in_(current_head_student_ids(db, user)),
+        db.query(ClassTransferItem.id).filter(ClassTransferItem.student_id == StudentPointsReport.student_id,
+            ClassTransferItem.source_class_id == StudentPointsReport.class_id).exists())
 
 
 @router.get("", response_model=list[PointsReportOut])
@@ -52,7 +61,12 @@ def list_reports(
     q = db.query(StudentPointsReport)
     q = _scope_filter(q, db, user)
     if class_id is not None:
-        q = q.filter(StudentPointsReport.class_id == class_id)
+        if user.role == ROLE_TEACHER and class_id in _teacher_class_ids(db, user):
+            members = db.query(ClassStudent.student_id).filter_by(class_id=class_id).scalar_subquery()
+            q = q.filter(or_(StudentPointsReport.class_id == class_id,
+                and_(StudentPointsReport.student_id.in_(members), _history_scope(db, user))))
+        else:
+            q = q.filter(StudentPointsReport.class_id == class_id)
     if period_type:
         if period_type not in {"weekly", "monthly"}:
             raise HTTPException(status_code=400, detail="period_type 仅支持 weekly/monthly")

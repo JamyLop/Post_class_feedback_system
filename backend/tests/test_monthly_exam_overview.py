@@ -212,3 +212,32 @@ def test_aggregate_does_not_truncate_at_score_list_limit(client, auth, db, seed_
     data = response.json()
     assert data["total"] == 205 and len(data["items"]) == 5
     assert [row["class_rank"] for row in data["items"]] == [201, 202, 203, 204, 205]
+
+
+def test_export_overview_workbook_uses_same_scope_and_no_page_limit(client, auth, exam_roster):
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    response = client.get(API + "/overview/export", headers=auth("admin"))
+    assert response.status_code == 200, response.text
+    assert "spreadsheetml" in response.headers["content-type"]
+    assert "filename*=UTF-8''" in response.headers["content-disposition"]
+    ws = load_workbook(BytesIO(response.content)).active
+    headers = [cell.value for cell in ws[2]]
+    assert headers[:3] == ["学生姓名", "班级", "年级"]
+    assert {"总分", "总分班内排名", "数学得分", "数学班内排名", "英语范围排名"} <= set(headers)
+    rows = list(ws.iter_rows(min_row=3, values_only=True))
+    assert len(rows) == 8
+    math_index = headers.index("数学得分")
+    rank_index = headers.index("数学班内排名")
+    assert sorted(row[math_index] for row in rows) == [0, 60, 90, 90, 90, 95, 100, 100]
+    assert any(row[rank_index] == 1 for row in rows)
+
+    subject_ws = load_workbook(BytesIO(client.get(API + "/overview/export", headers=auth("exam_subject")).content)).active
+    subject_headers = [cell.value for cell in subject_ws[2]]
+    assert "总分" not in subject_headers and "数学得分" in subject_headers and "英语得分" in subject_headers
+
+    assert client.get(API + "/overview/export", headers=auth("student1")).status_code == 403
+    assert client.get(API + "/overview/export", headers=auth("admin"),
+                      params={"exam_month": "2026-08"}).status_code == 404

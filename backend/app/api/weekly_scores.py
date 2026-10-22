@@ -1,9 +1,11 @@
 """月考成绩 API：单条录入、批量录入、查询、修改、删除与趋势。"""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -18,6 +20,7 @@ from app.models.weekly_score import WeeklyTestScore, WeeklyScoreEvaluation
 from app.schemas.weekly_score import (
     ClassWeeklySummary,
     MonthlyExamOverview,
+    MonthlyExamEntryScope,
     WeeklyScoreEvaluationSave,
     WeeklyTestScoreBatchCreate,
     WeeklyTestScoreCreate,
@@ -36,6 +39,8 @@ def _enrich(row: WeeklyTestScore, db: Session, user: User) -> dict:
     data["student_name"] = stu.name if stu else None
     data["class_name"] = cls.name if cls else None
     data["can_evaluate"] = _evaluation_role(db, row, user) is not None
+    data["can_edit"] = _can_write_score(db, row.class_id, row.subject, user)
+    data["can_delete"] = _can_manage_class(db, row.class_id, user)
     return data
 
 
@@ -64,9 +69,20 @@ def _can_manage_class(db: Session, class_id: int, user: User) -> bool:
     return db.query(ClassTeacher).filter_by(class_id=class_id, teacher_id=user.id, role="head_teacher").first() is not None
 
 
-def _check_can_write(db: Session, class_id: int, user: User):
-    if not _can_manage_class(db, class_id, user):
-        raise HTTPException(status_code=403, detail="无权录入该班级月考成绩")
+def _can_write_score(db: Session, class_id: int, subject: str, user: User) -> bool:
+    if _can_manage_class(db, class_id, user):
+        return True
+    if user.role not in (ROLE_TEACHER, ROLE_SUBJECT_TEACHER):
+        return False
+    # 注册科目及主管身份不授予录入权，必须匹配实际班级任课关系。
+    return db.query(ClassTeacher).filter_by(
+        class_id=class_id, teacher_id=user.id, role="subject_teacher", subject=subject,
+    ).first() is not None
+
+
+def _check_can_write(db: Session, class_id: int, subject: str, user: User):
+    if not _can_write_score(db, class_id, subject, user):
+        raise HTTPException(status_code=403, detail="无权录入该班级该科目的月考成绩")
 
 
 def _verify_membership(db: Session, student_id: int, class_id: int):
@@ -93,6 +109,13 @@ def _filter_scope(query, db: Session, user: User):
         head_ids += [r.class_id for r in relations if r.role == "head_teacher"]
         if head_ids:
             scopes.append(WeeklyTestScore.class_id.in_(head_ids))
+        if user.role == ROLE_TEACHER:
+            from app.models.class_transfer import ClassTransferItem
+            from app.services.class_transfer_service import current_head_student_ids
+            scopes.append(and_(WeeklyTestScore.student_id.in_(current_head_student_ids(db, user)),
+                db.query(ClassTransferItem.id).filter(
+                    ClassTransferItem.student_id == WeeklyTestScore.student_id,
+                    ClassTransferItem.source_class_id == WeeklyTestScore.class_id).exists()))
         return query.filter(or_(*scopes)) if scopes else query.filter(WeeklyTestScore.id == -1)
     if user.role == ROLE_STUDENT:
         return query.filter(WeeklyTestScore.student_id == user.id)
@@ -135,6 +158,28 @@ def list_scores(
     return [_enrich(r, db, user) for r in rows]
 
 
+@router.get("/entry-options", response_model=list[MonthlyExamEntryScope])
+def entry_options(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
+):
+    relations = db.query(ClassTeacher).filter_by(teacher_id=user.id).all()
+    if user.role == ROLE_ADMIN:
+        classes = db.query(Class).all()
+    else:
+        classes = db.query(Class).filter(or_(
+            Class.teacher_id == user.id, Class.id.in_([r.class_id for r in relations]),
+        )).all()
+    result = []
+    for cls in classes:
+        all_subjects = _can_manage_class(db, cls.id, user)
+        subjects = sorted({r.subject for r in relations
+                           if r.class_id == cls.id and r.role == "subject_teacher" and r.subject})
+        if all_subjects or subjects:
+            result.append(MonthlyExamEntryScope(class_id=cls.id, all_subjects=all_subjects, subjects=subjects))
+    return result
+
+
 @router.get("/overview", response_model=MonthlyExamOverview)
 def overview(
     scope: Literal["teaching", "supervision"] = Query(default="teaching"),
@@ -157,6 +202,36 @@ def overview(
         query = db.query(WeeklyTestScore).filter(WeeklyTestScore.class_id.in_(supervised_class_ids(db, user)))
     return build_overview(db, user, query, exam_month, class_id, grade, subject, keyword, limit, offset,
                           supervision=scope == "supervision")
+
+
+@router.get("/overview/export")
+def export_overview(
+    scope: Literal["teaching", "supervision"] = Query(default="teaching"),
+    exam_month: str | None = Query(default=None, pattern=r"^[0-9]{4}-(?:0[1-9]|1[0-2])$"),
+    class_id: int | None = Query(default=None),
+    grade: str | None = Query(default=None),
+    subject: str | None = Query(default=None),
+    keyword: str = Query(default="", max_length=64),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_DEYU_DIRECTOR, ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
+):
+    from app.services.monthly_exam_export import build_overview_workbook
+    from app.services.monthly_exam_overview import build_overview
+
+    query = _filter_scope(db.query(WeeklyTestScore), db, user)
+    if scope == "supervision":
+        query = db.query(WeeklyTestScore).filter(WeeklyTestScore.class_id.in_(supervised_class_ids(db, user)))
+    data = build_overview(db, user, query, exam_month, class_id, grade, subject, keyword, None, 0,
+                          supervision=scope == "supervision")
+    if not data["exam_month"] or not data["total"]:
+        raise HTTPException(status_code=404, detail="当前筛选下暂无可导出的月考成绩")
+    content = build_overview_workbook(data)
+    filename = f"{data['exam_month']}月考成绩册_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}; filename=\"monthly-exam-scores.xlsx\""},
+    )
 
 
 @router.get("/trend", response_model=list[WeeklyTestTrendPoint])
@@ -227,9 +302,9 @@ def class_summary(
 def create_score(
     body: WeeklyTestScoreCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_TEACHER])),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
 ):
-    _check_can_write(db, body.class_id, user)
+    _check_can_write(db, body.class_id, body.subject, user)
     _verify_membership(db, body.student_id, body.class_id)
     if body.score > body.max_score:
         raise HTTPException(status_code=400, detail="得分不能超过满分")
@@ -258,9 +333,9 @@ def create_score(
 def batch_upsert(
     body: WeeklyTestScoreBatchCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_TEACHER])),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
 ):
-    _check_can_write(db, body.class_id, user)
+    _check_can_write(db, body.class_id, body.subject, user)
     if not body.records:
         raise HTTPException(status_code=400, detail="批量记录不能为空")
     results: list[WeeklyTestScore] = []
@@ -314,13 +389,16 @@ def update_score(
     score_id: int,
     body: WeeklyTestScoreUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_TEACHER])),
+    user: User = Depends(require_roles([ROLE_ADMIN, ROLE_TEACHER, ROLE_SUBJECT_TEACHER])),
 ):
     row = db.get(WeeklyTestScore, score_id)
     if row is None:
         raise HTTPException(status_code=404, detail="成绩记录不存在")
-    _check_can_write(db, row.class_id, user)
+    _check_can_write(db, row.class_id, row.subject, user)
     changes = body.model_dump(exclude_none=True)
+    # 修改科目必须同时拥有原科目及目标科目权限，避免借改科目越权。
+    if "subject" in changes:
+        _check_can_write(db, row.class_id, changes["subject"], user)
     if "exam_date" in changes and "exam_month" not in changes:
         changes["exam_month"] = changes["exam_date"].strftime("%Y-%m")
     if "score" in changes or "max_score" in changes:
@@ -375,7 +453,8 @@ def delete_score(
     row = db.get(WeeklyTestScore, score_id)
     if row is None:
         raise HTTPException(status_code=404, detail="成绩记录不存在")
-    _check_can_write(db, row.class_id, user)
+    if not _can_manage_class(db, row.class_id, user):
+        raise HTTPException(status_code=403, detail="仅管理员和本班班主任可删除月考成绩")
     db.delete(row)
     db.commit()
     return {"ok": True}

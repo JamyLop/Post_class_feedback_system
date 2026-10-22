@@ -58,7 +58,7 @@
 
 <script setup>
 import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
-import { completeReview } from '../../utils/monthlyReview'
+import { completeReview, reviewError } from '../../utils/monthlyReview'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import { ref, computed, onMounted } from 'vue'
@@ -94,6 +94,11 @@ onLoad((options) => {
     uni.reLaunch({ url: '/pages/index/index' })
     return
   }
+  // 兼容旧入口，管理员统一从科目列表逐层查阅；教师仍使用原填写页。
+  if (auth.role === 'admin') {
+    uni.redirectTo({ url: `/subTeacher/monthlyReports/subjects?id=${Number(options.id)}${readOnly.value ? '&readonly=1' : ''}` })
+    return
+  }
   loadReport(Number(options.id))
 })
 
@@ -121,7 +126,7 @@ function cancelEdit() {
 
 async function saveEdit() {
   if (!completeReview(editContent.value)) {
-    uni.showToast({ title: '请填写总结、问题、计划', icon: 'none' })
+    uni.showToast({ title: reviewError(editContent.value), icon: 'none' })
     return
   }
   saving.value = true

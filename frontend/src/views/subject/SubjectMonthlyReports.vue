@@ -63,7 +63,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import MonthlyReportEvaluations from '../../components/MonthlyReportEvaluations.vue'
 import MonthlyReviewForm from '../../components/MonthlyReviewForm.vue'
-import { completeReview } from '../../utils/monthlyReview'
+import { completeReview, reviewError } from '../../utils/monthlyReview'
 import { ElMessage } from 'element-plus'
 import { listClasses, listStudents } from '../../api/classes'
 import { createMonthlyReport, listMonthlyReports, saveMonthlyEvaluation } from '../../api/monthlyReports'
@@ -91,7 +91,7 @@ async function openCreate() {
 async function submitCreate() {
   if (saving.value) return
   if (!form.value.student_id || !form.value.month_label || !completeReview(form.value.final_content)) {
-    ElMessage.warning('请选择学生、月份并填写总结、问题、计划')
+    ElMessage.warning(!form.value.student_id || !form.value.month_label ? '请选择学生、月份' : reviewError(form.value.final_content))
     return
   }
   saving.value = true
