@@ -1,12 +1,13 @@
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 
 EducationStage = Literal["初中", "高中"]
 ClassType = Literal["短期班", "全年班", "集训班", "1V1"]
 ShortTermType = Literal["暑假班", "寒假班"]
+ClassName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
 
 
 def validate_class_category(
@@ -31,7 +32,7 @@ def validate_class_category(
 
 
 class ClassCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=64)
+    name: ClassName
     education_stage: EducationStage
     grade: str = Field(min_length=1, max_length=32)
     class_type: ClassType
@@ -70,7 +71,7 @@ class ClassCreate(BaseModel):
 
 
 class ClassUpdate(BaseModel):
-    name: str | None = None
+    name: ClassName | None = None
     education_stage: EducationStage | None = None
     grade: str | None = None
     class_type: ClassType | None = None

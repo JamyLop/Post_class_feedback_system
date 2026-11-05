@@ -28,7 +28,17 @@
           <text v-if="cls.teacher_name" class="class-teacher">班主任：{{ cls.teacher_name }}</text>
         </view>
         <view class="class-actions">
+          <button v-if="canManageClass" class="action-btn" :disabled="renaming" @click="startRename(cls)">修改名称</button>
           <text class="action-btn" @click="goStudents(cls.id, cls.name)">学生 ›</text>
+        </view>
+        <view v-if="editingClassId === cls.id" class="rename-form" @click.stop>
+          <text class="rename-label">班级名称</text>
+          <input v-model="renameName" class="rename-input" aria-label="班级名称" :maxlength="64" :disabled="renaming" :focus="true" placeholder="请输入班级名称" confirm-type="done" @confirm="saveRename(cls)" />
+          <text class="rename-help">最多64个字符</text>
+          <view class="rename-actions">
+            <button class="btn-outline" :disabled="renaming" @click="cancelRename">取消</button>
+            <button class="btn-primary" :loading="renaming" :disabled="renaming" @click="saveRename(cls)">保存名称</button>
+          </view>
         </view>
       </view>
     </view>
@@ -37,16 +47,56 @@
 
 <script setup>
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
-import { ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
-import { listClasses } from '../api/classes'
+import { listClasses, updateClass } from '../api/classes'
 import EmptyState from '../../components/EmptyState.vue'
 import { CLASS_MANAGEMENT_ROLES } from '../utils/constants'
 
 const auth = useAuthStore()
 const loading = ref(false)
 const classList = ref([])
+const canManageClass = computed(() => ['admin', 'deyu_director'].includes(auth.role))
+const editingClassId = ref(null)
+const renameName = ref('')
+const renaming = ref(false)
+
+function startRename(cls) {
+  if (!canManageClass.value || renaming.value) return
+  editingClassId.value = cls.id
+  renameName.value = cls.name
+}
+
+function cancelRename() {
+  if (renaming.value) return
+  editingClassId.value = null
+  renameName.value = ''
+}
+
+async function saveRename(cls) {
+  if (!canManageClass.value || renaming.value || editingClassId.value !== cls.id) return
+  const name = renameName.value.trim()
+  if (!name || Array.from(name).length > 64) {
+    uni.showToast({ title: '班级名称须为1至64个字符', icon: 'none' })
+    return
+  }
+  if (name === cls.name) { cancelRename(); return }
+  renaming.value = true
+  try {
+    // 仅提交名称，避免覆盖班主任、学年或班级分类。
+    const updated = await updateClass(cls.id, { name })
+    const current = classList.value.find(item => item.id === cls.id)
+    if (current) current.name = updated.name
+    editingClassId.value = null
+    renameName.value = ''
+    uni.showToast({ title: '班级名称已更新', icon: 'success' })
+  } catch (_) {
+    // 请求层已提示错误，保留输入便于重试。
+  } finally {
+    renaming.value = false
+  }
+}
 
 function guardRole() {
   if (!auth.isLoggedIn) { uni.reLaunch({ url: '/pages/login/index' }); return false }
@@ -101,11 +151,11 @@ onShow(() => { if (guardRole()) loadData() })
 
 .class-card {
   background: #fff; border-radius: 12rpx; padding: 24rpx;
-  border: 1rpx solid var(--mp-line); display: flex; align-items: center; justify-content: space-between;
+  border: 1rpx solid var(--mp-line); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
 }
 .class-card.has-border { margin-top: 16rpx; }
-.class-info { flex: 1; }
-.class-head { display: flex; align-items: center; gap: 12rpx; }
+.class-info { flex: 1; min-width: 0; }
+.class-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12rpx; overflow-wrap: anywhere; }
 .class-name { font-size: 30rpx; font-weight: 600; color: var(--mp-ink); }
 .class-type {
   font-size: 24rpx; color: var(--mp-primary); background: var(--mp-soft);
@@ -113,9 +163,18 @@ onShow(() => { if (guardRole()) loadData() })
 }
 .class-meta { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 .class-teacher { font-size: 24rpx; color: var(--mp-body); display: block; margin-top: 4rpx; }
-.class-actions { margin-left: 16rpx; }
+.class-actions { margin-left: 16rpx; display: flex; flex-direction: column; align-items: stretch; gap: 12rpx; }
 .action-btn {
   font-size: 24rpx; color: var(--mp-primary); font-weight: 500;
   padding: 10rpx 16rpx; background: var(--mp-soft); border-radius: 8rpx;
+  margin: 0; border: none; line-height: 1.5; text-align: center;
 }
+.action-btn::after { border: none; }
+.rename-form { width: 100%; margin-top: 24rpx; padding-top: 24rpx; border-top: 1rpx solid var(--mp-line); }
+.rename-label { display: block; font-size: 26rpx; font-weight: 600; color: var(--mp-ink); margin-bottom: 12rpx; }
+.rename-input { box-sizing: border-box; width: 100%; height: 80rpx; padding: 0 20rpx; border: 1rpx solid var(--mp-line); border-radius: 8rpx; font-size: 28rpx; color: var(--mp-ink); }
+.rename-input:focus { border-color: var(--mp-primary); }
+.rename-help { display: block; margin-top: 8rpx; font-size: 24rpx; color: var(--mp-body); }
+.rename-actions { display: flex; gap: 16rpx; margin-top: 20rpx; }
+.rename-actions .btn-primary, .rename-actions .btn-outline { flex: 1; margin: 0; }
 </style>

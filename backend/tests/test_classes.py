@@ -2,6 +2,8 @@
 
 from datetime import date
 
+import pytest
+
 
 def _create_payload(seed_teacher_id, extra=None):
     payload = {
@@ -140,3 +142,42 @@ def test_class_category_rules(client, auth, seed_users):
         json={"grade": "高一"},
     )
     assert invalid_grade.status_code == 422
+
+
+@pytest.mark.parametrize("manager", ["deyu1", "admin"])
+def test_rename_only_preserves_class_and_roster(client, auth, seed_users, manager):
+    created = client.post("/api/classes", headers=auth("deyu1"), json=_create_payload(seed_users["teacher1"]))
+    original = created.json()
+    class_id = original["id"]
+    enrolled = client.post(
+        f"/api/classes/{class_id}/students", headers=auth("deyu1"),
+        json={"student_ids": [seed_users["student1"]]},
+    )
+    assert enrolled.status_code == 200, enrolled.text
+    renamed = client.put(
+        f"/api/classes/{class_id}", headers=auth(manager), json={"name": "  高三实验1班  "},
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json() == {**original, "name": "高三实验1班"}
+    visible = client.get(f"/api/classes/{class_id}", headers=auth("teacher1"))
+    assert visible.json()["name"] == "高三实验1班"
+    roster = client.get(f"/api/classes/{class_id}/students", headers=auth("deyu1"))
+    assert [student["id"] for student in roster.json()] == [seed_users["student1"]]
+
+
+@pytest.mark.parametrize("username", ["teacher1", "teacher2", "student1", "parent1"])
+def test_rename_denies_non_managers(client, auth, seed_users, username):
+    created = client.post("/api/classes", headers=auth("deyu1"), json=_create_payload(seed_users["teacher1"]))
+    class_id = created.json()["id"]
+    denied = client.put(f"/api/classes/{class_id}", headers=auth(username), json={"name": "无权更名"})
+    assert denied.status_code == 403, denied.text
+    assert client.get(f"/api/classes/{class_id}", headers=auth("deyu1")).json()["name"] == "高三测试班"
+
+
+@pytest.mark.parametrize("name", ["", " \t\n ", "班" * 65])
+def test_rename_rejects_invalid_name(client, auth, seed_users, name):
+    created = client.post("/api/classes", headers=auth("deyu1"), json=_create_payload(seed_users["teacher1"]))
+    class_id = created.json()["id"]
+    rejected = client.put(f"/api/classes/{class_id}", headers=auth("deyu1"), json={"name": name})
+    assert rejected.status_code == 422, rejected.text
+    assert client.get(f"/api/classes/{class_id}", headers=auth("deyu1")).json()["name"] == "高三测试班"
