@@ -127,7 +127,9 @@ def test_atomic_handover_and_replay(client, auth, db, seed_users, transfer_roste
     assert db.get(WeeklyTestScore, r["score"]).study_subjects_snapshot == ["数学"]
     assert db.query(CaseAuditLog).filter_by(action="case.class_transferred").count() == 2
     after = client.get("/api/monthly-reports/writing-status?month_label=2026-09&class_id=" + str(r["source"]), headers=auth("admin")).json()
-    assert (before["total"], before["written"], before["unwritten"]) == (after["total"], after["written"], after["unwritten"])
+    assert before["total"] > 0 and after["total"] == 0
+    new_history = client.get("/api/monthly-reports/writing-status?month_label=2026-09&class_id=" + str(r["target"]), headers=auth("teacher2")).json()
+    assert new_history["total"] == before["total"] and new_history["written"] == before["written"]
     current = client.get("/api/monthly-reports/writing-status?month_label=2026-10&class_id=" + str(r["target"]), headers=auth("teacher2")).json()
     assert current["total"] == 4 and current["written"] == 4, current
     old = auth("old_subject")
@@ -197,6 +199,65 @@ def test_published_history_read_only_for_both_heads(client, auth, transfer_roste
         assert client.put(f"/api/monthly-reports/{r['reports'][2]}", headers=headers, json={"final_content": "不能覆盖历史"}).status_code == 409
     repeat = client.post("/api/monthly-reports", headers=auth("teacher2"), json=dict(student_id=response.json()["items"][1]["student_id"], class_id=r["target"], month_label="2026-10", final_content="不要重复创建"))
     assert repeat.status_code == 409
+
+
+def test_previous_month_missing_work_follows_current_teacher(client, auth, db, seed_users, transfer_roster):
+    r = transfer_roster
+    response, _ = commit(client, auth("admin"), rows_for(r, "student1", "student2"))
+    assert response.status_code == 200, response.text
+    query = "/api/monthly-reports/writing-status?month_label=2026-09&class_id="
+    assert client.get(query + str(r["source"]), headers=auth("old_subject")).json()["total"] == 0
+    items = client.get(query + str(r["target"]), headers=auth("new_subject")).json()["items"]
+    by_student = {item["student_id"]: item for item in items}
+    assert by_student[seed_users["student1"]]["writing_status"] == "written"
+    assert not by_student[seed_users["student1"]]["can_edit"]
+    assert by_student[seed_users["student2"]]["can_edit"]
+    payload = dict(student_id=seed_users["student2"], class_id=r["target"], month_label="2026-09",
+                   evaluation_role="subject_teacher", final_content="新老师补填的数学评定")
+    assert client.post("/api/monthly-reports", headers=auth("old_subject"), json=payload).status_code == 403
+    created = client.post("/api/monthly-reports", headers=auth("new_subject"), json=payload)
+    assert created.status_code == 200, created.text
+    assert created.json()["evaluations"][0]["content"] == payload["final_content"]
+    assert client.post("/api/monthly-reports", headers=auth("new_subject"), json={**payload, "student_id":seed_users["student1"]}).status_code == 409
+    items = client.get(query + str(r["target"]), headers=auth("new_subject")).json()["items"]
+    assert all(item["writing_status"] == "written" for item in items)
+
+
+@pytest.mark.parametrize("old_status", ["generated", "published"])
+def test_previous_partial_report_preserves_existing_content(client, auth, db, seed_users, transfer_roster, old_status):
+    r = transfer_roster
+    old = MonthlyReport(student_id=seed_users["student2"], class_id=r["source"], student_case_id=r["cases"][1],
+        month_label="2026-09", period_start=date(2026, 9, 1), period_end=date(2026, 9, 30),
+        status=old_status, final_content="原班德育已填写", reviewed_by=seed_users["teacher1"])
+    db.add(old)
+    db.flush()
+    if old_status == "generated":
+        db.add(MonthlyReportEvaluation(report_id=old.id, teacher_id=r["old"], teacher_name="原学科老师",
+            teacher_role="subject_teacher", subject="英语", content="原班英语评定"))
+    db.commit()
+    old_id = old.id
+    response, _ = commit(client, auth("admin"), rows_for(r, "student2"))
+    assert response.status_code == 200, response.text
+    payload = dict(student_id=seed_users["student2"], class_id=r["target"], month_label="2026-09",
+                   evaluation_role="subject_teacher", final_content="新班补填数学")
+    created = client.post("/api/monthly-reports", headers=auth("new_subject"), json=payload)
+    assert created.status_code == 200, created.text
+    assert client.put(f"/api/monthly-reports/{created.json()['id']}", headers=auth("teacher2"), json={"final_content":"不能覆盖原德育"}).status_code == 409
+    published = client.post(f"/api/monthly-reports/{created.json()['id']}/publish", headers=auth("teacher2"))
+    assert published.status_code == 200, published.text
+    visible = client.get("/api/monthly-reports?student_id=" + str(seed_users["student2"]) + "&month_label=2026-09", headers=auth("student2")).json()
+    expected = {created.json()["id"]} | ({old_id} if old_status == "published" else set())
+    assert {item["id"] for item in visible} == expected
+    if old_status == "generated":
+        assert published.json()["final_content"] == "原班德育已填写"
+        assert published.json()["input_snapshot"]["transfer_published_source_report_ids"] == [old_id]
+        english = [e for e in visible[0]["evaluations"] if e["subject"] == "英语"]
+        assert len(english) == 1 and english[0]["teacher_name"] == "原学科老师" and english[0]["content"] == "原班英语评定"
+        head = [e for e in visible[0]["evaluations"] if e["teacher_role"] == "head_teacher"]
+        assert len(head) == 1 and head[0]["teacher_id"] == seed_users["teacher1"]
+    db.expire_all()
+    assert db.get(MonthlyReport, old_id).final_content == "原班德育已填写"
+    assert db.get(MonthlyReport, old_id).status == old_status
 
 
 def test_cross_grade_and_missing_teacher_blocked(client, auth, db, transfer_roster):
