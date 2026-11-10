@@ -35,6 +35,27 @@ export function monthlySubjects(reports = [], { publishedOnly = true, includeEmp
   return [...subjects.values()]
 }
 
+// 管理员按应评科目查看进度，同时保留历史报告中仍有内容的科目。
+export function adminMonthlySubjects(report, items = []) {
+  const saved = monthlySubjects(report ? [report] : [], { publishedOnly: false, includeEmpty: true })
+  const subjects = items.map(item => ({
+    subject: item.subject,
+    teacher: item.teacher_name || (item.teacher_role === 'head_teacher' ? '班主任' : '待确认任课老师'),
+    assignmentRequired: !!item.assignment_required,
+    written: item.writing_status === 'written',
+    reportId: item.report_id,
+  }))
+  const included = new Set(subjects.map(item => item.subject))
+  for (const item of saved) {
+    if (included.has(item.subject)) continue
+    const written = item.entries.some(entry => entry.content?.trim())
+    if (!written && items.length) continue
+    subjects.push({ subject: item.subject, teacher: [...new Set(item.entries.map(entry => entry.teacher))].join('、'), written, reportId: report.id })
+    included.add(item.subject)
+  }
+  return subjects
+}
+
 export function monthlyGroups(reports = []) {
   const months = new Map()
   for (const report of reports) {

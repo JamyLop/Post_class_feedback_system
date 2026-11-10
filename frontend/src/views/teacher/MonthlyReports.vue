@@ -38,7 +38,7 @@
         <el-table-column prop="class_name" label="班级" min-width="140" />
         <el-table-column prop="period_start" label="周期" min-width="180"><template #default="{ row }">{{ row.period_start }} ~ {{ row.period_end }}</template></el-table-column>
         <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag></template></el-table-column>
-        <el-table-column label="学科评价" min-width="290">
+        <el-table-column v-if="auth.role !== 'admin'" label="学科评价" min-width="290">
           <template #default="{ row }"><MonthlyReportEvaluations :report="row" @saved="updated => Object.assign(row, updated)" /></template>
         </el-table-column>
         <el-table-column label="操作" width="260" fixed="right">
@@ -102,7 +102,7 @@ import { listUsers } from '../../api/classes'
 import { deleteMonthlyReport, createMonthlyReport, listMonthlyReports, publishMonthlyReport, updateMonthlyReport } from '../../api/monthlyReports'
 
 const auth = useAuthStore()
-const canQueryWriting = ['teacher', 'subject_teacher'].includes(auth.role)
+const canQueryWriting = ['admin', 'teacher', 'subject_teacher'].includes(auth.role)
 const activeTab = ref(canQueryWriting ? 'writing' : 'reports')
 
 const classes = ref([])

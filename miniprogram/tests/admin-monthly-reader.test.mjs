@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import { ref, computed } from 'vue'
-import { monthlySubjects } from '../src/utils/parentMonthlyReports.js'
+import { adminMonthlySubjects, monthlySubjects } from '../src/utils/parentMonthlyReports.js'
 
 const report = { id: 5, status: 'generated', final_content: '', evaluations: [
   { id: 2, teacher_role: 'subject_teacher', subject: '语文、历史', teacher_name: '演示老师', content: '原始评定内容' },
@@ -15,6 +15,19 @@ test('管理员可查待发布内容及未填写德育；家长仍只看到已�
   assert.equal(subjects[1].entries[0].content, '原始评定内容')
   assert.deepEqual(monthlySubjects([report]), [])
   assert.deepEqual(monthlySubjects([{ ...report, status: 'published' }]).map(item => item.subject), ['语文', '历史'])
+})
+
+test('管理员状态包含未填写与待关联科目，并保留已有历史科目', () => {
+  const rows = adminMonthlySubjects(report, [
+    { subject: '德育', teacher_role: 'head_teacher', teacher_name: '班主任', writing_status: 'unwritten', report_id: 5 },
+    { subject: '语文', teacher_role: 'subject_teacher', teacher_name: '语文老师', writing_status: 'written', report_id: 8 },
+    { subject: '数学', teacher_role: 'subject_teacher', teacher_name: '待确认', assignment_required: true, writing_status: 'unwritten', report_id: 5 },
+  ])
+  assert.deepEqual(rows.map(row => [row.subject, row.written]), [['德育', false], ['语文', true], ['数学', false], ['历史', true]])
+  assert.equal(rows[1].reportId, 8)
+  assert.equal(rows[2].assignmentRequired, true)
+  assert.equal(rows[3].reportId, 5)
+  assert.deepEqual(adminMonthlySubjects(report).map(row => row.subject), ['德育', '语文', '历史'])
 })
 
 function mount(role = 'admin', loggedIn = true) {

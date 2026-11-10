@@ -10,13 +10,16 @@
     </view>
     <LoadState :loading="loading" :error="error" @retry="load" />
     <template v-if="!loading && !error && report">
+      <text class="reader-meta">应评科目依据学生入学评定及任课老师关联生成；缺少科目时请检查相关信息。</text>
+      <text v-if="statusLoading" class="reader-meta">正在加载科目填写状态…</text>
+      <view v-else-if="statusError" class="reader-meta">{{ statusError }} <text @click="loadWritingStatus">点击重试</text></view>
       <view class="reader-list">
-        <button v-for="item in subjects" :key="item.subject" class="reader-row" hover-class="tap-active" @click="openSubject(item.subject)">
+        <button v-for="item in displaySubjects" :key="item.subject" class="reader-row" hover-class="tap-active" @click="openSubject(item)">
           <view class="reader-row-body">
-            <view class="reader-row-head"><text class="reader-subject">{{ item.subject }}</text><text class="reader-meta">{{ item.entries.some(entry => entry.content?.trim()) ? '已填写' : '未填写' }}</text></view>
-            <text class="reader-meta">{{ teachers(item) }}</text>
+            <view class="reader-row-head"><text class="reader-subject">{{ item.subject }}</text><text class="reader-meta">{{ item.written ? '已填写' : '未填写' }}</text></view>
+            <text class="reader-meta">{{ item.teacher }}{{ item.assignmentRequired ? ' · 待确认任课老师' : '' }}</text>
           </view>
-          <text class="reader-arrow" aria-hidden="true">›</text>
+          <text v-if="item.written && item.reportId" class="reader-arrow" aria-hidden="true">›</text>
         </button>
       </view>
       <text v-if="report.error_message" class="reader-meta">{{ report.error_message }}</text>
@@ -26,18 +29,48 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import WorkspaceLink from '../../components/WorkspaceLink.vue'
 import LoadState from '../../components/LoadState.vue'
-import { publishMonthlyReport } from '../../api/monthlyReports'
-import { formatMonth } from '../../utils/parentMonthlyReports'
+import { listMonthlyWritingStatus, publishMonthlyReport } from '../../api/monthlyReports'
+import { adminMonthlySubjects, formatMonth } from '../../utils/parentMonthlyReports'
 import { useAdminMonthlyReport } from './useAdminMonthlyReport'
 
-const { report, loading, error, reportId, readOnly, subjects, status, load } = useAdminMonthlyReport()
+const { report, loading, error, reportId, readOnly, status, load } = useAdminMonthlyReport()
 const publishing = ref(false)
-function teachers(item) { return [...new Set(item.entries.map(entry => entry.teacher))].join('、') }
-function openSubject(subject) {
-  uni.navigateTo({ url: `/subTeacher/monthlyReports/content?id=${reportId.value}&subject=${encodeURIComponent(subject)}${readOnly.value ? '&readonly=1' : ''}` })
+const statusItems = ref([])
+const statusLoading = ref(false)
+const statusError = ref('')
+const displaySubjects = computed(() => adminMonthlySubjects(report.value, statusItems.value))
+let statusRequest = 0
+async function loadWritingStatus() {
+  const current = report.value
+  const request = ++statusRequest
+  statusItems.value = []
+  statusError.value = ''
+  if (!current) { statusLoading.value = false; return }
+  statusLoading.value = true
+  try {
+    const items = []
+    let total = 0
+    do {
+      const data = await listMonthlyWritingStatus({ month_label: current.month_label, class_id: current.class_id, student_id: current.student_id, view: 'items', limit: 200, offset: items.length })
+      if (!Array.isArray(data.items) || typeof data.filtered_total !== 'number') throw new Error('invalid status')
+      total = data.filtered_total
+      if (!data.items.length && items.length < total) throw new Error('incomplete status')
+      items.push(...data.items)
+    } while (items.length < total)
+    if (request !== statusRequest) return
+    statusItems.value = items
+    if (!items.length) statusError.value = '未能获取该学生的完整科目状态，以下仅显示已有评定。'
+  } catch (_) {
+    if (request === statusRequest) statusError.value = '科目状态加载失败，以下仅显示已有评定。'
+  } finally { if (request === statusRequest) statusLoading.value = false }
+}
+watch(report, loadWritingStatus, { immediate: true })
+function openSubject(item) {
+  if (!item.written || !item.reportId) return
+  uni.navigateTo({ url: `/subTeacher/monthlyReports/content?id=${item.reportId}&subject=${encodeURIComponent(item.subject)}${readOnly.value ? '&readonly=1' : ''}` })
 }
 function publish() {
   if (publishing.value) return

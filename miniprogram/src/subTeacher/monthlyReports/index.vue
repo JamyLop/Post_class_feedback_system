@@ -23,6 +23,15 @@
           </view>
         </picker>
       </view>
+      <view v-if="auth.role === 'admin'" class="filter-item">
+        <text class="filter-label">月份</text>
+        <picker mode="date" fields="month" :value="selectedMonth" @change="onMonthChange">
+          <view class="picker-box">
+            <text class="picker-text">{{ selectedMonth || '选择月份' }}</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
       <view class="filter-item">
         <text class="filter-label">状态</text>
         <picker :range="statusOptions" :value="statusIndex" @change="onStatusChange">
@@ -90,6 +99,8 @@ const classList = ref([])
 const teachingClassList = ref([])
 const classIndex = ref(0)
 const statusIndex = ref(0)
+const now = new Date()
+const selectedMonth = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
 const statusOptions = ['全部', '待发布', '已发布', '待填写', '待补充']
 const statusValues = ['', 'generated', 'published', 'generating', 'failed']
 const reportList = ref([])
@@ -134,6 +145,7 @@ async function loadData() {
   try {
     const params = {}
     if (selectedClassId.value) params.class_id = selectedClassId.value
+    if (auth.role === 'admin' && selectedMonth.value) params.month_label = selectedMonth.value
     if (selectedStatus.value) params.status = selectedStatus.value
     const data = await listMonthlyReports(params)
     if (requestId === reportsRequestId) reportList.value = data
@@ -145,6 +157,7 @@ async function loadData() {
 }
 
 function onClassChange(e) { classIndex.value = e.detail.value; loadData() }
+function onMonthChange(e) { selectedMonth.value = e.detail.value; loadData() }
 function onStatusChange(e) { statusIndex.value = e.detail.value; loadData() }
 
 function applyEvaluation(updated) {
@@ -207,8 +220,8 @@ onShow(refreshPage)
 .h1 { font-size: 34rpx; font-weight: 700; color: var(--mp-ink); display: block; }
 .p { font-size: 24rpx; color: var(--mp-muted); display: block; margin-top: 6rpx; }
 
-.filter-bar { display: flex; gap: 16rpx; }
-.filter-item { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.filter-item { flex: 1; min-width: 180rpx; display: flex; flex-direction: column; gap: 6rpx; }
 .filter-label { font-size: 24rpx; font-weight: 500; color: #526177; }
 .picker-box {
   display: flex; align-items: center; justify-content: space-between;
